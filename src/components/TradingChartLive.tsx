@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { createChart, IChartApi, UTCTimestamp } from 'lightweight-charts';
+import { createChart, UTCTimestamp } from 'lightweight-charts';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CandleData } from '@/services/realMarketData';
@@ -22,7 +22,7 @@ export const TradingChartLive = ({
   priceChange 
 }: TradingChartLiveProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<IChartApi | null>(null);
+  const chartRef = useRef<any>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
   const [isChartReady, setIsChartReady] = useState(false);
@@ -35,86 +35,88 @@ export const TradingChartLive = ({
       width: chartContainerRef.current.clientWidth,
       height: 350,
       layout: {
-        background: { color: 'hsl(var(--chart-bg))' },
-        textColor: 'hsl(var(--foreground))',
+        background: { color: '#ffffff' },
+        textColor: '#333333',
       },
       grid: {
-        vertLines: { color: 'hsl(var(--chart-grid))' },
-        horzLines: { color: 'hsl(var(--chart-grid))' },
+        vertLines: { color: '#f0f0f0' },
+        horzLines: { color: '#f0f0f0' },
       },
       crosshair: {
         mode: 1,
-        vertLine: {
-          width: 1,
-          color: 'hsl(var(--muted-foreground))',
-          style: 2,
-        },
-        horzLine: {
-          width: 1,
-          color: 'hsl(var(--muted-foreground))',
-          style: 2,
-        },
       },
       rightPriceScale: {
-        borderColor: 'hsl(var(--border))',
+        borderColor: '#e0e0e0',
         scaleMargins: {
           top: 0.1,
           bottom: 0.3,
         },
       },
       timeScale: {
-        borderColor: 'hsl(var(--border))',
+        borderColor: '#e0e0e0',
         timeVisible: true,
         secondsVisible: false,
       },
     });
 
     try {
-      // Try candlestick series first, fallback to line series if not available
-      const candleSeries = (chart as any).addCandlestickSeries?.({
-        upColor: '#22c55e',
-        downColor: '#ef4444', 
-        borderUpColor: '#22c55e',
-        borderDownColor: '#ef4444',
-        wickUpColor: '#22c55e',
-        wickDownColor: '#ef4444',
-      }) || (chart as any).addLineSeries({
-        color: '#2563eb',
-        lineWidth: 2,
-      });
-
-      // Create volume series if available
-      const volumeSeries = (chart as any).addHistogramSeries?.({
-        color: 'hsl(var(--muted))',
-        priceFormat: {
-          type: 'volume',
-        },
-        priceScaleId: '',
-        scaleMargins: {
-          top: 0.8,
-          bottom: 0,
-        },
-      });
-
-      chartRef.current = chart;
-      candleSeriesRef.current = candleSeries;
-      volumeSeriesRef.current = volumeSeries;
-      setIsChartReady(true);
-    } catch (error) {
-      console.error('Error creating chart series:', error);
-      // Fallback to basic line series
-      const lineSeries = (chart as any).addLineSeries({
-        color: '#2563eb',
-        lineWidth: 2,
-      });
+      // Use type assertion to bypass TypeScript issues
+      const chartApi = chart as any;
       
-      candleSeriesRef.current = lineSeries;
-      setIsChartReady(true);
+      // Try to create candlestick series
+      let candleSeries = null;
+      let volumeSeries = null;
+      
+      if (typeof chartApi.addCandlestickSeries === 'function') {
+        candleSeries = chartApi.addCandlestickSeries({
+          upColor: '#22c55e',
+          downColor: '#ef4444', 
+          borderUpColor: '#22c55e',
+          borderDownColor: '#ef4444',
+          wickUpColor: '#22c55e',
+          wickDownColor: '#ef4444',
+        });
+      } else if (typeof chartApi.addLineSeries === 'function') {
+        // Fallback to line series
+        candleSeries = chartApi.addLineSeries({
+          color: '#2563eb',
+          lineWidth: 2,
+        });
+      }
+      
+      // Try to create volume series
+      if (typeof chartApi.addHistogramSeries === 'function') {
+        volumeSeries = chartApi.addHistogramSeries({
+          color: '#64748b',
+          priceFormat: {
+            type: 'volume',
+          },
+          priceScaleId: '',
+          scaleMargins: {
+            top: 0.8,
+            bottom: 0,
+          },
+        });
+      }
+
+      if (candleSeries) {
+        chartRef.current = chart;
+        candleSeriesRef.current = candleSeries;
+        volumeSeriesRef.current = volumeSeries;
+        setIsChartReady(true);
+      } else {
+        console.warn('Could not create chart series');
+        setIsChartReady(false);
+      }
+
+    } catch (error) {
+      console.error('Error creating chart:', error);
+      setIsChartReady(false);
     }
 
     // Handle resize
     const handleResize = () => {
-      if (chartContainerRef.current) {
+      if (chartContainerRef.current && chart) {
         chart.applyOptions({
           width: chartContainerRef.current.clientWidth,
         });
@@ -126,7 +128,11 @@ export const TradingChartLive = ({
     return () => {
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
-        chartRef.current.remove();
+        try {
+          chartRef.current.remove();
+        } catch (e) {
+          console.error('Error removing chart:', e);
+        }
         chartRef.current = null;
         candleSeriesRef.current = null;
         volumeSeriesRef.current = null;
@@ -140,10 +146,11 @@ export const TradingChartLive = ({
     if (!isChartReady || !candleSeriesRef.current || !data.length) return;
 
     try {
-      // Check if we have candlestick series or line series
-      const isCandlestickSeries = (candleSeriesRef.current as any).setData;
+      // Determine chart type based on available methods
+      const series = candleSeriesRef.current;
+      const seriesType = series.options ? series.options().type : 'line';
       
-      if (isCandlestickSeries) {
+      if (seriesType === 'Candlestick') {
         // For candlestick series, use OHLC data
         const candleData = data.map(item => ({
           time: (new Date(item.time).getTime() / 1000) as UTCTimestamp,
@@ -153,7 +160,7 @@ export const TradingChartLive = ({
           close: item.close,
         }));
         
-        candleSeriesRef.current.setData(candleData);
+        series.setData(candleData);
       } else {
         // For line series, use close price only
         const lineData = data.map(item => ({
@@ -161,7 +168,7 @@ export const TradingChartLive = ({
           value: item.close,
         }));
         
-        candleSeriesRef.current.setData(lineData);
+        series.setData(lineData);
       }
 
       // Update volume series if available
