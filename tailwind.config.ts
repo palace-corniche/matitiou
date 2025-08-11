@@ -61,7 +61,15 @@ export default {
 					'accent-foreground': 'hsl(var(--sidebar-accent-foreground))',
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
-				}
+				},
+				bullish: 'hsl(var(--bullish))',
+				bearish: 'hsl(var(--bearish))',
+				'bullish-light': 'hsl(var(--bullish-light))',
+				'bearish-light': 'hsl(var(--bearish-light))',
+				'chart-bg': 'hsl(var(--chart-bg))',
+				'chart-grid': 'hsl(var(--chart-grid))',
+				'volume-up': 'hsl(var(--volume-up))',
+				'volume-down': 'hsl(var(--volume-down))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

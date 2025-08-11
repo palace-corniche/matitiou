@@ -1,7 +1,7 @@
-import { TradingDashboard } from '@/components/TradingDashboard';
+import { LiveTradingDashboard } from '@/components/LiveTradingDashboard';
 
 const Index = () => {
-  return <TradingDashboard />;
+  return <LiveTradingDashboard />;
 };
 
 export default Index;
