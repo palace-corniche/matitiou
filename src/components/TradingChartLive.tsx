@@ -1,5 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { createChart, UTCTimestamp } from 'lightweight-charts';
+import { 
+  createChart, 
+  UTCTimestamp, 
+  IChartApi, 
+  ISeriesApi 
+} from 'lightweight-charts';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CandleData } from '@/services/realMarketData';
@@ -22,7 +27,7 @@ export const TradingChartLive = ({
   priceChange 
 }: TradingChartLiveProps) => {
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const chartRef = useRef<any>(null);
+  const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<any>(null);
   const volumeSeriesRef = useRef<any>(null);
 
@@ -30,12 +35,27 @@ export const TradingChartLive = ({
   useEffect(() => {
     if (!chartContainerRef.current || isLoading) return;
 
+    // Wait for container to be ready
+    const container = chartContainerRef.current;
+    if (!container.offsetWidth || !container.offsetHeight) {
+      console.warn('Chart container not ready, dimensions:', { 
+        width: container.offsetWidth, 
+        height: container.offsetHeight 
+      });
+      return;
+    }
+
     try {
+      console.log('Creating chart with container dimensions:', {
+        width: container.clientWidth,
+        height: container.clientHeight
+      });
+
       // Detect dark mode
       const isDark = document.documentElement.classList.contains('dark');
       
-      const chart = createChart(chartContainerRef.current, {
-        width: chartContainerRef.current.clientWidth,
+      const chart = createChart(container, {
+        width: container.clientWidth,
         height: 350,
         layout: {
           background: { color: isDark ? '#0f172a' : '#ffffff' },
@@ -62,7 +82,9 @@ export const TradingChartLive = ({
         },
       });
 
-      // Create candlestick series
+      console.log('Chart created successfully');
+
+      // Create candlestick series using the correct method
       const candlestickSeries = (chart as any).addCandlestickSeries({
         upColor: '#16a34a',
         downColor: '#dc2626',
@@ -71,8 +93,9 @@ export const TradingChartLive = ({
         wickUpColor: '#16a34a',
         wickDownColor: '#dc2626',
       });
+      console.log('Candlestick series created');
 
-      // Create volume series
+      // Create volume series as histogram using the correct method
       const volumeSeries = (chart as any).addHistogramSeries({
         color: '#64748b',
         priceFormat: {
@@ -84,7 +107,9 @@ export const TradingChartLive = ({
           bottom: 0,
         },
       });
+      console.log('Volume series created');
 
+      // Store references
       chartRef.current = chart;
       candleSeriesRef.current = candlestickSeries;
       volumeSeriesRef.current = volumeSeries;
@@ -102,6 +127,7 @@ export const TradingChartLive = ({
 
       // Cleanup function
       return () => {
+        console.log('Cleaning up chart');
         window.removeEventListener('resize', handleResize);
         if (chartRef.current) {
           chartRef.current.remove();
@@ -113,16 +139,43 @@ export const TradingChartLive = ({
 
     } catch (error) {
       console.error('Error creating chart:', error);
+      console.error('Error details:', {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : 'No stack trace'
+      });
     }
   }, [isLoading]);
 
   // Update chart data
   useEffect(() => {
-    if (!candleSeriesRef.current || !data.length) return;
+    if (!candleSeriesRef.current || !volumeSeriesRef.current || !data.length) {
+      console.log('Chart data update skipped:', {
+        candleSeriesExists: !!candleSeriesRef.current,
+        volumeSeriesExists: !!volumeSeriesRef.current,
+        dataLength: data.length
+      });
+      return;
+    }
 
     try {
-      // Process candlestick data
-      const candleData = data.map(item => ({
+      console.log('Updating chart data with', data.length, 'candles');
+
+      // Validate and process candlestick data
+      const validData = data.filter(item => 
+        item && 
+        item.time && 
+        typeof item.open === 'number' &&
+        typeof item.high === 'number' &&
+        typeof item.low === 'number' &&
+        typeof item.close === 'number'
+      );
+
+      if (validData.length === 0) {
+        console.warn('No valid candle data found');
+        return;
+      }
+
+      const candleData = validData.map(item => ({
         time: (new Date(item.time).getTime() / 1000) as UTCTimestamp,
         open: item.open,
         high: item.high,
@@ -130,25 +183,36 @@ export const TradingChartLive = ({
         close: item.close,
       }));
 
+      // Sort data by time to ensure proper ordering
+      candleData.sort((a, b) => a.time - b.time);
+
+      console.log('Setting candle data:', candleData.length, 'items');
       candleSeriesRef.current.setData(candleData);
 
       // Process volume data
-      if (volumeSeriesRef.current) {
-        const volumeData = data.map(item => ({
-          time: (new Date(item.time).getTime() / 1000) as UTCTimestamp,
-          value: item.volume || 0,
-          color: item.close >= item.open ? '#16a34a80' : '#dc262680',
-        }));
+      const volumeData = validData.map(item => ({
+        time: (new Date(item.time).getTime() / 1000) as UTCTimestamp,
+        value: item.volume || 0,
+        color: item.close >= item.open ? '#16a34a80' : '#dc262680',
+      }));
 
-        volumeSeriesRef.current.setData(volumeData);
-      }
+      // Sort volume data by time
+      volumeData.sort((a, b) => a.time - b.time);
 
-      // Fit content to chart
-      if (chartRef.current) {
-        chartRef.current.timeScale().fitContent();
-      }
+      console.log('Setting volume data:', volumeData.length, 'items');
+      volumeSeriesRef.current.setData(volumeData);
+
+      // Fit content to chart after a short delay to ensure data is processed
+      setTimeout(() => {
+        if (chartRef.current) {
+          chartRef.current.timeScale().fitContent();
+          console.log('Chart content fitted');
+        }
+      }, 100);
+
     } catch (error) {
       console.error('Error updating chart data:', error);
+      console.error('Data sample:', data.slice(0, 2));
     }
   }, [data]);
 
