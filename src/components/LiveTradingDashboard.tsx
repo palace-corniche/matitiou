@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { TradingChartLive } from './TradingChartLive';
+import { SimpleChart } from './SimpleChart';
 import { getForexData, getLiveTickData, getMarketStatus, CandleData, TickData } from '@/services/realMarketData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -16,10 +16,10 @@ interface LoadingStates {
 }
 
 const timeframes = [
-  { key: '15m', label: '15M', title: '15 Minutes' },
-  { key: '1h', label: '1H', title: '1 Hour' },
-  { key: '4h', label: '4H', title: '4 Hours' },
-  { key: '1d', label: '1D', title: '1 Day' },
+  { key: '15m', label: '15M', title: '15 Minutes', timeframe: '15m' },
+  { key: '1h', label: '1H', title: '1 Hour', timeframe: '1h' },
+  { key: '4h', label: '4H', title: '4 Hours', timeframe: '4h' },
+  { key: '1d', label: '1D', title: '1 Day', timeframe: '1d' },
 ];
 
 export const LiveTradingDashboard = () => {
@@ -242,7 +242,7 @@ export const LiveTradingDashboard = () => {
         {/* Charts Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {timeframes.map((tf) => (
-            <TradingChartLive
+            <SimpleChart
               key={tf.key}
               data={chartData[tf.key] || []}
               timeframe={tf.key}
