@@ -147,7 +147,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
           <Skeleton className="h-8 w-20" />
           <Skeleton className="h-6 w-16" />
         </div>
-        <Skeleton className="h-64 w-full" />
+        <Skeleton className="h-96 w-full" />
       </Card>
     );
   }
@@ -177,11 +177,56 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
       </div>
 
       {chartData.length > 0 ? (
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="70%">
+        <div className="h-96">
+          <ResponsiveContainer width="100%" height="65%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 10, right: 10, left: 10, bottom: 10 }}
+              margin={{ top: 20, right: 25, left: 25, bottom: 10 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+              <XAxis
+                dataKey="time"
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 13, fill: 'hsl(var(--muted-foreground))' }}
+                interval="preserveStartEnd"
+                tickMargin={8}
+              />
+              <YAxis
+                domain={['dataMin - 0.0001', 'dataMax + 0.0001']}
+                axisLine={false}
+                tickLine={false}
+                tick={{ fontSize: 13, fill: 'hsl(var(--muted-foreground))' }}
+                tickFormatter={formatPrice}
+                width={75}
+                tickMargin={8}
+              />
+              <Tooltip
+                contentStyle={{
+                  backgroundColor: 'hsl(var(--popover))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '12px',
+                  color: 'hsl(var(--popover-foreground))',
+                  fontSize: '14px',
+                  padding: '12px',
+                  minWidth: '180px',
+                }}
+                formatter={(value: number, name: string) => formatTooltipValue(value, name)}
+                labelStyle={{ color: 'hsl(var(--muted-foreground))', fontWeight: '600', marginBottom: '8px' }}
+              />
+              <Bar
+                dataKey="high"
+                shape={CandlestickBar}
+                minPointSize={1}
+                maxBarSize={18}
+              />
+            </ComposedChart>
+          </ResponsiveContainer>
+          
+          <ResponsiveContainer width="100%" height="35%">
+            <ComposedChart
+              data={chartData}
+              margin={{ top: 5, right: 25, left: 25, bottom: 20 }}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
               <XAxis
@@ -190,68 +235,37 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 tickLine={false}
                 tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                 interval="preserveStartEnd"
+                tickMargin={6}
               />
               <YAxis
-                domain={['dataMin - 0.0001', 'dataMax + 0.0001']}
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                tickFormatter={formatPrice}
-              />
-              <Tooltip
-                contentStyle={{
-                  backgroundColor: 'hsl(var(--popover))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
-                  color: 'hsl(var(--popover-foreground))',
-                }}
-                formatter={(value: number, name: string) => formatTooltipValue(value, name)}
-                labelStyle={{ color: 'hsl(var(--muted-foreground))' }}
-              />
-              <Bar
-                dataKey="high"
-                shape={CandlestickBar}
-                minPointSize={1}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-          
-          <ResponsiveContainer width="100%" height="30%">
-            <ComposedChart
-              data={chartData}
-              margin={{ top: 0, right: 10, left: 10, bottom: 10 }}
-            >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
-              <XAxis
-                dataKey="time"
-                axisLine={false}
-                tickLine={false}
-                tick={false}
-              />
-              <YAxis
-                axisLine={false}
-                tickLine={false}
-                tick={{ fontSize: 10, fill: 'hsl(var(--muted-foreground))' }}
                 tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
+                width={75}
+                tickMargin={8}
               />
               <Tooltip
                 contentStyle={{
                   backgroundColor: 'hsl(var(--popover))',
                   border: '1px solid hsl(var(--border))',
-                  borderRadius: '8px',
+                  borderRadius: '12px',
                   color: 'hsl(var(--popover-foreground))',
+                  fontSize: '14px',
+                  padding: '12px',
                 }}
                 formatter={(value: number) => [value.toLocaleString(), 'Volume']}
               />
               <Bar
                 dataKey="volume"
                 shape={VolumeBar}
+                maxBarSize={18}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-64 flex items-center justify-center text-muted-foreground">
+        <div className="h-96 flex items-center justify-center text-muted-foreground">
           No data available
         </div>
       )}

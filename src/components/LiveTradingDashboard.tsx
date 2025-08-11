@@ -239,8 +239,8 @@ export const LiveTradingDashboard = () => {
           })}
         </div>
 
-        {/* Charts Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {timeframes.map((tf) => (
             <SimpleChart
               key={tf.key}
