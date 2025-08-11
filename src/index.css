@@ -38,15 +38,15 @@ All colors MUST be HSL.
 
     --radius: 0.5rem;
 
-    /* Trading specific colors */
-    --bullish: 120 100% 40%;
-    --bearish: 0 100% 50%;
-    --bullish-light: 120 100% 85%;
-    --bearish-light: 0 100% 85%;
+    /* Trading specific colors - TradingView style */
+    --bullish: 174 62% 41%;
+    --bearish: 4 85% 63%;
+    --bullish-light: 174 62% 85%;
+    --bearish-light: 4 85% 85%;
     --chart-bg: 0 0% 98%;
     --chart-grid: 220 13% 91%;
-    --volume-up: 120 100% 40%;
-    --volume-down: 0 100% 50%;
+    --volume-up: 174 62% 41%;
+    --volume-down: 4 85% 63%;
 
     --sidebar-background: 0 0% 98%;
 
@@ -102,15 +102,15 @@ All colors MUST be HSL.
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
 
-    /* Trading specific colors - dark mode */
-    --bullish: 120 100% 50%;
-    --bearish: 0 100% 60%;
-    --bullish-light: 120 100% 20%;
-    --bearish-light: 0 100% 20%;
+    /* Trading specific colors - dark mode - TradingView style */
+    --bullish: 174 62% 48%;
+    --bearish: 4 85% 68%;
+    --bullish-light: 174 62% 25%;
+    --bearish-light: 4 85% 25%;
     --chart-bg: 222.2 84% 4.9%;
     --chart-grid: 217.2 32.6% 17.5%;
-    --volume-up: 120 100% 50%;
-    --volume-down: 0 100% 60%;
+    --volume-up: 174 62% 48%;
+    --volume-down: 4 85% 68%;
   }
 }
 

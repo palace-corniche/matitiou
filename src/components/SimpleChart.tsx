@@ -23,35 +23,63 @@ const CandlestickBar = (props: any) => {
   const { open, high, low, close } = payload;
   const isBullish = close >= open;
   
-  const centerX = x + width / 2;
-  const bodyHeight = Math.abs(close - open) * height / (high - low);
-  const bodyY = y + (high - Math.max(open, close)) * height / (high - low);
+  // Calculate positions with proper scaling
+  const priceRange = high - low;
+  const scale = height / priceRange;
   
-  const wickTop = y;
-  const wickBottom = y + height;
-  const bodyTop = bodyY;
-  const bodyBottom = bodyY + bodyHeight;
+  const centerX = x + width / 2;
+  const bodyWidth = width * 0.6; // TradingView style body width
+  const bodyX = x + (width - bodyWidth) / 2;
+  
+  // Calculate body dimensions
+  const bodyHeight = Math.max(Math.abs(close - open) * scale, 1);
+  const bodyTop = y + (high - Math.max(open, close)) * scale;
+  const bodyBottom = bodyTop + bodyHeight;
+  
+  // Calculate wick positions - only draw wicks beyond the body
+  const upperWickTop = y + (high - high) * scale; // Top of chart area
+  const upperWickBottom = bodyTop;
+  const lowerWickTop = bodyBottom;
+  const lowerWickBottom = y + (high - low) * scale; // Bottom of chart area
+  
+  // Handle doji case (open = close)
+  const isDoji = Math.abs(close - open) < 0.00001;
   
   return (
     <g>
-      {/* High-Low wick */}
-      <line
-        x1={centerX}
-        y1={wickTop}
-        x2={centerX}
-        y2={wickBottom}
-        stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-        strokeWidth={1}
-      />
-      {/* Open-Close body */}
+      {/* Upper wick - from high to body top */}
+      {high > Math.max(open, close) && (
+        <line
+          x1={centerX}
+          y1={upperWickTop}
+          x2={centerX}
+          y2={upperWickBottom}
+          stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
+          strokeWidth={1.2}
+        />
+      )}
+      
+      {/* Lower wick - from body bottom to low */}
+      {low < Math.min(open, close) && (
+        <line
+          x1={centerX}
+          y1={lowerWickTop}
+          x2={centerX}
+          y2={lowerWickBottom}
+          stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
+          strokeWidth={1.2}
+        />
+      )}
+      
+      {/* Body - TradingView style: hollow green for bullish, filled red for bearish */}
       <rect
-        x={x + width * 0.25}
+        x={bodyX}
         y={bodyTop}
-        width={width * 0.5}
-        height={Math.max(bodyHeight, 1)}
-        fill={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
+        width={bodyWidth}
+        height={isDoji ? 1 : bodyHeight}
+        fill={isBullish ? 'transparent' : 'hsl(var(--bearish))'}
         stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-        strokeWidth={1}
+        strokeWidth={isBullish ? 1.5 : 1}
       />
     </g>
   );
