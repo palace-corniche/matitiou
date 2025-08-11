@@ -31,29 +31,32 @@ export const TradingChartLive = ({
     if (!chartContainerRef.current || isLoading) return;
 
     try {
+      // Detect dark mode
+      const isDark = document.documentElement.classList.contains('dark');
+      
       const chart = createChart(chartContainerRef.current, {
         width: chartContainerRef.current.clientWidth,
         height: 350,
         layout: {
-          background: { color: 'hsl(var(--chart-bg))' },
-          textColor: 'hsl(var(--foreground))',
+          background: { color: isDark ? '#0f172a' : '#ffffff' },
+          textColor: isDark ? '#e2e8f0' : '#1e293b',
         },
         grid: {
-          vertLines: { color: 'hsl(var(--chart-grid))' },
-          horzLines: { color: 'hsl(var(--chart-grid))' },
+          vertLines: { color: isDark ? '#1e293b' : '#f1f5f9' },
+          horzLines: { color: isDark ? '#1e293b' : '#f1f5f9' },
         },
         crosshair: {
           mode: 1,
         },
         rightPriceScale: {
-          borderColor: 'hsl(var(--border))',
+          borderColor: isDark ? '#334155' : '#cbd5e1',
           scaleMargins: {
             top: 0.1,
             bottom: 0.3,
           },
         },
         timeScale: {
-          borderColor: 'hsl(var(--border))',
+          borderColor: isDark ? '#334155' : '#cbd5e1',
           timeVisible: true,
           secondsVisible: false,
         },
