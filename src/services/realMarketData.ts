@@ -29,7 +29,7 @@ const TIMEFRAME_MAP: Record<string, string> = {
 
 // Cache for API responses to avoid rate limits
 const dataCache = new Map<string, { data: CandleData[]; timestamp: number }>();
-const CACHE_DURATION = 20000; // 20 second cache for 30s refresh rate
+const CACHE_DURATION = 10000; // 10 second cache for 10s refresh rate
 
 export const getForexData = async (timeframe: string): Promise<CandleData[]> => {
   const cacheKey = `EURUSD_${timeframe}`;
@@ -37,6 +37,7 @@ export const getForexData = async (timeframe: string): Promise<CandleData[]> => 
   
   // Return cached data if still valid
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    console.log(`📋 Using cached data for ${timeframe} (${Math.round((Date.now() - cached.timestamp) / 1000)}s old)`);
     return cached.data;
   }
 
@@ -79,24 +80,33 @@ export const getForexData = async (timeframe: string): Promise<CandleData[]> => 
       timestamp: Date.now()
     });
     
+    console.log(`✅ Fresh API data fetched for ${timeframe} (${candleData.length} candles)`);
     return candleData;
     
   } catch (error) {
-    console.error(`Error fetching ${timeframe} data:`, error);
+    console.error(`❌ API error for ${timeframe}:`, error);
     
     // Fallback to realistic mock data with current market patterns
+    console.log(`🎭 Using mock data for ${timeframe} due to API failure`);
     return generateRealisticMockData(timeframe);
   }
 };
 
-// Enhanced mock data that simulates real EUR/USD patterns
+// Enhanced mock data that simulates real EUR/USD patterns with time-based variation
 const generateRealisticMockData = (timeframe: string): CandleData[] => {
   const now = new Date();
   const intervals = timeframe === '15m' ? 200 : timeframe === '1h' ? 168 : timeframe === '4h' ? 42 : 30;
   const minutesPerCandle = timeframe === '15m' ? 15 : timeframe === '1h' ? 60 : timeframe === '4h' ? 240 : 1440;
   
-  // Current EUR/USD is around 1.0800-1.1000 range
-  let currentPrice = 1.0890;
+  // Time-based seed for varying mock data - changes every minute
+  const timeSeed = Math.floor(Date.now() / 60000);
+  const seedRandom = (seed: number) => {
+    let x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  // Current EUR/USD is around 1.0800-1.1000 range, with time-based variation
+  let currentPrice = 1.0890 + (seedRandom(timeSeed) - 0.5) * 0.002;
   const data: CandleData[] = [];
   
   for (let i = intervals - 1; i >= 0; i--) {
@@ -104,8 +114,8 @@ const generateRealisticMockData = (timeframe: string): CandleData[] => {
     
     // Add some realistic volatility (EUR/USD typically moves 50-100 pips per day)
     const volatility = timeframe === '15m' ? 0.0002 : timeframe === '1h' ? 0.0005 : timeframe === '4h' ? 0.001 : 0.002;
-    const trend = Math.sin(i / 20) * volatility; // Add some trending behavior
-    const noise = (Math.random() - 0.5) * volatility;
+    const trend = Math.sin((i + timeSeed) / 20) * volatility; // Add time-based trending behavior
+    const noise = (seedRandom(timeSeed + i) - 0.5) * volatility;
     
     const open = currentPrice;
     const move = trend + noise;
@@ -154,9 +164,17 @@ export const getLiveTickData = async (): Promise<TickData | null> => {
   } catch (error) {
     console.error('Error fetching live tick data:', error);
     
-    // Mock live tick data
-    const mockPrice = 1.0890 + (Math.random() - 0.5) * 0.001;
-    const mockChange = (Math.random() - 0.5) * 0.0005;
+    console.log('🎭 Using mock live tick data due to API failure');
+    
+    // Time-based mock live tick data that changes every minute
+    const timeSeed = Math.floor(Date.now() / 60000);
+    const seedRandom = (seed: number) => {
+      let x = Math.sin(seed) * 10000;
+      return x - Math.floor(x);
+    };
+    
+    const mockPrice = 1.0890 + (seedRandom(timeSeed) - 0.5) * 0.001;
+    const mockChange = (seedRandom(timeSeed + 1) - 0.5) * 0.0005;
     
     return {
       price: parseFloat(mockPrice.toFixed(5)),
