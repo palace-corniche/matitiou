@@ -144,7 +144,8 @@ export class MomentumIndicators {
       const lowest = Math.min(...slice.map(c => c.low));
       const current = candles[i].close;
       
-      const k = ((current - lowest) / (highest - lowest)) * 100;
+      // Prevent division by zero when highest equals lowest
+      const k = (highest === lowest) ? 50 : ((current - lowest) / (highest - lowest)) * 100;
       
       // Simple D calculation (3-period average of K)
       const recentK = result.slice(-2).map(r => r.k).concat([k]);
@@ -378,10 +379,10 @@ export class TechnicalAnalysisEngine {
 
     if (buyStrength > sellStrength && buyStrength > 15) {
       overallSignal = 'buy';
-      overallStrength = Math.min(10, Math.round(buyStrength / buySignals.length));
+      overallStrength = buySignals.length > 0 ? Math.min(10, Math.round(buyStrength / buySignals.length)) : 3;
     } else if (sellStrength > buyStrength && sellStrength > 15) {
       overallSignal = 'sell';
-      overallStrength = Math.min(10, Math.round(sellStrength / sellSignals.length));
+      overallStrength = sellSignals.length > 0 ? Math.min(10, Math.round(sellStrength / sellSignals.length)) : 3;
     } else {
       overallStrength = 3;
     }

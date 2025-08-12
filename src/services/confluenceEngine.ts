@@ -96,9 +96,18 @@ export class ConfluenceEngine {
     this.analyzeMultiTimeframes(multiTimeframeAnalysis, factors);
     this.analyzeMarketStructure(candles, factors);
 
+    // Filter out factors with NaN values
+    const validFactors = factors.filter(factor => 
+      !isNaN(factor.weight) && !isNaN(factor.strength) && 
+      isFinite(factor.weight) && isFinite(factor.strength) &&
+      factor.weight > 0 && factor.strength > 0
+    );
+
+    console.log(`Filtered ${factors.length - validFactors.length} invalid factors out of ${factors.length} total factors`);
+
     // Calculate confluence score and determine signal
-    const confluenceScore = this.calculateConfluenceScore(factors);
-    const signal = this.determineOverallSignal(factors);
+    const confluenceScore = this.calculateConfluenceScore(validFactors);
+    const signal = this.determineOverallSignal(validFactors);
     
     if (signal === 'neutral' || confluenceScore < 15) return null;
 
@@ -151,6 +160,12 @@ export class ConfluenceEngine {
     };
 
     [...bullishIndicators, ...bearishIndicators].forEach(indicator => {
+      // Validate indicator values
+      if (isNaN(indicator.strength) || !isFinite(indicator.strength) || indicator.strength <= 0) {
+        console.warn(`Invalid indicator strength for ${indicator.name}:`, indicator.strength);
+        return;
+      }
+
       const weight = indicatorWeights[indicator.name] || 5;
       
       factors.push({
@@ -158,7 +173,7 @@ export class ConfluenceEngine {
         name: indicator.name,
         signal: indicator.signal,
         weight,
-        strength: indicator.strength,
+        strength: Math.max(1, Math.min(10, indicator.strength)), // Clamp between 1-10
         description: `${indicator.name}: ${indicator.value?.toFixed(4) || 'N/A'}`,
         price: indicator.value || undefined
       });
@@ -426,6 +441,13 @@ export class ConfluenceEngine {
     let totalWeight = 0;
 
     factors.forEach(factor => {
+      // Additional validation for NaN values
+      if (isNaN(factor.weight) || isNaN(factor.strength) || 
+          !isFinite(factor.weight) || !isFinite(factor.strength)) {
+        console.warn(`Invalid factor detected:`, factor);
+        return;
+      }
+
       const weightedScore = factor.weight * factor.strength;
       totalWeight += factor.weight;
 
@@ -436,10 +458,22 @@ export class ConfluenceEngine {
       }
     });
 
-    if (totalWeight === 0) return 0;
+    if (totalWeight === 0) {
+      console.warn('No valid factors found, returning 0 confluence score');
+      return 0;
+    }
 
     const maxScore = Math.max(bullishScore, bearishScore);
-    return Math.min((maxScore / totalWeight) * 10, 100);
+    const score = Math.min((maxScore / totalWeight) * 10, 100);
+    
+    // Final validation
+    if (isNaN(score) || !isFinite(score)) {
+      console.error('Calculated score is invalid:', { bullishScore, bearishScore, totalWeight, maxScore, score });
+      return 0;
+    }
+
+    console.log(`Confluence calculation: bullish=${bullishScore.toFixed(2)}, bearish=${bearishScore.toFixed(2)}, totalWeight=${totalWeight.toFixed(2)}, score=${score.toFixed(2)}`);
+    return score;
   }
 
   // Determine overall signal
