@@ -94,14 +94,14 @@ export const LiveTradingDashboard = () => {
     loadData();
   }, []);
 
-  // Auto-refresh every 10 seconds for better responsiveness
+  // Auto-refresh every 5 minutes for better responsiveness
   useEffect(() => {
     const interval = setInterval(() => {
       if (marketStatus.isOpen) {
-        console.log('🔄 Auto-refresh triggered - market is open');
+        console.log('🔄 Auto-refresh triggered (5min interval) - market is open');
         loadData();
       }
-    }, 10000);
+    }, 300000);
 
     return () => clearInterval(interval);
   }, [marketStatus.isOpen]);
@@ -257,7 +257,7 @@ export const LiveTradingDashboard = () => {
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground space-y-1">
-          <p>Real-time EUR/USD market data • Updates every 10 seconds when market is open</p>
+          <p>Real-time EUR/USD market data • Updates every 5 minutes when market is open</p>
           <p>Using Twelve Data API for live forex prices and historical data</p>
         </div>
       </div>
