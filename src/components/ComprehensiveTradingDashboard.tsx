@@ -3,12 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { TrendingUp, TrendingDown, AlertTriangle, Target, Shield } from 'lucide-react';
+import { TrendingUp, TrendingDown, AlertTriangle, Target, Shield, RefreshCw } from 'lucide-react';
 import { CandleData } from '@/services/technicalAnalysis';
-import { ConfluenceEngine, type ConfluenceSignal, type MarketSentiment, type RiskAssessment } from '@/services/confluenceEngine';
-import { HarmonicPatternRecognition } from '@/services/harmonicPatterns';
-import { ScalpingStrategies, DayTradingStrategies, SwingTradingStrategies, MultiTimeframeEngine } from '@/services/tradingStrategies';
-import { AdvancedTrendIndicators, FibonacciTools, GannAnalysis, PivotPoints } from '@/services/advancedIndicators';
+import { type ConfluenceSignal, type MarketSentiment, type RiskAssessment } from '@/services/confluenceEngine';
+import EnhancedSignalEngine from '@/services/enhancedSignalEngine';
+import { useToast } from '@/hooks/use-toast';
 
 interface ComprehensiveTradingDashboardProps {
   data: CandleData[];
@@ -23,8 +22,10 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
   const [marketSentiment, setMarketSentiment] = useState<MarketSentiment | null>(null);
   const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analysisProgress, setAnalysisProgress] = useState('');
 
-  const confluenceEngine = new ConfluenceEngine();
+  const enhancedEngine = new EnhancedSignalEngine();
+  const { toast } = useToast();
 
   useEffect(() => {
     if (data.length > 50) {
@@ -34,60 +35,48 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
 
   const analyzeMarket = async () => {
     setLoading(true);
+    setAnalysisProgress('Initializing comprehensive analysis...');
+    
     try {
-      // This is a simplified version - in real implementation, you'd call all the analysis services
-      const mockConfluenceSignal: ConfluenceSignal = {
-        id: 'test-1',
-        timestamp: new Date().toISOString(),
-        pair,
-        signal: 'buy',
-        confluenceScore: 78,
-        strength: 8,
-        confidence: 85,
-        entry: data[data.length - 1].close,
-        stopLoss: data[data.length - 1].close * 0.98,
-        takeProfit: data[data.length - 1].close * 1.05,
-        riskReward: 2.5,
-        factors: [
-          { type: 'technical', name: 'RSI Oversold', signal: 'buy', weight: 7, strength: 8, description: 'RSI showing oversold conditions' },
-          { type: 'harmonic', name: 'Gartley Pattern', signal: 'buy', weight: 9, strength: 9, description: 'Bullish Gartley pattern completed' },
-          { type: 'fibonacci', name: 'Fibonacci 61.8%', signal: 'buy', weight: 8, strength: 7, description: 'Price at 61.8% retracement level' }
-        ],
-        description: 'Strong BUY signal with 78% confluence score',
-        timeframes: ['15m', '1h', '4h'],
-        alertLevel: 'high'
-      };
-
-      const mockSentiment: MarketSentiment = {
-        overall: 'bullish',
-        score: 45,
-        components: {
-          technical: 30,
-          patterns: 50,
-          harmonic: 60,
-          strategies: 40,
-          timeframes: 45
-        },
-        volatility: 'medium',
-        recommendation: 'Favorable conditions for long positions'
-      };
-
-      const mockRisk: RiskAssessment = {
-        riskLevel: 'medium',
-        score: 35,
-        factors: ['Medium volatility environment'],
-        maxPositionSize: 2.5,
-        suggestedStopLoss: mockConfluenceSignal.stopLoss,
-        marketConditions: 'moderately bullish, medium volatility'
-      };
-
-      setConfluenceSignal(mockConfluenceSignal);
-      setMarketSentiment(mockSentiment);
-      setRiskAssessment(mockRisk);
+      // Phase 1: Generate comprehensive signal using all 120+ indicators
+      setAnalysisProgress('Calculating 120+ technical indicators...');
+      const confluenceSignal = await enhancedEngine.generateComprehensiveSignal(data, pair, '1h');
+      
+      if (confluenceSignal) {
+        setConfluenceSignal(confluenceSignal);
+        
+        // Phase 2: Analyze market sentiment using all factors
+        setAnalysisProgress('Analyzing market sentiment across all factors...');
+        const sentiment = await enhancedEngine.analyzeMarketSentiment(data);
+        setMarketSentiment(sentiment);
+        
+        // Phase 3: Assess risk using advanced metrics
+        setAnalysisProgress('Performing advanced risk assessment...');
+        const risk = await enhancedEngine.assessRisk(data, confluenceSignal);
+        setRiskAssessment(risk);
+        
+        toast({
+          title: "Analysis Complete",
+          description: `Generated ${confluenceSignal.signal.toUpperCase()} signal with ${confluenceSignal.confluenceScore.toFixed(1)}% confluence score`,
+        });
+      } else {
+        toast({
+          title: "No Clear Signal", 
+          description: "Insufficient confluence detected across all analysis methods",
+          variant: "destructive",
+        });
+      }
+      
     } catch (error) {
-      console.error('Analysis error:', error);
+      console.error('Comprehensive analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "Failed to complete comprehensive market analysis",
+        variant: "destructive",
+      });
     } finally {
       setLoading(false);
+      setAnalysisProgress('');
     }
   };
 
@@ -110,16 +99,42 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
 
   if (loading) {
     return (
-      <Card>
-        <CardContent className="p-6">
-          <div className="animate-pulse">Analyzing comprehensive market data...</div>
-        </CardContent>
-      </Card>
+      <div className="min-h-screen bg-background p-4">
+        <div className="max-w-7xl mx-auto">
+          <Card>
+            <CardContent className="p-8 text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+              <div className="text-xl font-semibold mb-2">Comprehensive Market Analysis</div>
+              <div className="text-muted-foreground mb-4">{analysisProgress}</div>
+              <div className="text-sm text-muted-foreground max-w-md mx-auto">
+                Analyzing 120+ indicators, 50+ patterns, harmonic analysis, Elliott waves, 
+                Fibonacci levels, Gann analysis, 50+ strategies, and multi-timeframe confluence...
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-background p-4">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h1 className="text-3xl font-bold text-foreground">Advanced Trading Analysis</h1>
+            {confluenceSignal && (
+              <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'}>
+                {confluenceSignal.alertLevel.toUpperCase()} CONFLUENCE
+              </Badge>
+            )}
+          </div>
+          <Button onClick={analyzeMarket} disabled={loading} className="flex items-center gap-2">
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            {loading ? 'Analyzing...' : 'Refresh Analysis'}
+          </Button>
+        </div>
       {/* Main Signal Card */}
       {confluenceSignal && (
         <Card>
@@ -311,9 +326,10 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         <Button onClick={analyzeMarket} disabled={loading}>
           {loading ? 'Analyzing...' : 'Refresh Analysis'}
         </Button>
-        <Button variant="outline" onClick={() => window.open('/advanced-settings', '_blank')}>
+        <Button variant="outline" disabled>
           Advanced Settings
         </Button>
+      </div>
       </div>
     </div>
   );
