@@ -258,18 +258,22 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 content={({ active, payload, label }) => {
                   if (active && payload && payload[0]) {
                     const data = payload[0].payload;
+                    if (!data) return null;
+                    
                     return (
                       <div className="space-y-2">
                         <p className="font-semibold text-popover-foreground mb-2">{label}</p>
                         <div className="grid grid-cols-2 gap-2 text-sm">
-                          <div><span className="text-muted-foreground">Open:</span> <span className="font-mono">{formatPrice(data.open)}</span></div>
-                          <div><span className="text-muted-foreground">High:</span> <span className="font-mono text-bullish">{formatPrice(data.high)}</span></div>
-                          <div><span className="text-muted-foreground">Low:</span> <span className="font-mono text-bearish">{formatPrice(data.low)}</span></div>
-                          <div><span className="text-muted-foreground">Close:</span> <span className="font-mono">{formatPrice(data.close)}</span></div>
+                          <div><span className="text-muted-foreground">Open:</span> <span className="font-mono">{data.open ? formatPrice(data.open) : 'N/A'}</span></div>
+                          <div><span className="text-muted-foreground">High:</span> <span className="font-mono text-bullish">{data.high ? formatPrice(data.high) : 'N/A'}</span></div>
+                          <div><span className="text-muted-foreground">Low:</span> <span className="font-mono text-bearish">{data.low ? formatPrice(data.low) : 'N/A'}</span></div>
+                          <div><span className="text-muted-foreground">Close:</span> <span className="font-mono">{data.close ? formatPrice(data.close) : 'N/A'}</span></div>
                         </div>
-                        <div className="pt-1 border-t border-border">
-                          <span className="text-muted-foreground">Volume:</span> <span className="font-mono">{data.volume.toLocaleString()}</span>
-                        </div>
+                        {data.volume && (
+                          <div className="pt-1 border-t border-border">
+                            <span className="text-muted-foreground">Volume:</span> <span className="font-mono">{data.volume.toLocaleString()}</span>
+                          </div>
+                        )}
                       </div>
                     );
                   }
