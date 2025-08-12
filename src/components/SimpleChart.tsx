@@ -28,11 +28,11 @@ const CandlestickBar = (props: any) => {
   const scale = height / priceRange;
   
   const centerX = x + width / 2;
-  const bodyWidth = width * 0.6; // TradingView style body width
+  const bodyWidth = width * 0.75; // Wider body for better visibility
   const bodyX = x + (width - bodyWidth) / 2;
   
-  // Calculate body dimensions
-  const bodyHeight = Math.max(Math.abs(close - open) * scale, 1);
+  // Calculate body dimensions with minimum size for small bodies
+  const bodyHeight = Math.max(Math.abs(close - open) * scale, 2);
   const bodyTop = y + (high - Math.max(open, close)) * scale;
   const bodyBottom = bodyTop + bodyHeight;
   
@@ -55,7 +55,7 @@ const CandlestickBar = (props: any) => {
           x2={centerX}
           y2={upperWickBottom}
           stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-          strokeWidth={1.2}
+          strokeWidth={2}
         />
       )}
       
@@ -67,7 +67,7 @@ const CandlestickBar = (props: any) => {
           x2={centerX}
           y2={lowerWickBottom}
           stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-          strokeWidth={1.2}
+          strokeWidth={2}
         />
       )}
       
@@ -79,7 +79,7 @@ const CandlestickBar = (props: any) => {
         height={isDoji ? 1 : bodyHeight}
         fill={isBullish ? 'transparent' : 'hsl(var(--bearish))'}
         stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-        strokeWidth={isBullish ? 1.5 : 1}
+        strokeWidth={isBullish ? 2 : 1.5}
       />
     </g>
   );
@@ -109,9 +109,15 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    return data.slice(-50).map((item, index) => ({
+    // Show only 25 candles for better spacing and technical analysis visibility
+    return data.slice(-25).map((item, index) => ({
       ...item,
-      time: new Date(item.time).toLocaleDateString(),
+      time: new Date(item.time).toLocaleTimeString([], { 
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      }),
       index
     }));
   }, [data]);
@@ -205,29 +211,38 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
       </div>
 
       {chartData.length > 0 ? (
-        <div className="h-96">
-          <ResponsiveContainer width="100%" height="65%">
+        <div className="h-[500px]">
+          <ResponsiveContainer width="100%" height="75%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 20, right: 25, left: 25, bottom: 10 }}
+              margin={{ top: 20, right: 40, left: 40, bottom: 15 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+              <CartesianGrid 
+                strokeDasharray="1 1" 
+                stroke="hsl(var(--chart-grid))" 
+                horizontal={true}
+                vertical={true}
+              />
               <XAxis
                 dataKey="time"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 13, fill: 'hsl(var(--muted-foreground))' }}
-                interval="preserveStartEnd"
-                tickMargin={8}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={60}
+                tickMargin={10}
               />
               <YAxis
-                domain={['dataMin - 0.0001', 'dataMax + 0.0001']}
+                domain={['dataMin - 0.0002', 'dataMax + 0.0002']}
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 13, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
                 tickFormatter={formatPrice}
-                width={75}
-                tickMargin={8}
+                width={85}
+                tickMargin={10}
+                tickCount={8}
               />
               <Tooltip
                 contentStyle={{
@@ -235,43 +250,65 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '12px',
                   color: 'hsl(var(--popover-foreground))',
-                  fontSize: '14px',
-                  padding: '12px',
-                  minWidth: '180px',
+                  fontSize: '13px',
+                  padding: '16px',
+                  minWidth: '200px',
+                  boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
                 }}
-                formatter={(value: number, name: string) => formatTooltipValue(value, name)}
-                labelStyle={{ color: 'hsl(var(--muted-foreground))', fontWeight: '600', marginBottom: '8px' }}
+                content={({ active, payload, label }) => {
+                  if (active && payload && payload[0]) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="space-y-2">
+                        <p className="font-semibold text-popover-foreground mb-2">{label}</p>
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div><span className="text-muted-foreground">Open:</span> <span className="font-mono">{formatPrice(data.open)}</span></div>
+                          <div><span className="text-muted-foreground">High:</span> <span className="font-mono text-bullish">{formatPrice(data.high)}</span></div>
+                          <div><span className="text-muted-foreground">Low:</span> <span className="font-mono text-bearish">{formatPrice(data.low)}</span></div>
+                          <div><span className="text-muted-foreground">Close:</span> <span className="font-mono">{formatPrice(data.close)}</span></div>
+                        </div>
+                        <div className="pt-1 border-t border-border">
+                          <span className="text-muted-foreground">Volume:</span> <span className="font-mono">{data.volume.toLocaleString()}</span>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
               />
               <Bar
                 dataKey="high"
                 shape={CandlestickBar}
-                minPointSize={1}
-                maxBarSize={18}
+                minPointSize={2}
+                maxBarSize={40}
               />
             </ComposedChart>
           </ResponsiveContainer>
           
-          <ResponsiveContainer width="100%" height="35%">
+          <ResponsiveContainer width="100%" height="25%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 5, right: 25, left: 25, bottom: 20 }}
+              margin={{ top: 5, right: 40, left: 40, bottom: 20 }}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" />
+              <CartesianGrid strokeDasharray="1 1" stroke="hsl(var(--chart-grid))" />
               <XAxis
                 dataKey="time"
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                interval="preserveStartEnd"
-                tickMargin={6}
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
+                interval={0}
+                angle={-45}
+                textAnchor="end"
+                height={50}
+                tickMargin={8}
               />
               <YAxis
                 axisLine={false}
                 tickLine={false}
-                tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
+                tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
                 tickFormatter={(value) => `${(value / 1000).toFixed(0)}k`}
-                width={75}
-                tickMargin={8}
+                width={85}
+                tickMargin={10}
               />
               <Tooltip
                 contentStyle={{
@@ -279,7 +316,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '12px',
                   color: 'hsl(var(--popover-foreground))',
-                  fontSize: '14px',
+                  fontSize: '13px',
                   padding: '12px',
                 }}
                 formatter={(value: number) => [value.toLocaleString(), 'Volume']}
@@ -287,13 +324,13 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
               <Bar
                 dataKey="volume"
                 shape={VolumeBar}
-                maxBarSize={18}
+                maxBarSize={40}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-96 flex items-center justify-center text-muted-foreground">
+        <div className="h-[500px] flex items-center justify-center text-muted-foreground">
           No data available
         </div>
       )}
