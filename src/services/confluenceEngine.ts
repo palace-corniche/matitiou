@@ -100,7 +100,7 @@ export class ConfluenceEngine {
     const confluenceScore = this.calculateConfluenceScore(factors);
     const signal = this.determineOverallSignal(factors);
     
-    if (signal === 'neutral' || confluenceScore < 30) return null;
+    if (signal === 'neutral' || confluenceScore < 15) return null;
 
     // Calculate risk metrics
     const { stopLoss, takeProfit, riskReward } = this.calculateRiskMetrics(
