@@ -29,7 +29,7 @@ const TIMEFRAME_MAP: Record<string, string> = {
 
 // Cache for API responses to avoid rate limits
 const dataCache = new Map<string, { data: CandleData[]; timestamp: number }>();
-const CACHE_DURATION = 60000; // 1 minute cache
+const CACHE_DURATION = 20000; // 20 second cache for 30s refresh rate
 
 export const getForexData = async (timeframe: string): Promise<CandleData[]> => {
   const cacheKey = `EURUSD_${timeframe}`;

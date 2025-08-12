@@ -36,11 +36,11 @@ const CandlestickBar = (props: any) => {
   const bodyTop = y + (high - Math.max(open, close)) * scale;
   const bodyBottom = bodyTop + bodyHeight;
   
-  // Calculate wick positions - only draw wicks beyond the body
-  const upperWickTop = y + (high - high) * scale; // Top of chart area
+  // Calculate wick positions - fix coordinate mapping
+  const upperWickTop = y; // Top of chart area (high price)
   const upperWickBottom = bodyTop;
   const lowerWickTop = bodyBottom;
-  const lowerWickBottom = y + (high - low) * scale; // Bottom of chart area
+  const lowerWickBottom = y + height; // Bottom of chart area (low price)
   
   // Handle doji case (open = close)
   const isDoji = Math.abs(close - open) < 0.00001;
