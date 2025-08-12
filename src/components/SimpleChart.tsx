@@ -28,7 +28,7 @@ const CandlestickBar = (props: any) => {
   const scale = height / priceRange;
   
   const centerX = x + width / 2;
-  const bodyWidth = width * 0.85; // Much wider body for better visibility
+  const bodyWidth = width * 0.7; // Optimal body width for full-width charts
   const bodyX = x + (width - bodyWidth) / 2;
   
   // Calculate body dimensions with minimum size for small bodies
@@ -109,8 +109,8 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    // Show only 15 candles for much better spacing and readability
-    return data.slice(-15).map((item, index) => ({
+    // Show 50 candles for proper technical analysis visibility
+    return data.slice(-50).map((item, index) => ({
       ...item,
       time: new Date(item.time).toLocaleTimeString([], { 
         month: 'short',
@@ -211,11 +211,11 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
       </div>
 
       {chartData.length > 0 ? (
-        <div className="h-[600px]">
+        <div className="h-[800px]">
           <ResponsiveContainer width="100%" height="85%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 20, right: 60, left: 60, bottom: 15 }}
+              margin={{ top: 20, right: 80, left: 80, bottom: 15 }}
             >
               <CartesianGrid 
                 strokeDasharray="1 1" 
@@ -228,7 +228,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 12, fill: 'hsl(var(--muted-foreground))' }}
-                interval={1}
+                interval={Math.floor(chartData.length / 10)}
                 angle={-45}
                 textAnchor="end"
                 height={60}
@@ -284,7 +284,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 dataKey="high"
                 shape={CandlestickBar}
                 minPointSize={2}
-                maxBarSize={75}
+                maxBarSize={25}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -292,7 +292,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
           <ResponsiveContainer width="100%" height="15%">
             <ComposedChart
               data={chartData}
-              margin={{ top: 5, right: 60, left: 60, bottom: 20 }}
+              margin={{ top: 5, right: 80, left: 80, bottom: 20 }}
             >
               <CartesianGrid strokeDasharray="1 1" stroke="hsl(var(--chart-grid))" />
               <XAxis
@@ -300,7 +300,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }}
-                interval={1}
+                interval={Math.floor(chartData.length / 10)}
                 angle={-45}
                 textAnchor="end"
                 height={50}
@@ -328,13 +328,13 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
               <Bar
                 dataKey="volume"
                 shape={VolumeBar}
-                maxBarSize={75}
+                maxBarSize={25}
               />
             </ComposedChart>
           </ResponsiveContainer>
         </div>
       ) : (
-        <div className="h-[600px] flex items-center justify-center text-muted-foreground">
+        <div className="h-[800px] flex items-center justify-center text-muted-foreground">
           No data available
         </div>
       )}
