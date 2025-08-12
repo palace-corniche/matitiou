@@ -28,7 +28,7 @@ const CandlestickBar = (props: any) => {
   const scale = height / priceRange;
   
   const centerX = x + width / 2;
-  const bodyWidth = width * 0.7; // Optimal body width for full-width charts
+  const bodyWidth = width * 0.75; // Professional body width for optimal visibility
   const bodyX = x + (width - bodyWidth) / 2;
   
   // Calculate body dimensions with minimum size for small bodies
@@ -55,7 +55,7 @@ const CandlestickBar = (props: any) => {
           x2={centerX}
           y2={upperWickBottom}
           stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-          strokeWidth={2}
+          strokeWidth={1}
         />
       )}
       
@@ -67,7 +67,7 @@ const CandlestickBar = (props: any) => {
           x2={centerX}
           y2={lowerWickBottom}
           stroke={isBullish ? 'hsl(var(--bullish))' : 'hsl(var(--bearish))'}
-          strokeWidth={2}
+          strokeWidth={1}
         />
       )}
       
@@ -109,8 +109,8 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
   const chartData = useMemo(() => {
     if (!data || data.length === 0) return [];
     
-    // Show 50 candles for proper technical analysis visibility
-    return data.slice(-50).map((item, index) => ({
+    // Show 32 candles for optimal spacing like professional charts
+    return data.slice(-32).map((item, index) => ({
       ...item,
       time: new Date(item.time).toLocaleTimeString([], { 
         month: 'short',
@@ -218,8 +218,9 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
               margin={{ top: 20, right: 80, left: 80, bottom: 15 }}
             >
               <CartesianGrid 
-                strokeDasharray="1 1" 
+                strokeDasharray="3 3" 
                 stroke="hsl(var(--chart-grid))" 
+                strokeOpacity={0.3}
                 horizontal={true}
                 vertical={true}
               />
@@ -284,7 +285,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
                 dataKey="high"
                 shape={CandlestickBar}
                 minPointSize={2}
-                maxBarSize={25}
+                maxBarSize={45}
               />
             </ComposedChart>
           </ResponsiveContainer>
@@ -294,7 +295,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
               data={chartData}
               margin={{ top: 5, right: 80, left: 80, bottom: 20 }}
             >
-              <CartesianGrid strokeDasharray="1 1" stroke="hsl(var(--chart-grid))" />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--chart-grid))" strokeOpacity={0.3} />
               <XAxis
                 dataKey="time"
                 axisLine={false}
@@ -328,7 +329,7 @@ export const SimpleChart = ({ timeframe, title, data, isLoading = false, current
               <Bar
                 dataKey="volume"
                 shape={VolumeBar}
-                maxBarSize={25}
+                maxBarSize={45}
               />
             </ComposedChart>
           </ResponsiveContainer>
