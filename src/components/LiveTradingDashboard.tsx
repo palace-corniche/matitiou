@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
 import { SimpleChart } from './SimpleChart';
+import TechnicalAnalysisPanel from './TechnicalAnalysisPanel';
+import SignalDashboard from './SignalDashboard';
 import { getForexData, getLiveTickData, getMarketStatus, CandleData, TickData } from '@/services/realMarketData';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { RefreshCw, Activity, Clock, TrendingUp, TrendingDown } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RefreshCw, Activity, Clock, TrendingUp, TrendingDown, Target, BarChart3 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 
 interface ChartData {
@@ -240,25 +243,101 @@ export const LiveTradingDashboard = () => {
           })}
         </div>
 
-      {/* Charts Grid */}
-      <div className="grid grid-cols-1 gap-6">
-          {timeframes.map((tf) => (
-            <SimpleChart
-              key={tf.key}
-              data={chartData[tf.key] || []}
-              timeframe={tf.key}
-              title={tf.title}
-              isLoading={loading[tf.key] || false}
-              currentPrice={getCurrentPrice(tf.key)}
-              priceChange={getPriceChange(tf.key)}
-            />
-          ))}
-        </div>
+        {/* Main Content Tabs */}
+        <Tabs defaultValue="charts" className="space-y-6">
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="charts" className="flex items-center gap-2">
+              <BarChart3 className="w-4 h-4" />
+              Charts
+            </TabsTrigger>
+            <TabsTrigger value="analysis" className="flex items-center gap-2">
+              <Activity className="w-4 h-4" />
+              Technical Analysis
+            </TabsTrigger>
+            <TabsTrigger value="signals" className="flex items-center gap-2">
+              <Target className="w-4 h-4" />
+              Trading Signals
+            </TabsTrigger>
+          </TabsList>
+
+          {/* Charts Tab */}
+          <TabsContent value="charts" className="space-y-6">
+            <div className="grid grid-cols-1 gap-6">
+              {timeframes.map((tf) => (
+                <SimpleChart
+                  key={tf.key}
+                  data={chartData[tf.key] || []}
+                  timeframe={tf.key}
+                  title={tf.title}
+                  isLoading={loading[tf.key] || false}
+                  currentPrice={getCurrentPrice(tf.key)}
+                  priceChange={getPriceChange(tf.key)}
+                />
+              ))}
+            </div>
+          </TabsContent>
+
+          {/* Technical Analysis Tab */}
+          <TabsContent value="analysis" className="space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {timeframes.map((tf) => {
+                const data = chartData[tf.key] || [];
+                
+                if (data.length === 0) {
+                  return (
+                    <Card key={tf.key}>
+                      <CardContent className="p-8 text-center text-muted-foreground">
+                        <Activity className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>Loading {tf.title} analysis...</p>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <TechnicalAnalysisPanel
+                    key={tf.key}
+                    data={data}
+                    timeframe={tf.label}
+                  />
+                );
+              })}
+            </div>
+          </TabsContent>
+
+          {/* Trading Signals Tab */}
+          <TabsContent value="signals" className="space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+              {timeframes.map((tf) => {
+                const data = chartData[tf.key] || [];
+                
+                if (data.length === 0) {
+                  return (
+                    <Card key={tf.key}>
+                      <CardContent className="p-8 text-center text-muted-foreground">
+                        <Target className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                        <p>Loading {tf.title} signals...</p>
+                      </CardContent>
+                    </Card>
+                  );
+                }
+                
+                return (
+                  <SignalDashboard
+                    key={tf.key}
+                    data={data}
+                    timeframe={tf.label}
+                  />
+                );
+              })}
+            </div>
+          </TabsContent>
+        </Tabs>
 
         {/* Footer */}
         <div className="text-center text-sm text-muted-foreground space-y-1">
-          <p>Real-time EUR/USD market data • Updates every 5 minutes when market is open</p>
-          <p>Using Twelve Data API for live forex prices and historical data</p>
+          <p>Real-time EUR/USD market data with comprehensive technical analysis</p>
+          <p>Updates every 5 minutes when market is open • Using Twelve Data API</p>
         </div>
       </div>
     </div>
