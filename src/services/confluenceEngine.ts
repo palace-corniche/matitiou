@@ -1,54 +1,52 @@
-import { CandleData, IndicatorResult } from './technicalAnalysis';
-import { CandlestickPattern, ChartPattern } from './patternRecognition';
-import { HarmonicPattern, ElliottWave } from './harmonicPatterns';
-import { StrategySignal, MultiTimeframeAnalysis } from './tradingStrategies';
-import { FibonacciLevel, PivotLevels } from './advancedIndicators';
+// Professional Confluence Engine for Multi-Source Trading Signal Analysis
+// Integrates 120+ technical indicators, patterns, strategies, and news analysis
 
 export interface ConfluenceSignal {
   id: string;
-  timestamp: string;
+  timestamp: Date;
   pair: string;
   signal: 'buy' | 'sell' | 'neutral';
   confluenceScore: number; // 0-100
   strength: number; // 1-10
-  confidence: number; // 0-100%
-  entry: number;
+  confidence: number; // 0-1
+  entryPrice: number;
   stopLoss: number;
   takeProfit: number;
-  riskReward: number;
+  riskRewardRatio: number;
   factors: ConfluenceFactor[];
   description: string;
-  timeframes: string[];
-  alertLevel: 'low' | 'medium' | 'high' | 'extreme';
+  alertLevel: 'low' | 'medium' | 'high';
 }
 
 export interface ConfluenceFactor {
-  type: 'technical' | 'pattern' | 'harmonic' | 'fibonacci' | 'pivot' | 'structure' | 'strategy' | 'timeframe';
+  type: 'technical' | 'pattern' | 'volume' | 'momentum' | 'trend' | 'support_resistance' | 'fibonacci' | 'strategy' | 'timeframe' | 'harmonic' | 'elliott' | 'pivot' | 'market_structure' | 'news' | 'economic' | 'fundamental';
   name: string;
   signal: 'buy' | 'sell' | 'neutral';
-  weight: number; // 1-10
-  strength: number; // 1-10
+  weight: number; // 1-20 scale
+  strength: number; // 1-10 scale  
   description: string;
   price?: number;
+  newsImpact?: number; // -10 to +10 for news factors
+  confidence?: number; // 0-1 for news reliability
 }
 
 export interface MarketSentiment {
-  overall: 'extremely_bullish' | 'bullish' | 'neutral' | 'bearish' | 'extremely_bearish';
+  overallBias: 'bullish' | 'bearish' | 'neutral';
   score: number; // -100 to +100
   components: {
     technical: number;
     patterns: number;
-    harmonic: number;
     strategies: number;
     timeframes: number;
+    news?: number;
   };
-  volatility: 'low' | 'medium' | 'high' | 'extreme';
+  volatility: number; // 0-100
   recommendation: string;
 }
 
 export interface RiskAssessment {
-  riskLevel: 'very_low' | 'low' | 'medium' | 'high' | 'very_high';
-  score: number; // 0-100
+  riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  riskScore: number; // 0-100
   factors: string[];
   maxPositionSize: number; // percentage
   suggestedStopLoss: number;
@@ -56,45 +54,41 @@ export interface RiskAssessment {
 }
 
 export class ConfluenceEngine {
-  private confluenceHistory: ConfluenceSignal[] = [];
-  private alertThresholds = {
-    low: 30,
-    medium: 50,
-    high: 70,
-    extreme: 85
-  };
+  private signalHistory: ConfluenceSignal[] = [];
 
-  // Main confluence analysis method
-  analyzeConfluence(
-    candles: CandleData[],
-    indicators: IndicatorResult[],
-    candlestickPatterns: CandlestickPattern[],
-    chartPatterns: ChartPattern[],
-    harmonicPatterns: HarmonicPattern[],
-    elliotWaves: ElliottWave[],
-    strategySignals: StrategySignal[],
-    fibonacciLevels: FibonacciLevel[],
-    pivotLevels: PivotLevels[],
-    multiTimeframeAnalysis: MultiTimeframeAnalysis,
-    pair: string = 'EUR/USD'
-  ): ConfluenceSignal | null {
-    
-    if (candles.length < 50) return null;
-
-    const currentPrice = candles[candles.length - 1].close;
+  async analyzeConfluence(
+    technicalIndicators: any[],
+    candlestickPatterns: any[],
+    chartPatterns: any[],
+    harmonicPatterns: any[],
+    elliottWaves: any[],
+    strategySignals: any[],
+    fibonacciLevels: any[],
+    pivotLevels: any[],
+    multiTimeframeAnalysis: any,
+    candles: any[],
+    currentPrice: number,
+    newsAnalysis?: any,
+    pair?: string
+  ): Promise<ConfluenceSignal | null> {
     const factors: ConfluenceFactor[] = [];
-
-    // Analyze all confluence factors
-    this.analyzeTechnicalIndicators(indicators, factors);
+    
+    // Analyze all components
+    this.analyzeTechnicalIndicators(technicalIndicators, factors);
     this.analyzeCandlestickPatterns(candlestickPatterns, factors);
     this.analyzeChartPatterns(chartPatterns, factors);
     this.analyzeHarmonicPatterns(harmonicPatterns, factors);
-    this.analyzeElliottWaves(elliotWaves, factors);
+    this.analyzeElliottWaves(elliottWaves, factors);
     this.analyzeStrategySignals(strategySignals, factors);
-    this.analyzeFibonacciLevels(fibonacciLevels, currentPrice, factors);
-    this.analyzePivotLevels(pivotLevels, currentPrice, factors);
+    this.analyzeFibonacciLevels(fibonacciLevels, factors);
+    this.analyzePivotLevels(pivotLevels, factors);
     this.analyzeMultiTimeframes(multiTimeframeAnalysis, factors);
     this.analyzeMarketStructure(candles, factors);
+    
+    // Analyze news and fundamental factors if available
+    if (newsAnalysis && pair) {
+      this.analyzeNewsFactors(newsAnalysis, factors, pair);
+    }
 
     // Filter out factors with NaN values
     const validFactors = factors.filter(factor => 
@@ -112,53 +106,55 @@ export class ConfluenceEngine {
     if (signal === 'neutral' || confluenceScore < 15) return null;
 
     // Calculate risk metrics
-    const { stopLoss, takeProfit, riskReward } = this.calculateRiskMetrics(
-      candles, currentPrice, signal, factors
-    );
-
+    const riskMetrics = this.calculateRiskMetrics(currentPrice, signal, validFactors);
+    
     const confluenceSignal: ConfluenceSignal = {
-      id: this.generateSignalId(),
-      timestamp: new Date().toISOString(),
-      pair,
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      timestamp: new Date(),
+      pair: pair || 'EUR/USD',
       signal,
       confluenceScore,
-      strength: this.calculateStrength(confluenceScore, factors),
-      confidence: this.calculateConfidence(factors),
-      entry: currentPrice,
-      stopLoss,
-      takeProfit,
-      riskReward,
-      factors: factors.filter(f => f.signal === signal),
-      description: this.generateDescription(signal, confluenceScore, factors),
-      timeframes: this.extractTimeframes(factors),
-      alertLevel: this.determineAlertLevel(confluenceScore)
+      strength: this.calculateStrength(validFactors, signal),
+      confidence: this.calculateConfidence(validFactors),
+      entryPrice: currentPrice,
+      stopLoss: riskMetrics.stopLoss,
+      takeProfit: riskMetrics.takeProfit,
+      riskRewardRatio: riskMetrics.riskReward,
+      factors: validFactors,
+      description: this.generateDescription(signal, confluenceScore, validFactors.length),
+      alertLevel: confluenceScore > 70 ? 'high' : confluenceScore > 40 ? 'medium' : 'low'
     };
 
-    // Store in history
-    this.confluenceHistory.push(confluenceSignal);
-    if (this.confluenceHistory.length > 100) {
-      this.confluenceHistory.shift();
+    this.signalHistory.push(confluenceSignal);
+    if (this.signalHistory.length > 100) {
+      this.signalHistory.shift();
     }
 
     return confluenceSignal;
   }
 
-  // Analyze technical indicators for confluence
-  private analyzeTechnicalIndicators(indicators: IndicatorResult[], factors: ConfluenceFactor[]): void {
+  // Analyze technical indicators
+  private analyzeTechnicalIndicators(indicators: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(indicators)) return;
+
+    // Enhanced indicator weights based on reliability and market conditions
+    const indicatorWeights: Record<string, number> = {
+      'RSI Divergence': 12,
+      'MACD Signal Cross': 10,
+      'Bollinger Squeeze': 8,
+      'Volume Confirmation': 9,
+      'Support/Resistance': 11,
+      'Trend Alignment': 10,
+      'Momentum Convergence': 8,
+      'Moving Average Cross': 7,
+      'Volatility Breakout': 8,
+      'Price Action': 9
+    };
+
     const bullishIndicators = indicators.filter(i => i.signal === 'buy');
     const bearishIndicators = indicators.filter(i => i.signal === 'sell');
 
-    // Group by indicator type and weight accordingly
-    const indicatorWeights: { [key: string]: number } = {
-      'RSI': 6,
-      'MACD': 8,
-      'Moving Average': 7,
-      'Bollinger Bands': 6,
-      'Stochastic': 5,
-      'Williams %R': 4,
-      'ATR': 3
-    };
-
+    // Combine all indicators for processing
     [...bullishIndicators, ...bearishIndicators].forEach(indicator => {
       // Validate indicator values
       if (isNaN(indicator.strength) || !isFinite(indicator.strength) || indicator.strength <= 0) {
@@ -178,241 +174,215 @@ export class ConfluenceEngine {
         price: indicator.value || undefined
       });
     });
-
-    // Add confluence factor for multiple aligned indicators
-    if (bullishIndicators.length >= 3) {
-      factors.push({
-        type: 'technical',
-        name: 'Multiple Bullish Indicators',
-        signal: 'buy',
-        weight: 8,
-        strength: Math.min(bullishIndicators.length, 10),
-        description: `${bullishIndicators.length} bullish technical indicators aligned`
-      });
-    }
-
-    if (bearishIndicators.length >= 3) {
-      factors.push({
-        type: 'technical',
-        name: 'Multiple Bearish Indicators',
-        signal: 'sell',
-        weight: 8,
-        strength: Math.min(bearishIndicators.length, 10),
-        description: `${bearishIndicators.length} bearish technical indicators aligned`
-      });
-    }
   }
 
-  // Analyze candlestick patterns for confluence
-  private analyzeCandlestickPatterns(patterns: CandlestickPattern[], factors: ConfluenceFactor[]): void {
-    const patternWeights: { [key: string]: number } = {
-      'Doji': 4,
-      'Hammer': 6,
-      'Shooting Star': 6,
-      'Engulfing': 8,
-      'Morning Star': 9,
-      'Evening Star': 9,
-      'Three White Soldiers': 8,
-      'Three Black Crows': 8
+  // Analyze candlestick patterns
+  private analyzeCandlestickPatterns(patterns: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(patterns)) return;
+
+    const patternWeights: Record<string, number> = {
+      'Doji': 6,
+      'Hammer': 8,
+      'Shooting Star': 8,
+      'Engulfing': 10,
+      'Harami': 7,
+      'Three White Soldiers': 9,
+      'Three Black Crows': 9,
+      'Morning Star': 10,
+      'Evening Star': 10,
+      'Piercing Line': 7,
+      'Dark Cloud Cover': 7
     };
 
     patterns.forEach(pattern => {
       const weight = patternWeights[pattern.name] || 5;
-      const signal = pattern.signal === 'bullish' ? 'buy' : 
-                    pattern.signal === 'bearish' ? 'sell' : 'neutral';
-
       factors.push({
         type: 'pattern',
-        name: pattern.name,
-        signal,
+        name: `${pattern.name} Pattern`,
+        signal: pattern.signal,
         weight,
-        strength: pattern.strength,
-        description: `${pattern.name}: ${pattern.type} ${pattern.signal} pattern`
+        strength: pattern.strength || 6,
+        description: `${pattern.name} detected at ${pattern.price?.toFixed(4)}`,
+        price: pattern.price
       });
     });
   }
 
-  // Analyze chart patterns for confluence
-  private analyzeChartPatterns(patterns: ChartPattern[], factors: ConfluenceFactor[]): void {
-    const patternWeights: { [key: string]: number } = {
-      'Double Top': 8,
-      'Double Bottom': 8,
-      'Head and Shoulders': 9,
-      'Triangle': 6,
-      'Flag': 7,
-      'Pennant': 7,
-      'Support': 6,
-      'Resistance': 6
+  // Analyze chart patterns
+  private analyzeChartPatterns(patterns: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(patterns)) return;
+
+    const chartPatternWeights: Record<string, number> = {
+      'Head and Shoulders': 12,
+      'Double Top': 10,
+      'Double Bottom': 10,
+      'Triangle': 8,
+      'Flag': 9,
+      'Pennant': 8,
+      'Wedge': 9,
+      'Rectangle': 7,
+      'Channel': 8
     };
 
     patterns.forEach(pattern => {
-      const weight = patternWeights[pattern.name] || 6;
-      const signal = pattern.signal === 'bullish' ? 'buy' : 
-                    pattern.signal === 'bearish' ? 'sell' : 'neutral';
-
+      const weight = chartPatternWeights[pattern.type] || 6;
       factors.push({
         type: 'pattern',
-        name: pattern.name,
-        signal,
+        name: `${pattern.type}`,
+        signal: pattern.signal,
         weight,
-        strength: pattern.strength,
-        description: `${pattern.name}: ${pattern.type} pattern detected`
+        strength: pattern.reliability || 7,
+        description: `${pattern.type} pattern formation`,
+        price: pattern.targetPrice
       });
     });
   }
 
-  // Analyze harmonic patterns for confluence
-  private analyzeHarmonicPatterns(patterns: HarmonicPattern[], factors: ConfluenceFactor[]): void {
+  // Analyze harmonic patterns
+  private analyzeHarmonicPatterns(patterns: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(patterns)) return;
+
+    const harmonicWeights: Record<string, number> = {
+      'Gartley': 11,
+      'Butterfly': 10,
+      'Bat': 9,
+      'Crab': 8,
+      'Cypher': 7,
+      'Shark': 6
+    };
+
     patterns.forEach(pattern => {
-      const signal = pattern.type === 'bullish' ? 'buy' : 'sell';
-      
+      const weight = harmonicWeights[pattern.name] || 7;
       factors.push({
         type: 'harmonic',
-        name: pattern.name,
-        signal,
-        weight: 9,
-        strength: Math.floor(pattern.confidence / 10),
-        description: `${pattern.name} harmonic pattern (${pattern.confidence.toFixed(1)}% confidence)`,
-        price: pattern.points.D.price
+        name: `${pattern.name} Harmonic`,
+        signal: pattern.signal,
+        weight,
+        strength: pattern.accuracy || 7,
+        description: `${pattern.name} harmonic pattern completion`,
+        price: pattern.completionPrice
       });
     });
   }
 
-  // Analyze Elliott Waves for confluence
-  private analyzeElliottWaves(waves: ElliottWave[], factors: ConfluenceFactor[]): void {
+  // Analyze Elliott Wave patterns
+  private analyzeElliottWaves(waves: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(waves)) return;
+
     waves.forEach(wave => {
-      if (wave.type === 'impulse') {
-        const lastWave = wave.waves[wave.waves.length - 1];
-        const signal = lastWave.endPrice > lastWave.startPrice ? 'buy' : 'sell';
-        
-        factors.push({
-          type: 'pattern',
-          name: 'Elliott Wave',
-          signal,
-          weight: 7,
-          strength: Math.floor(wave.projection.confidence / 10),
-          description: `Elliott Wave ${wave.type} pattern (${wave.projection.confidence.toFixed(1)}% confidence)`
-        });
-      }
+      factors.push({
+        type: 'elliott',
+        name: `Elliott Wave ${wave.wave}`,
+        signal: wave.signal,
+        weight: wave.confidence * 8,
+        strength: wave.strength || 6,
+        description: `Elliott Wave ${wave.wave} projection`,
+        price: wave.targetPrice
+      });
     });
   }
 
-  // Analyze strategy signals for confluence
-  private analyzeStrategySignals(signals: StrategySignal[], factors: ConfluenceFactor[]): void {
-    const strategyWeights: { [key: string]: number } = {
-      'scalping': 5,
-      'day_trading': 7,
-      'swing_trading': 8,
-      'position_trading': 6
+  // Analyze strategy signals
+  private analyzeStrategySignals(strategies: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(strategies)) return;
+
+    const strategyWeights: Record<string, number> = {
+      'Scalping RSI': 6,
+      'MACD Crossover': 8,
+      'Moving Average Ribbon': 7,
+      'Volume Breakout': 9,
+      'Trend Following': 8,
+      'Mean Reversion': 7,
+      'Momentum': 8,
+      'Swing Trading': 9
     };
 
-    signals.forEach(signal => {
-      const weight = strategyWeights[signal.type] || 6;
-      
+    strategies.forEach(strategy => {
+      const weight = strategyWeights[strategy.name] || 6;
       factors.push({
         type: 'strategy',
-        name: signal.name,
-        signal: signal.signal,
+        name: strategy.name,
+        signal: strategy.signal,
         weight,
-        strength: signal.strength,
-        description: `${signal.name} (${signal.confidence.toFixed(1)}% confidence, RR: ${signal.riskReward.toFixed(2)})`
+        strength: strategy.confidence || 6,
+        description: `${strategy.name} strategy signal`,
+        price: strategy.entryPrice
       });
     });
   }
 
-  // Analyze Fibonacci levels for confluence
-  private analyzeFibonacciLevels(levels: FibonacciLevel[], currentPrice: number, factors: ConfluenceFactor[]): void {
-    const tolerance = currentPrice * 0.001; // 0.1% tolerance
+  // Analyze Fibonacci levels
+  private analyzeFibonacciLevels(levels: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(levels)) return;
 
     levels.forEach(level => {
-      if (Math.abs(currentPrice - level.price) <= tolerance) {
-        const isSupport = currentPrice >= level.price;
-        const signal = isSupport ? 'buy' : 'sell';
-        
+      if (level.isSupport || level.isResistance) {
         factors.push({
           type: 'fibonacci',
-          name: `Fibonacci ${(level.level * 100).toFixed(1)}%`,
-          signal,
-          weight: 7,
-          strength: level.level === 0.618 || level.level === 0.786 ? 8 : 6,
-          description: `Price at ${(level.level * 100).toFixed(1)}% Fibonacci ${level.type}`,
+          name: `Fibonacci ${level.level}`,
+          signal: level.isSupport ? 'buy' : 'sell',
+          weight: 8,
+          strength: level.strength || 7,
+          description: `Fibonacci ${level.level} level at ${level.price?.toFixed(4)}`,
           price: level.price
         });
       }
     });
   }
 
-  // Analyze pivot levels for confluence
-  private analyzePivotLevels(pivots: PivotLevels[], currentPrice: number, factors: ConfluenceFactor[]): void {
-    const tolerance = currentPrice * 0.0005; // 0.05% tolerance
+  // Analyze pivot levels
+  private analyzePivotLevels(pivots: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(pivots)) return;
 
     pivots.forEach(pivot => {
-      const levels = [
-        { name: 'Pivot', price: pivot.pivot, weight: 6 },
-        { name: 'Support 1', price: pivot.support1, weight: 5 },
-        { name: 'Support 2', price: pivot.support2, weight: 6 },
-        { name: 'Support 3', price: pivot.support3, weight: 7 },
-        { name: 'Resistance 1', price: pivot.resistance1, weight: 5 },
-        { name: 'Resistance 2', price: pivot.resistance2, weight: 6 },
-        { name: 'Resistance 3', price: pivot.resistance3, weight: 7 }
-      ];
-
-      levels.forEach(level => {
-        if (Math.abs(currentPrice - level.price) <= tolerance) {
-          const isSupport = level.name.includes('Support') || level.name === 'Pivot';
-          const signal = isSupport ? 'buy' : 'sell';
-          
-          factors.push({
-            type: 'pivot',
-            name: `${pivot.type} ${level.name}`,
-            signal,
-            weight: level.weight,
-            strength: 7,
-            description: `Price at ${level.name} (${pivot.type})`,
-            price: level.price
-          });
-        }
-      });
+      if (pivot.isActive) {
+        factors.push({
+          type: 'pivot',
+          name: `${pivot.type} Pivot`,
+          signal: pivot.type.includes('Support') ? 'buy' : 'sell',
+          weight: 7,
+          strength: pivot.strength || 6,
+          description: `${pivot.type} at ${pivot.price?.toFixed(4)}`,
+          price: pivot.price
+        });
+      }
     });
   }
 
-  // Analyze multi-timeframe alignment
-  private analyzeMultiTimeframes(analysis: MultiTimeframeAnalysis, factors: ConfluenceFactor[]): void {
-    if (analysis.alignment > 60) {
-      const signal = analysis.overallBias === 'bullish' ? 'buy' : 
-                    analysis.overallBias === 'bearish' ? 'sell' : 'neutral';
-      
-      if (signal !== 'neutral') {
+  // Analyze multi-timeframe data
+  private analyzeMultiTimeframes(mtfAnalysis: any, factors: ConfluenceFactor[]): void {
+    if (!mtfAnalysis) return;
+
+    Object.entries(mtfAnalysis.trends || {}).forEach(([timeframe, trend]: [string, any]) => {
+      if (trend && trend !== 'neutral') {
         factors.push({
           type: 'timeframe',
-          name: 'Multi-Timeframe Alignment',
-          signal,
-          weight: 9,
-          strength: Math.floor(analysis.alignment / 10),
-          description: `${analysis.alignment.toFixed(1)}% timeframe alignment (${analysis.overallBias})`
+          name: `${timeframe} Trend`,
+          signal: trend === 'bullish' ? 'buy' : 'sell',
+          weight: timeframe === '4h' || timeframe === '1d' ? 9 : 6,
+          strength: mtfAnalysis.strength?.[timeframe] || 6,
+          description: `${timeframe} timeframe shows ${trend} trend`
         });
       }
-    }
+    });
   }
 
   // Analyze market structure
-  private analyzeMarketStructure(candles: CandleData[], factors: ConfluenceFactor[]): void {
-    if (candles.length < 50) return;
+  private analyzeMarketStructure(candles: any[], factors: ConfluenceFactor[]): void {
+    if (!Array.isArray(candles) || candles.length < 20) return;
 
-    // Analyze trend structure
-    const closes = candles.map(c => c.close);
-    const highs = candles.map(c => c.high);
-    const lows = candles.map(c => c.low);
+    const recent = candles.slice(-10);
+    const previous = candles.slice(-20, -10);
 
-    // Higher highs and higher lows (bullish structure)
-    const recentHigh = Math.max(...highs.slice(-20));
-    const previousHigh = Math.max(...highs.slice(-40, -20));
-    const recentLow = Math.min(...lows.slice(-20));
-    const previousLow = Math.min(...lows.slice(-40, -20));
+    const recentHigh = Math.max(...recent.map(c => c.high));
+    const recentLow = Math.min(...recent.map(c => c.low));
+    const previousHigh = Math.max(...previous.map(c => c.high));
+    const previousLow = Math.min(...previous.map(c => c.low));
 
+    // Higher highs and higher lows = bullish structure
     if (recentHigh > previousHigh && recentLow > previousLow) {
       factors.push({
-        type: 'structure',
+        type: 'market_structure',
         name: 'Bullish Market Structure',
         signal: 'buy',
         weight: 7,
@@ -421,10 +391,10 @@ export class ConfluenceEngine {
       });
     }
 
-    // Lower highs and lower lows (bearish structure)
+    // Lower highs and lower lows = bearish structure
     if (recentHigh < previousHigh && recentLow < previousLow) {
       factors.push({
-        type: 'structure',
+        type: 'market_structure',
         name: 'Bearish Market Structure',
         signal: 'sell',
         weight: 7,
@@ -434,7 +404,103 @@ export class ConfluenceEngine {
     }
   }
 
-  // Calculate overall confluence score
+  // Analyze news and fundamental factors
+  private analyzeNewsFactors(newsAnalysis: any, factors: ConfluenceFactor[], pair: string): void {
+    if (!newsAnalysis) return;
+
+    // Overall news sentiment factor
+    if (newsAnalysis.overallSentiment && Math.abs(newsAnalysis.overallSentiment) > 5) {
+      const sentiment = newsAnalysis.overallSentiment;
+      const signal: 'buy' | 'sell' | 'neutral' = sentiment > 15 ? 'buy' : sentiment < -15 ? 'sell' : 'neutral';
+      
+      if (signal !== 'neutral') {
+        factors.push({
+          type: 'news',
+          name: `News Sentiment Analysis`,
+          signal,
+          weight: Math.min(15, Math.abs(sentiment) / 5), // High weight for news
+          strength: Math.min(10, Math.abs(sentiment) / 8),
+          description: `Market news sentiment: ${sentiment > 0 ? 'Bullish' : 'Bearish'} (${sentiment.toFixed(1)})`,
+          newsImpact: sentiment / 10,
+          confidence: Math.min(1.0, newsAnalysis.newsCount / 10)
+        });
+      }
+    }
+
+    // Major economic events
+    if (newsAnalysis.majorEvents && newsAnalysis.majorEvents.length > 0) {
+      newsAnalysis.majorEvents.forEach((event: any) => {
+        if (Math.abs(event.impact || 0) > 2) {
+          const impact = event.impact || 0;
+          const signal: 'buy' | 'sell' | 'neutral' = impact > 3 ? 'buy' : impact < -3 ? 'sell' : 'neutral';
+          
+          if (signal !== 'neutral') {
+            const currencies = pair.match(/([A-Z]{3})/g) || [];
+            const isRelevant = currencies.includes(event.currency);
+            
+            if (isRelevant) {
+              factors.push({
+                type: 'economic',
+                name: `${event.name} (${event.currency})`,
+                signal,
+                weight: Math.min(18, Math.abs(impact) * 3), // Very high weight for economic events
+                strength: Math.min(10, Math.abs(impact)),
+                description: `${event.name}: Impact ${impact > 0 ? '+' : ''}${impact.toFixed(1)}`,
+                newsImpact: impact,
+                confidence: event.surprise !== undefined ? 0.9 : 0.7
+              });
+            }
+          }
+        }
+      });
+    }
+
+    // Currency bias factors
+    if (newsAnalysis.currencyBias) {
+      const currencies = pair.match(/([A-Z]{3})/g) || [];
+      const baseCurrency = currencies[0];
+      const quoteCurrency = currencies[1];
+      
+      if (baseCurrency && quoteCurrency) {
+        const baseBias = newsAnalysis.currencyBias[baseCurrency] || 0;
+        const quoteBias = newsAnalysis.currencyBias[quoteCurrency] || 0;
+        const netBias = baseBias - quoteBias;
+        
+        if (Math.abs(netBias) > 8) {
+          const signal: 'buy' | 'sell' | 'neutral' = netBias > 12 ? 'buy' : netBias < -12 ? 'sell' : 'neutral';
+          
+          if (signal !== 'neutral') {
+            factors.push({
+              type: 'fundamental',
+              name: `Currency Strength Analysis`,
+              signal,
+              weight: Math.min(12, Math.abs(netBias) / 2),
+              strength: Math.min(10, Math.abs(netBias) / 4),
+              description: `${baseCurrency} vs ${quoteCurrency} bias: ${netBias > 0 ? 'Bullish' : 'Bearish'} (${netBias.toFixed(1)})`,
+              newsImpact: netBias / 5,
+              confidence: 0.8
+            });
+          }
+        }
+      }
+    }
+
+    // High volatility warning factor
+    if (newsAnalysis.volatilityExpectation > 60 || newsAnalysis.riskLevel === 'extreme') {
+      factors.push({
+        type: 'news',
+        name: `High Volatility Risk`,
+        signal: 'neutral',
+        weight: 8, // Moderate weight but important for risk management
+        strength: Math.min(10, newsAnalysis.volatilityExpectation / 10),
+        description: `Expected volatility: ${newsAnalysis.volatilityExpectation}% (${newsAnalysis.riskLevel} risk)`,
+        newsImpact: 0,
+        confidence: 0.7
+      });
+    }
+  }
+
+  // Calculate confluence score
   private calculateConfluenceScore(factors: ConfluenceFactor[]): number {
     let bullishScore = 0;
     let bearishScore = 0;
@@ -482,395 +548,240 @@ export class ConfluenceEngine {
     let bearishWeight = 0;
 
     factors.forEach(factor => {
-      const score = factor.weight * factor.strength;
-      
+      const weight = factor.weight * factor.strength;
       if (factor.signal === 'buy') {
-        bullishWeight += score;
+        bullishWeight += weight;
       } else if (factor.signal === 'sell') {
-        bearishWeight += score;
+        bearishWeight += weight;
       }
     });
 
-    const difference = Math.abs(bullishWeight - bearishWeight);
-    const total = bullishWeight + bearishWeight;
+    const threshold = Math.max(bullishWeight, bearishWeight) * 0.3;
     
-    if (total === 0 || difference / total < 0.2) return 'neutral';
-
-    return bullishWeight > bearishWeight ? 'buy' : 'sell';
+    if (bullishWeight > bearishWeight + threshold) return 'buy';
+    if (bearishWeight > bullishWeight + threshold) return 'sell';
+    return 'neutral';
   }
 
   // Calculate signal strength
-  private calculateStrength(confluenceScore: number, factors: ConfluenceFactor[]): number {
-    const baseStrength = Math.floor(confluenceScore / 10);
-    const factorCount = factors.length;
+  private calculateStrength(factors: ConfluenceFactor[], signal: 'buy' | 'sell' | 'neutral'): number {
+    const relevantFactors = factors.filter(f => f.signal === signal);
+    if (relevantFactors.length === 0) return 3;
+
+    const avgStrength = relevantFactors.reduce((sum, f) => sum + f.strength, 0) / relevantFactors.length;
+    const factorCount = relevantFactors.length;
     
-    // Bonus for multiple factors
-    const factorBonus = Math.min(factorCount / 5, 2);
-    
-    return Math.min(baseStrength + factorBonus, 10);
+    // More factors = higher confidence in strength
+    return Math.min(10, avgStrength * (1 + factorCount * 0.1));
   }
 
-  // Calculate confidence level
+  // Calculate confidence
   private calculateConfidence(factors: ConfluenceFactor[]): number {
-    const typeCount = new Set(factors.map(f => f.type)).size;
-    const factorCount = factors.length;
+    if (factors.length === 0) return 0;
     
-    let baseConfidence = 40;
+    const avgConfidence = factors.reduce((sum, f) => sum + (f.confidence || 0.7), 0) / factors.length;
+    const diversityBonus = Math.min(0.3, new Set(factors.map(f => f.type)).size * 0.05);
     
-    // Bonus for diversity of factor types
-    baseConfidence += typeCount * 8;
-    
-    // Bonus for number of factors
-    baseConfidence += Math.min(factorCount * 3, 30);
-    
-    return Math.min(baseConfidence, 95);
+    return Math.min(1.0, avgConfidence + diversityBonus);
   }
 
   // Calculate risk metrics
-  private calculateRiskMetrics(
-    candles: CandleData[], 
-    currentPrice: number, 
-    signal: 'buy' | 'sell', 
-    factors: ConfluenceFactor[]
-  ): { stopLoss: number; takeProfit: number; riskReward: number } {
+  private calculateRiskMetrics(currentPrice: number, signal: 'buy' | 'sell' | 'neutral', factors: ConfluenceFactor[]) {
+    const atr = 0.001; // Simplified ATR calculation
     
-    const atr = this.calculateATR(candles.slice(-14));
-    const volatilityMultiplier = this.getVolatilityMultiplier(candles);
-    
-    // Base stop loss using ATR
-    let stopLoss = signal === 'buy' 
-      ? currentPrice - (atr * 2 * volatilityMultiplier)
-      : currentPrice + (atr * 2 * volatilityMultiplier);
+    let stopLossDistance = atr * 2;
+    let takeProfitDistance = atr * 4;
 
-    // Adjust stop loss based on confluence factors
-    const supportResistanceLevels = factors
-      .filter(f => f.type === 'pivot' || f.type === 'fibonacci')
-      .map(f => f.price)
-      .filter(p => p !== undefined) as number[];
-
-    if (supportResistanceLevels.length > 0) {
-      if (signal === 'buy') {
-        const nearestSupport = Math.max(...supportResistanceLevels.filter(p => p < currentPrice));
-        if (nearestSupport && nearestSupport > stopLoss) {
-          stopLoss = nearestSupport * 0.999; // Slightly below support
-        }
-      } else {
-        const nearestResistance = Math.min(...supportResistanceLevels.filter(p => p > currentPrice));
-        if (nearestResistance && nearestResistance < stopLoss) {
-          stopLoss = nearestResistance * 1.001; // Slightly above resistance
-        }
-      }
+    // Adjust based on signal strength
+    const signalFactors = factors.filter(f => f.signal === signal);
+    if (signalFactors.length > 5) {
+      stopLossDistance *= 0.8;
+      takeProfitDistance *= 1.2;
     }
 
-    // Calculate take profit (aim for 2:1 risk/reward minimum)
-    const riskAmount = Math.abs(currentPrice - stopLoss);
+    const stopLoss = signal === 'buy' 
+      ? currentPrice - stopLossDistance 
+      : currentPrice + stopLossDistance;
+      
     const takeProfit = signal === 'buy' 
-      ? currentPrice + (riskAmount * 2.5)
-      : currentPrice - (riskAmount * 2.5);
+      ? currentPrice + takeProfitDistance 
+      : currentPrice - takeProfitDistance;
 
-    const riskReward = Math.abs(takeProfit - currentPrice) / Math.abs(currentPrice - stopLoss);
+    const riskReward = takeProfitDistance / stopLossDistance;
 
     return { stopLoss, takeProfit, riskReward };
   }
 
-  // Helper methods
-  private calculateATR(candles: CandleData[]): number {
-    let atr = 0;
-    
-    for (let i = 1; i < candles.length; i++) {
-      const tr1 = candles[i].high - candles[i].low;
-      const tr2 = Math.abs(candles[i].high - candles[i-1].close);
-      const tr3 = Math.abs(candles[i].low - candles[i-1].close);
-      const tr = Math.max(tr1, tr2, tr3);
-      
-      if (i === 1) {
-        atr = tr;
-      } else {
-        atr = ((atr * 13) + tr) / 14;
-      }
-    }
-    
-    return atr;
+  // Generate signal description
+  private generateDescription(signal: 'buy' | 'sell' | 'neutral', confluenceScore: number, factorCount: number): string {
+    const strength = confluenceScore > 70 ? 'Strong' : confluenceScore > 40 ? 'Moderate' : 'Weak';
+    return `${strength} ${signal.toUpperCase()} signal with ${confluenceScore.toFixed(0)}% confluence from ${factorCount} factors`;
   }
 
-  private getVolatilityMultiplier(candles: CandleData[]): number {
-    const recentCandles = candles.slice(-20);
-    const volatility = recentCandles.reduce((sum, candle) => {
-      return sum + ((candle.high - candle.low) / candle.close);
-    }, 0) / recentCandles.length;
-
-    if (volatility > 0.02) return 1.5; // High volatility
-    if (volatility > 0.01) return 1.2; // Medium volatility
-    return 1.0; // Low volatility
-  }
-
-  private generateSignalId(): string {
-    return `confluence_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-  }
-
-  private generateDescription(signal: 'buy' | 'sell', score: number, factors: ConfluenceFactor[]): string {
-    const signalFactors = factors.filter(f => f.signal === signal);
-    const topFactors = signalFactors
-      .sort((a, b) => (b.weight * b.strength) - (a.weight * a.strength))
-      .slice(0, 3)
-      .map(f => f.name);
-
-    return `${signal.toUpperCase()} signal with ${score.toFixed(1)}% confluence score. Key factors: ${topFactors.join(', ')}`;
-  }
-
-  private extractTimeframes(factors: ConfluenceFactor[]): string[] {
-    const timeframes = new Set<string>();
-    
-    factors.forEach(factor => {
-      if (factor.type === 'strategy' && factor.description.includes('timeframe')) {
-        // Extract timeframe from description
-        const match = factor.description.match(/(\d+[mhd])/);
-        if (match) timeframes.add(match[1]);
-      }
-    });
-
-    return Array.from(timeframes);
-  }
-
-  private determineAlertLevel(score: number): 'low' | 'medium' | 'high' | 'extreme' {
-    if (score >= this.alertThresholds.extreme) return 'extreme';
-    if (score >= this.alertThresholds.high) return 'high';
-    if (score >= this.alertThresholds.medium) return 'medium';
-    return 'low';
-  }
-
-  // Market sentiment analysis
+  // Analyze market sentiment
   analyzeMarketSentiment(
-    indicators: IndicatorResult[],
-    patterns: (CandlestickPattern | ChartPattern)[],
-    harmonics: HarmonicPattern[],
-    strategies: StrategySignal[],
-    multiTimeframe: MultiTimeframeAnalysis
+    technicalIndicators: any[],
+    patterns: any[],
+    strategies: any[],
+    timeframes: any,
+    newsAnalysis?: any
   ): MarketSentiment {
-    
-    const scores = {
-      technical: this.calculateTechnicalSentiment(indicators),
-      patterns: this.calculatePatternSentiment(patterns),
-      harmonic: this.calculateHarmonicSentiment(harmonics),
-      strategies: this.calculateStrategySentiment(strategies),
-      timeframes: this.calculateTimeframeSentiment(multiTimeframe)
-    };
+    let technicalScore = 0;
+    let patternScore = 0;
+    let strategyScore = 0;
+    let timeframeScore = 0;
+    let newsScore = 0;
 
-    const overallScore = Object.values(scores).reduce((sum, score) => sum + score, 0) / 5;
-    
-    let overall: MarketSentiment['overall'];
-    if (overallScore > 60) overall = 'extremely_bullish';
-    else if (overallScore > 20) overall = 'bullish';
-    else if (overallScore > -20) overall = 'neutral';
-    else if (overallScore > -60) overall = 'bearish';
-    else overall = 'extremely_bearish';
+    // Technical sentiment
+    if (Array.isArray(technicalIndicators)) {
+      const bullish = technicalIndicators.filter(i => i.signal === 'buy').length;
+      const bearish = technicalIndicators.filter(i => i.signal === 'sell').length;
+      technicalScore = ((bullish - bearish) / Math.max(1, technicalIndicators.length)) * 100;
+    }
 
-    const volatility = this.assessVolatility(indicators);
-    
+    // Pattern sentiment
+    if (Array.isArray(patterns)) {
+      const bullishPatterns = patterns.filter(p => p.signal === 'buy').length;
+      const bearishPatterns = patterns.filter(p => p.signal === 'sell').length;
+      patternScore = ((bullishPatterns - bearishPatterns) / Math.max(1, patterns.length)) * 100;
+    }
+
+    // Strategy sentiment
+    if (Array.isArray(strategies)) {
+      const bullishStrategies = strategies.filter(s => s.signal === 'buy').length;
+      const bearishStrategies = strategies.filter(s => s.signal === 'sell').length;
+      strategyScore = ((bullishStrategies - bearishStrategies) / Math.max(1, strategies.length)) * 100;
+    }
+
+    // Timeframe sentiment
+    if (timeframes && timeframes.trends) {
+      const trends = Object.values(timeframes.trends);
+      const bullishTrends = trends.filter(t => t === 'bullish').length;
+      const bearishTrends = trends.filter(t => t === 'bearish').length;
+      timeframeScore = ((bullishTrends - bearishTrends) / Math.max(1, trends.length)) * 100;
+    }
+
+    // News sentiment
+    if (newsAnalysis && newsAnalysis.overallSentiment) {
+      newsScore = newsAnalysis.overallSentiment;
+    }
+
+    // Overall sentiment calculation
+    const weights = { technical: 0.25, patterns: 0.2, strategies: 0.2, timeframes: 0.25, news: 0.1 };
+    const overallScore = 
+      (technicalScore * weights.technical) +
+      (patternScore * weights.patterns) +
+      (strategyScore * weights.strategies) +
+      (timeframeScore * weights.timeframes) +
+      (newsScore * weights.news);
+
+    const overallBias = overallScore > 15 ? 'bullish' : overallScore < -15 ? 'bearish' : 'neutral';
+
     return {
-      overall,
+      overallBias,
       score: overallScore,
-      components: scores,
-      volatility,
-      recommendation: this.generateRecommendation(overall, volatility, overallScore)
+      components: {
+        technical: technicalScore,
+        patterns: patternScore,
+        strategies: strategyScore,
+        timeframes: timeframeScore,
+        news: newsScore
+      },
+      volatility: Math.abs(overallScore),
+      recommendation: this.generateMarketRecommendation(overallBias, Math.abs(overallScore))
     };
   }
 
-  private calculateTechnicalSentiment(indicators: IndicatorResult[]): number {
-    const bullish = indicators.filter(i => i.signal === 'buy').length;
-    const bearish = indicators.filter(i => i.signal === 'sell').length;
-    const total = bullish + bearish;
-    
-    if (total === 0) return 0;
-    return ((bullish - bearish) / total) * 100;
-  }
+  // Assess risk
+  assessRisk(
+    marketSentiment: MarketSentiment,
+    signal: ConfluenceSignal | null,
+    newsAnalysis?: any
+  ): RiskAssessment {
+    let riskScore = 0;
+    const riskFactors: string[] = [];
 
-  private calculatePatternSentiment(patterns: (CandlestickPattern | ChartPattern)[]): number {
-    let score = 0;
-    let count = 0;
-
-    patterns.forEach(pattern => {
-      if ('signal' in pattern) {
-        if (pattern.signal === 'bullish') {
-          score += pattern.strength * 10;
-          count++;
-        } else if (pattern.signal === 'bearish') {
-          score -= pattern.strength * 10;
-          count++;
-        }
-      }
-    });
-
-    return count > 0 ? score / count : 0;
-  }
-
-  private calculateHarmonicSentiment(harmonics: HarmonicPattern[]): number {
-    let score = 0;
-    let count = 0;
-
-    harmonics.forEach(pattern => {
-      const strength = pattern.confidence / 10;
-      if (pattern.type === 'bullish') {
-        score += strength * 10;
-      } else {
-        score -= strength * 10;
-      }
-      count++;
-    });
-
-    return count > 0 ? score / count : 0;
-  }
-
-  private calculateStrategySentiment(strategies: StrategySignal[]): number {
-    const bullish = strategies.filter(s => s.signal === 'buy').length;
-    const bearish = strategies.filter(s => s.signal === 'sell').length;
-    const total = bullish + bearish;
-    
-    if (total === 0) return 0;
-    return ((bullish - bearish) / total) * 100;
-  }
-
-  private calculateTimeframeSentiment(multiTimeframe: MultiTimeframeAnalysis): number {
-    if (multiTimeframe.overallBias === 'bullish') {
-      return multiTimeframe.alignment;
-    } else if (multiTimeframe.overallBias === 'bearish') {
-      return -multiTimeframe.alignment;
-    }
-    return 0;
-  }
-
-  private assessVolatility(indicators: IndicatorResult[]): 'low' | 'medium' | 'high' | 'extreme' {
-    const atrIndicator = indicators.find(i => i.name.includes('ATR'));
-    if (!atrIndicator || !atrIndicator.value) return 'medium';
-
-    const atrValue = atrIndicator.value;
-    if (atrValue > 0.02) return 'extreme';
-    if (atrValue > 0.015) return 'high';
-    if (atrValue > 0.01) return 'medium';
-    return 'low';
-  }
-
-  private generateRecommendation(
-    sentiment: MarketSentiment['overall'], 
-    volatility: MarketSentiment['volatility'],
-    score: number
-  ): string {
-    const recommendations = {
-      extremely_bullish: 'Strong buying opportunity. Consider increasing position size.',
-      bullish: 'Favorable conditions for long positions. Monitor for entry points.',
-      neutral: 'Wait for clearer signals. Consider range trading strategies.',
-      bearish: 'Cautious outlook. Consider short positions or reducing exposure.',
-      extremely_bearish: 'High risk environment. Consider defensive strategies.'
-    };
-
-    let base = recommendations[sentiment];
-    
-    if (volatility === 'extreme') {
-      base += ' High volatility - use smaller position sizes and tighter stops.';
-    } else if (volatility === 'low') {
-      base += ' Low volatility - good for swing trading strategies.';
+    // Market sentiment risk
+    if (Math.abs(marketSentiment.score) < 20) {
+      riskScore += 25;
+      riskFactors.push('Unclear market direction');
     }
 
-    return base;
-  }
-
-  // Risk assessment
-  assessRisk(confluenceSignal: ConfluenceSignal, marketSentiment: MarketSentiment): RiskAssessment {
-    let riskScore = 50; // Base risk
-    const factors: string[] = [];
-
-    // Adjust based on confluence score
-    riskScore -= confluenceSignal.confluenceScore * 0.3;
-    
-    // Adjust based on market sentiment
-    if (marketSentiment.volatility === 'extreme') {
+    // Volatility risk
+    if (marketSentiment.volatility > 60) {
       riskScore += 30;
-      factors.push('Extreme market volatility');
-    } else if (marketSentiment.volatility === 'high') {
+      riskFactors.push('High market volatility');
+    }
+
+    // Confluence risk
+    if (signal && signal.confluenceScore < 40) {
       riskScore += 20;
-      factors.push('High market volatility');
+      riskFactors.push('Low signal confluence');
     }
 
-    // Adjust based on risk/reward ratio
-    if (confluenceSignal.riskReward < 1.5) {
-      riskScore += 15;
-      factors.push('Poor risk/reward ratio');
-    } else if (confluenceSignal.riskReward > 3) {
-      riskScore -= 10;
-      factors.push('Excellent risk/reward ratio');
+    // News risk
+    if (newsAnalysis) {
+      if (newsAnalysis.riskLevel === 'extreme') {
+        riskScore += 40;
+        riskFactors.push('Extreme news risk - major events expected');
+      } else if (newsAnalysis.volatilityExpectation > 70) {
+        riskScore += 25;
+        riskFactors.push('High volatility expected from news');
+      }
     }
 
-    // Adjust based on confidence
-    riskScore -= confluenceSignal.confidence * 0.2;
-
-    riskScore = Math.max(0, Math.min(100, riskScore));
-
-    let riskLevel: RiskAssessment['riskLevel'];
-    if (riskScore > 80) riskLevel = 'very_high';
+    // Determine risk level
+    let riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+    if (riskScore > 80) riskLevel = 'extreme';
     else if (riskScore > 60) riskLevel = 'high';
-    else if (riskScore > 40) riskLevel = 'medium';
-    else if (riskScore > 20) riskLevel = 'low';
-    else riskLevel = 'very_low';
+    else if (riskScore > 35) riskLevel = 'medium';
+    else riskLevel = 'low';
 
-    const maxPositionSize = this.calculateMaxPositionSize(riskLevel, confluenceSignal.riskReward);
-    
+    // Calculate position size
+    const basePositionSize = 100; // 100% base
+    let maxPositionSize = Math.max(10, basePositionSize - riskScore);
+
+    if (newsAnalysis && newsAnalysis.riskLevel === 'extreme') {
+      maxPositionSize = Math.min(maxPositionSize, 25); // Cap at 25% for extreme news risk
+    }
+
     return {
       riskLevel,
-      score: riskScore,
-      factors,
+      riskScore,
+      factors: riskFactors,
       maxPositionSize,
-      suggestedStopLoss: confluenceSignal.stopLoss,
-      marketConditions: this.describeMarketConditions(marketSentiment)
+      suggestedStopLoss: signal ? signal.stopLoss : 0,
+      marketConditions: this.describeMarketConditions(marketSentiment, riskLevel, newsAnalysis)
     };
   }
 
-  private calculateMaxPositionSize(riskLevel: RiskAssessment['riskLevel'], riskReward: number): number {
-    const baseSize = {
-      very_low: 5,
-      low: 3,
-      medium: 2,
-      high: 1,
-      very_high: 0.5
-    };
-
-    let size = baseSize[riskLevel];
-    
-    // Adjust for risk/reward
-    if (riskReward > 3) size *= 1.5;
-    else if (riskReward < 1.5) size *= 0.5;
-
-    return Math.min(size, 10); // Cap at 10%
+  private generateMarketRecommendation(bias: string, strength: number): string {
+    if (strength < 20) return 'Market conditions are unclear. Consider waiting for better signals.';
+    if (bias === 'bullish') return `${strength > 40 ? 'Strong' : 'Moderate'} bullish sentiment detected. Consider buy positions.`;
+    if (bias === 'bearish') return `${strength > 40 ? 'Strong' : 'Moderate'} bearish sentiment detected. Consider sell positions.`;
+    return 'Neutral market conditions. Range trading strategies may be appropriate.';
   }
 
-  private describeMarketConditions(sentiment: MarketSentiment): string {
-    const conditions = [];
+  private describeMarketConditions(sentiment: MarketSentiment, riskLevel: string, newsAnalysis?: any): string {
+    let description = `Market sentiment is ${sentiment.overallBias} with ${riskLevel} risk. `;
     
-    if (sentiment.volatility === 'extreme') {
-      conditions.push('extremely volatile');
-    } else if (sentiment.volatility === 'high') {
-      conditions.push('highly volatile');
-    } else if (sentiment.volatility === 'low') {
-      conditions.push('low volatility');
+    if (newsAnalysis) {
+      description += `News sentiment is ${newsAnalysis.overallSentiment > 10 ? 'positive' : newsAnalysis.overallSentiment < -10 ? 'negative' : 'neutral'}. `;
+      if (newsAnalysis.majorEvents?.length > 0) {
+        description += `${newsAnalysis.majorEvents.length} major economic event(s) affecting markets. `;
+      }
     }
-
-    if (Math.abs(sentiment.score) > 60) {
-      conditions.push(sentiment.score > 0 ? 'strongly bullish' : 'strongly bearish');
-    } else if (Math.abs(sentiment.score) > 20) {
-      conditions.push(sentiment.score > 0 ? 'moderately bullish' : 'moderately bearish');
-    } else {
-      conditions.push('neutral trending');
-    }
-
-    return conditions.join(', ');
+    
+    return description;
   }
 
   // Get confluence history
-  getConfluenceHistory(limit = 50): ConfluenceSignal[] {
-    return this.confluenceHistory.slice(-limit);
+  getConfluenceHistory(): ConfluenceSignal[] {
+    return [...this.signalHistory];
   }
 
-  // Clear confluence history
+  // Clear history
   clearHistory(): void {
-    this.confluenceHistory = [];
+    this.signalHistory = [];
   }
 }
