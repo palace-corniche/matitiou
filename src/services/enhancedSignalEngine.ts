@@ -316,58 +316,65 @@ export class EnhancedSignalEngine {
 
   async performMultiTimeframeAnalysis(candles: CandleData[], pair: string): Promise<MultiTimeframeAnalysis> {
     try {
-      const trends: Record<string, string> = {};
-      const strength: Record<string, number> = {};
+      const timeframes: Record<string, { trend: 'bullish' | 'bearish' | 'neutral'; strength: number; signals: StrategySignal[] }> = {};
 
       // Analyze different timeframes (simplified)
-      const timeframes = ['1h', '4h', '1d'];
+      const timeframeList = ['1h', '4h', '1d'];
       
-      timeframes.forEach(tf => {
+      for (const tf of timeframeList) {
         const sma20 = this.calculateSMA(candles, 20);
         const sma50 = this.calculateSMA(candles, 50);
+        
+        let trend: 'bullish' | 'bearish' | 'neutral' = 'neutral';
+        let strength = 5;
         
         if (sma20.length > 0 && sma50.length > 0) {
           const sma20Current = sma20[sma20.length - 1];
           const sma50Current = sma50[sma50.length - 1];
           
           if (sma20Current > sma50Current) {
-            trends[tf] = 'bullish';
-            strength[tf] = 7;
+            trend = 'bullish';
+            strength = 7;
           } else if (sma20Current < sma50Current) {
-            trends[tf] = 'bearish';
-            strength[tf] = 7;
-          } else {
-            trends[tf] = 'neutral';
-            strength[tf] = 5;
+            trend = 'bearish';
+            strength = 7;
           }
-        } else {
-          trends[tf] = 'neutral';
-          strength[tf] = 5;
         }
-      });
+        
+        timeframes[tf] = {
+          trend,
+          strength,
+          signals: []
+        };
+      }
 
-      // Determine alignment
-      const bullishCount = Object.values(trends).filter(t => t === 'bullish').length;
-      const bearishCount = Object.values(trends).filter(t => t === 'bearish').length;
+      // Calculate alignment (0-100%)
+      const trends = Object.values(timeframes).map(tf => tf.trend);
+      const bullishCount = trends.filter(t => t === 'bullish').length;
+      const bearishCount = trends.filter(t => t === 'bearish').length;
+      const totalCount = trends.length;
       
-      let alignment: 'bullish' | 'bearish' | 'neutral';
-      if (bullishCount > bearishCount) alignment = 'bullish';
-      else if (bearishCount > bullishCount) alignment = 'bearish';
-      else alignment = 'neutral';
+      const alignmentPercent = Math.max(bullishCount, bearishCount) / totalCount * 100;
+      
+      // Determine overall bias
+      let overallBias: 'bullish' | 'bearish' | 'neutral';
+      if (bullishCount > bearishCount) overallBias = 'bullish';
+      else if (bearishCount > bullishCount) overallBias = 'bearish';
+      else overallBias = 'neutral';
 
       return {
-        trends,
-        strength,
-        alignment,
-        dominantTimeframe: 4
+        timeframes,
+        alignment: alignmentPercent,
+        overallBias
       };
     } catch (error) {
       console.error('Error in multi-timeframe analysis:', error);
       return {
-        trends: { '1h': 'neutral' },
-        strength: { '1h': 5 },
-        alignment: 'neutral',
-        dominantTimeframe: 1
+        timeframes: { 
+          '1h': { trend: 'neutral', strength: 5, signals: [] }
+        },
+        alignment: 33,
+        overallBias: 'neutral'
       };
     }
   }
@@ -513,7 +520,7 @@ export class EnhancedSignalEngine {
         waves: [{ number: 5, startIndex: 0, endIndex: peaks.length-1, startPrice: peaks[0].value, endPrice: peaks[peaks.length-1].value, type: 'impulse' }],
         degree: 'primary',
         type: 'impulse',
-        projection: peaks[0].value
+        projection: { wave3Target: peaks[0].value, wave5Target: peaks[0].value, confidence: 0.6 }
       });
     }
 
@@ -537,8 +544,7 @@ export class EnhancedSignalEngine {
       levels.push({
         level: fib,
         price,
-        type: 'retracement',
-        
+        type: 'retracement'
       });
     });
 
