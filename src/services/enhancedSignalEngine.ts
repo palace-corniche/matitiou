@@ -21,6 +21,7 @@ import {
 } from './advancedIndicators';
 import { ConfluenceEngine, type ConfluenceSignal } from './confluenceEngine';
 import { newsAnalysisEngine } from './newsAnalysis';
+import { shadowTradingEngine } from './shadowTradingEngine';
 
 export class EnhancedSignalEngine {
   private confluenceEngine = new ConfluenceEngine();
@@ -71,6 +72,13 @@ export class EnhancedSignalEngine {
 
       if (signal) {
         console.log(`✅ Generated ${signal.signal} signal with ${signal.confluenceScore.toFixed(0)}% confluence from ${signal.factors.length} factors`);
+        
+        // Auto-execute in shadow trading system
+        try {
+          shadowTradingEngine.executeSignal(signal, currentPrice);
+        } catch (error) {
+          console.warn('Shadow trading execution failed:', error);
+        }
       } else {
         console.log('❌ Insufficient confluence for signal generation');
       }

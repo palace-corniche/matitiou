@@ -1,3 +1,5 @@
+import { Toaster } from "@/components/ui/sonner";
+import NavigationBar from "@/components/NavigationBar";
 import { ComprehensiveTradingDashboard } from '@/components/ComprehensiveTradingDashboard';
 import { useState, useEffect } from 'react';
 import { getForexData, CandleData } from '@/services/realMarketData';
@@ -26,10 +28,10 @@ const Index = () => {
     };
 
     loadData();
-    const interval = setInterval(loadData, 300000); // Refresh every 5 minutes
+    const interval = setInterval(loadData, 300000);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [toast]);
 
   if (loading) {
     return (
@@ -42,7 +44,13 @@ const Index = () => {
     );
   }
 
-  return <ComprehensiveTradingDashboard data={chartData} pair="EUR/USD" />;
+  return (
+    <div className="min-h-screen bg-background">
+      <NavigationBar />
+      <Toaster />
+      <ComprehensiveTradingDashboard data={chartData} pair="EUR/USD" />
+    </div>
+  );
 };
 
 export default Index;
