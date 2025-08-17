@@ -10,12 +10,14 @@ export interface ConfluenceSignal {
   strength: number; // 1-10
   confidence: number; // 0-1
   entryPrice: number;
+  entry: number;
   stopLoss: number;
   takeProfit: number;
   riskRewardRatio: number;
+  riskReward: number;
   factors: ConfluenceFactor[];
   description: string;
-  alertLevel: 'low' | 'medium' | 'high';
+  alertLevel: 'low' | 'medium' | 'high' | 'extreme';
 }
 
 export interface ConfluenceFactor {
@@ -32,6 +34,7 @@ export interface ConfluenceFactor {
 
 export interface MarketSentiment {
   overallBias: 'bullish' | 'bearish' | 'neutral';
+  overall: string;
   score: number; // -100 to +100
   components: {
     technical: number;
@@ -39,13 +42,14 @@ export interface MarketSentiment {
     strategies: number;
     timeframes: number;
     news?: number;
+    harmonic?: number;
   };
   volatility: number; // 0-100
   recommendation: string;
 }
 
 export interface RiskAssessment {
-  riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+  riskLevel: 'very_low' | 'low' | 'medium' | 'high' | 'extreme';
   riskScore: number; // 0-100
   factors: string[];
   maxPositionSize: number; // percentage
@@ -117,9 +121,11 @@ export class ConfluenceEngine {
       strength: this.calculateStrength(validFactors, signal),
       confidence: this.calculateConfidence(validFactors),
       entryPrice: currentPrice,
+      entry: currentPrice,
       stopLoss: riskMetrics.stopLoss,
       takeProfit: riskMetrics.takeProfit,
       riskRewardRatio: riskMetrics.riskReward,
+      riskReward: riskMetrics.riskReward,
       factors: validFactors,
       description: this.generateDescription(signal, confluenceScore, validFactors.length),
       alertLevel: confluenceScore > 70 ? 'high' : confluenceScore > 40 ? 'medium' : 'low'
@@ -436,7 +442,7 @@ export class ConfluenceEngine {
           
           if (signal !== 'neutral') {
             const currencies = pair.match(/([A-Z]{3})/g) || [];
-            const isRelevant = currencies.includes(event.currency);
+            const isRelevant = currencies.length > 0 && event.currency && currencies.some(c => c === event.currency);
             
             if (isRelevant) {
               factors.push({
@@ -679,13 +685,15 @@ export class ConfluenceEngine {
 
     return {
       overallBias,
+      overall: overallBias,
       score: overallScore,
       components: {
         technical: technicalScore,
         patterns: patternScore,
         strategies: strategyScore,
         timeframes: timeframeScore,
-        news: newsScore
+        news: newsScore,
+        harmonic: patternScore // Add harmonic component
       },
       volatility: Math.abs(overallScore),
       recommendation: this.generateMarketRecommendation(overallBias, Math.abs(overallScore))
@@ -731,11 +739,12 @@ export class ConfluenceEngine {
     }
 
     // Determine risk level
-    let riskLevel: 'low' | 'medium' | 'high' | 'extreme';
+    let riskLevel: 'very_low' | 'low' | 'medium' | 'high' | 'extreme';
     if (riskScore > 80) riskLevel = 'extreme';
     else if (riskScore > 60) riskLevel = 'high';
     else if (riskScore > 35) riskLevel = 'medium';
-    else riskLevel = 'low';
+    else if (riskScore > 15) riskLevel = 'low';
+    else riskLevel = 'very_low';
 
     // Calculate position size
     const basePositionSize = 100; // 100% base

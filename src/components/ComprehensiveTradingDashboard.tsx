@@ -6,7 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { TrendingUp, TrendingDown, AlertTriangle, Target, Shield, RefreshCw } from 'lucide-react';
 import { CandleData } from '@/services/technicalAnalysis';
 import { type ConfluenceSignal, type MarketSentiment, type RiskAssessment } from '@/services/confluenceEngine';
-import EnhancedSignalEngine from '@/services/enhancedSignalEngine';
+import { EnhancedSignalEngine } from '@/services/enhancedSignalEngine';
 import { useToast } from '@/hooks/use-toast';
 
 interface ComprehensiveTradingDashboardProps {
