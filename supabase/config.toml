@@ -1,1 +1,13 @@
 project_id = "gmpmpbuzlybajzrapdrr"
+
+[functions.fetch-market-data]
+verify_jwt = false
+
+[functions.generate-confluence-signals]
+verify_jwt = false
+
+[functions.execute-shadow-trades]
+verify_jwt = false
+
+[functions.manage-shadow-trades]
+verify_jwt = false

@@ -165,6 +165,51 @@ export type Database = {
           },
         ]
       }
+      market_data_feed: {
+        Row: {
+          created_at: string
+          data_source: string
+          high_price: number
+          id: string
+          is_live: boolean
+          low_price: number
+          open_price: number
+          price: number
+          symbol: string
+          timeframe: string
+          timestamp: string
+          volume: number | null
+        }
+        Insert: {
+          created_at?: string
+          data_source?: string
+          high_price: number
+          id?: string
+          is_live?: boolean
+          low_price: number
+          open_price: number
+          price: number
+          symbol?: string
+          timeframe?: string
+          timestamp: string
+          volume?: number | null
+        }
+        Update: {
+          created_at?: string
+          data_source?: string
+          high_price?: number
+          id?: string
+          is_live?: boolean
+          low_price?: number
+          open_price?: number
+          price?: number
+          symbol?: string
+          timeframe?: string
+          timestamp?: string
+          volume?: number | null
+        }
+        Relationships: []
+      }
       models: {
         Row: {
           analysis_job_id: string
@@ -221,6 +266,53 @@ export type Database = {
           },
         ]
       }
+      performance_snapshots: {
+        Row: {
+          balance: number
+          created_at: string
+          daily_pnl: number
+          drawdown_percent: number
+          equity: number
+          id: string
+          portfolio_id: string
+          snapshot_date: string
+          trades_today: number
+          win_rate_today: number
+        }
+        Insert: {
+          balance: number
+          created_at?: string
+          daily_pnl?: number
+          drawdown_percent?: number
+          equity: number
+          id?: string
+          portfolio_id: string
+          snapshot_date: string
+          trades_today?: number
+          win_rate_today?: number
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          daily_pnl?: number
+          drawdown_percent?: number
+          equity?: number
+          id?: string
+          portfolio_id?: string
+          snapshot_date?: string
+          trades_today?: number
+          win_rate_today?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "performance_snapshots_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
@@ -242,6 +334,269 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      shadow_portfolios: {
+        Row: {
+          auto_trading_enabled: boolean
+          average_loss: number
+          average_win: number
+          balance: number
+          created_at: string
+          equity: number
+          expectancy: number
+          free_margin: number
+          id: string
+          is_active: boolean
+          losing_trades: number
+          margin: number
+          margin_level: number
+          max_drawdown: number
+          max_open_positions: number
+          profit_factor: number
+          risk_per_trade: number
+          session_id: string | null
+          sharpe_ratio: number
+          total_trades: number
+          updated_at: string
+          user_id: string | null
+          win_rate: number
+          winning_trades: number
+        }
+        Insert: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          created_at?: string
+          equity?: number
+          expectancy?: number
+          free_margin?: number
+          id?: string
+          is_active?: boolean
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_open_positions?: number
+          profit_factor?: number
+          risk_per_trade?: number
+          session_id?: string | null
+          sharpe_ratio?: number
+          total_trades?: number
+          updated_at?: string
+          user_id?: string | null
+          win_rate?: number
+          winning_trades?: number
+        }
+        Update: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          created_at?: string
+          equity?: number
+          expectancy?: number
+          free_margin?: number
+          id?: string
+          is_active?: boolean
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_open_positions?: number
+          profit_factor?: number
+          risk_per_trade?: number
+          session_id?: string | null
+          sharpe_ratio?: number
+          total_trades?: number
+          updated_at?: string
+          user_id?: string | null
+          win_rate?: number
+          winning_trades?: number
+        }
+        Relationships: []
+      }
+      shadow_trades: {
+        Row: {
+          confluence_score: number
+          created_at: string
+          entry_price: number
+          entry_time: string
+          exit_price: number | null
+          exit_reason: string | null
+          exit_time: string | null
+          holding_time_minutes: number | null
+          id: string
+          pnl: number | null
+          pnl_percent: number | null
+          portfolio_id: string
+          position_size: number
+          risk_reward_ratio: number | null
+          signal_id: string | null
+          status: string
+          stop_loss: number
+          symbol: string
+          take_profit: number
+          trade_type: string
+          updated_at: string
+        }
+        Insert: {
+          confluence_score?: number
+          created_at?: string
+          entry_price: number
+          entry_time?: string
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_time?: string | null
+          holding_time_minutes?: number | null
+          id?: string
+          pnl?: number | null
+          pnl_percent?: number | null
+          portfolio_id: string
+          position_size: number
+          risk_reward_ratio?: number | null
+          signal_id?: string | null
+          status?: string
+          stop_loss: number
+          symbol?: string
+          take_profit: number
+          trade_type: string
+          updated_at?: string
+        }
+        Update: {
+          confluence_score?: number
+          created_at?: string
+          entry_price?: number
+          entry_time?: string
+          exit_price?: number | null
+          exit_reason?: string | null
+          exit_time?: string | null
+          holding_time_minutes?: number | null
+          id?: string
+          pnl?: number | null
+          pnl_percent?: number | null
+          portfolio_id?: string
+          position_size?: number
+          risk_reward_ratio?: number | null
+          signal_id?: string | null
+          status?: string
+          stop_loss?: number
+          symbol?: string
+          take_profit?: number
+          trade_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shadow_trades_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_health: {
+        Row: {
+          created_at: string
+          error_message: string | null
+          execution_time_ms: number
+          function_name: string
+          id: string
+          memory_usage_mb: number | null
+          processed_items: number | null
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms: number
+          function_name: string
+          id?: string
+          memory_usage_mb?: number | null
+          processed_items?: number | null
+          status: string
+        }
+        Update: {
+          created_at?: string
+          error_message?: string | null
+          execution_time_ms?: number
+          function_name?: string
+          id?: string
+          memory_usage_mb?: number | null
+          processed_items?: number | null
+          status?: string
+        }
+        Relationships: []
+      }
+      trading_signals: {
+        Row: {
+          alert_level: string
+          confidence: number
+          confluence_score: number
+          created_at: string
+          description: string
+          entry_price: number
+          execution_reason: string | null
+          factors: Json
+          id: string
+          pair: string
+          risk_reward_ratio: number
+          session_id: string | null
+          signal_id: string
+          signal_type: string
+          stop_loss: number
+          strength: number
+          take_profit: number
+          updated_at: string
+          user_id: string | null
+          was_executed: boolean
+        }
+        Insert: {
+          alert_level?: string
+          confidence: number
+          confluence_score: number
+          created_at?: string
+          description: string
+          entry_price: number
+          execution_reason?: string | null
+          factors?: Json
+          id?: string
+          pair?: string
+          risk_reward_ratio: number
+          session_id?: string | null
+          signal_id: string
+          signal_type: string
+          stop_loss: number
+          strength: number
+          take_profit: number
+          updated_at?: string
+          user_id?: string | null
+          was_executed?: boolean
+        }
+        Update: {
+          alert_level?: string
+          confidence?: number
+          confluence_score?: number
+          created_at?: string
+          description?: string
+          entry_price?: number
+          execution_reason?: string | null
+          factors?: Json
+          id?: string
+          pair?: string
+          risk_reward_ratio?: number
+          session_id?: string | null
+          signal_id?: string
+          signal_type?: string
+          stop_loss?: number
+          strength?: number
+          take_profit?: number
+          updated_at?: string
+          user_id?: string | null
+          was_executed?: boolean
         }
         Relationships: []
       }
