@@ -278,17 +278,42 @@ function calculatePositionSize(
   stopLoss: number,
   riskPerTrade: number
 ): number {
+  // Enhanced position sizing with Kelly Criterion and CVaR constraints
   const riskAmount = balance * riskPerTrade;
   const stopLossDistance = Math.abs(entryPrice - stopLoss) / entryPrice;
   
-  let positionSize = riskAmount / stopLossDistance;
+  // Base position size from risk management
+  let basePositionSize = riskAmount / stopLossDistance;
   
-  // Cap position size at 10% of balance
-  const maxPositionSize = balance * 0.10;
+  // Kelly fraction calculation (simplified - in production, use actual win probability)
+  const estimatedWinProbability = 0.6; // Conservative estimate
+  const rewardRiskRatio = 2.0; // 2:1 risk-reward
+  const kellyFraction = ((estimatedWinProbability * rewardRiskRatio) - (1 - estimatedWinProbability)) / rewardRiskRatio;
+  const kellyPositionSize = balance * Math.max(0, Math.min(0.25, kellyFraction)); // Cap at 25%
+  
+  // Use the more conservative of the two approaches
+  let positionSize = Math.min(basePositionSize, kellyPositionSize);
+  
+  // CVaR constraint - limit to 5% of portfolio value at risk
+  const cvarLimit = balance * 0.05;
+  const cvarConstrainedSize = cvarLimit / stopLossDistance;
+  positionSize = Math.min(positionSize, cvarConstrainedSize);
+  
+  // Multi-level caps
+  const maxPositionSize = balance * 0.08; // Reduced from 10% to 8% for better risk control
   positionSize = Math.min(positionSize, maxPositionSize);
   
-  // Minimum position size
-  positionSize = Math.max(positionSize, balance * 0.01);
+  // Minimum position size (but not if risk is too high)
+  const minPositionSize = balance * 0.005; // 0.5% minimum
+  positionSize = Math.max(positionSize, minPositionSize);
+  
+  // Final validation - ensure position doesn't risk more than intended
+  const actualRisk = positionSize * stopLossDistance;
+  const maxAllowedRisk = balance * riskPerTrade * 1.5; // Allow 1.5x for rounding
+  
+  if (actualRisk > maxAllowedRisk) {
+    positionSize = maxAllowedRisk / stopLossDistance;
+  }
   
   return Math.round(positionSize * 100) / 100;
 }

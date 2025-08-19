@@ -217,61 +217,145 @@ serve(async (req) => {
 });
 
 async function generateConfluenceSignal(candles: any[], currentPrice: number): Promise<ConfluenceSignal | null> {
+  // Initialize the Probabilistic Signal Engine inline
   const factors: ConfluenceFactor[] = [];
 
   // Calculate technical indicators
   const technicalIndicators = calculateTechnicalIndicators(candles);
   
-  // Analyze indicators for confluence factors
+  // Convert traditional factors to probabilistic format
+  const probabilisticFactors: any[] = [];
+  
+  // Analyze indicators for confluence factors with probabilistic conversion
   technicalIndicators.forEach(indicator => {
     if (indicator.signal !== 'neutral' && indicator.strength > 3) {
-      factors.push({
+      // Convert strength to probability
+      const baseProbability = convertStrengthToProbability(indicator.strength, indicator.signal);
+      const logOdds = Math.log(baseProbability / (1 - baseProbability));
+      
+      const factor = {
         type: 'technical',
         name: indicator.name,
         signal: indicator.signal,
         weight: getIndicatorWeight(indicator.name),
         strength: Math.min(10, Math.max(1, indicator.strength)),
         description: `${indicator.name}: ${indicator.value.toFixed(4)}`,
-        price: indicator.value
-      });
+        price: indicator.value,
+        probability: baseProbability,
+        logOdds: logOdds,
+        confidence: 0.7 + (indicator.strength / 20) // Confidence based on strength
+      };
+      
+      factors.push(factor);
+      probabilisticFactors.push(factor);
     }
   });
 
-  // Analyze price action patterns
+  // Analyze price action patterns with probabilistic conversion
   const priceActionFactors = analyzePriceAction(candles);
+  priceActionFactors.forEach(factor => {
+    const baseProbability = convertStrengthToProbability(factor.strength, factor.signal);
+    const enhancedFactor = {
+      ...factor,
+      probability: baseProbability,
+      logOdds: Math.log(baseProbability / (1 - baseProbability)),
+      confidence: 0.6 // Pattern confidence
+    };
+    probabilisticFactors.push(enhancedFactor);
+  });
   factors.push(...priceActionFactors);
 
-  // Analyze market structure
+  // Analyze market structure with probabilistic conversion
   const structureFactors = analyzeMarketStructure(candles);
+  structureFactors.forEach(factor => {
+    const baseProbability = convertStrengthToProbability(factor.strength, factor.signal);
+    const enhancedFactor = {
+      ...factor,
+      probability: baseProbability,
+      logOdds: Math.log(baseProbability / (1 - baseProbability)),
+      confidence: 0.8 // High confidence in structure
+    };
+    probabilisticFactors.push(enhancedFactor);
+  });
   factors.push(...structureFactors);
 
-  // Calculate confluence score
-  const confluenceScore = calculateConfluenceScore(factors);
-  const overallSignal = determineOverallSignal(factors);
-
-  if (overallSignal === 'neutral' || confluenceScore < 15) {
+  // Bayesian Fusion of Probabilities
+  const { combinedProbability, combinedLogOdds, entropy } = fuseProbabilities(probabilisticFactors);
+  
+  // Apply entropy filter - only proceed if uncertainty is low
+  const maxEntropy = 0.6;
+  if (entropy > maxEntropy) {
+    console.log(`🚫 Signal rejected due to high entropy: ${entropy.toFixed(3)} > ${maxEntropy}`);
+    return null;
+  }
+  
+  // Determine signal type based on combined probability
+  const signalType: 'buy' | 'sell' | 'neutral' = 
+    combinedProbability > 0.6 ? 'buy' : 
+    combinedProbability < 0.4 ? 'sell' : 'neutral';
+  
+  if (signalType === 'neutral') {
+    return null;
+  }
+  
+  // Calculate Expected Returns and Net Edge
+  const expectedReturn = currentPrice * 0.02; // 2% expected return
+  const expectedLoss = currentPrice * 0.01; // 1% expected loss
+  const tradingCosts = currentPrice * 0.0001; // 1 pip spread
+  
+  // NetEdge = p_combined * R_avg - (1 - p_combined) * L_avg - Cost_trade
+  const netEdge = combinedProbability * expectedReturn - (1 - combinedProbability) * expectedLoss - tradingCosts;
+  
+  // Only proceed if we have positive edge
+  if (netEdge <= 0) {
+    console.log(`🚫 Signal rejected due to negative edge: ${netEdge.toFixed(6)}`);
     return null;
   }
 
-  // Calculate risk metrics
-  const riskMetrics = calculateRiskMetrics(currentPrice, overallSignal);
+  // Calculate Kelly Fraction for position sizing
+  const kellyFraction = calculateKellyFraction(combinedProbability, expectedReturn, expectedLoss);
+  
+  // Enhanced confluence score using probabilistic methods
+  const enhancedConfluenceScore = Math.min(100, Math.max(0, 
+    (Math.abs(combinedProbability - 0.5) * 2) * 100 * (1 - entropy) // Score based on probability and certainty
+  ));
 
-  const signalId = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  // Only proceed if confluence score meets minimum threshold
+  if (enhancedConfluenceScore < 25) {
+    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 25`);
+    return null;
+  }
+
+  // Calculate risk metrics with Kelly-optimized sizing
+  const riskMetrics = calculateRiskMetrics(currentPrice, signalType);
+
+  const signalId = `prob_${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  console.log(`🎯 Probabilistic signal generated: ${signalType.toUpperCase()} | Probability: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(6)} | Kelly: ${(kellyFraction * 100).toFixed(2)}%`);
   
   return {
     signal_id: signalId,
     pair: 'EUR/USD',
-    signal_type: overallSignal,
-    confluence_score: Math.round(confluenceScore * 100) / 100,
-    strength: calculateStrength(factors, overallSignal),
-    confidence: calculateConfidence(factors),
+    signal_type: signalType,
+    confluence_score: Math.round(enhancedConfluenceScore * 100) / 100,
+    strength: Math.round(Math.abs(combinedProbability - 0.5) * 20), // 0-10 scale
+    confidence: Math.min(1, 1 - entropy), // Lower entropy = higher confidence
     entry_price: currentPrice,
     stop_loss: riskMetrics.stopLoss,
     take_profit: riskMetrics.takeProfit,
     risk_reward_ratio: riskMetrics.riskReward,
-    factors,
-    description: `${overallSignal.toUpperCase()} signal with ${factors.length} confluence factors`,
-    alert_level: confluenceScore > 70 ? 'high' : confluenceScore > 40 ? 'medium' : 'low'
+    factors: factors.map(f => ({
+      ...f,
+      // Add probabilistic metadata to factors
+      metadata: {
+        probability: probabilisticFactors.find(pf => pf.name === f.name)?.probability || 0.5,
+        logOdds: probabilisticFactors.find(pf => pf.name === f.name)?.logOdds || 0,
+        netEdge: netEdge,
+        kellyFraction: kellyFraction
+      }
+    })),
+    description: `${signalType.toUpperCase()} signal | Prob: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(4)} | Kelly: ${(kellyFraction * 100).toFixed(1)}%`,
+    alert_level: enhancedConfluenceScore > 70 ? 'high' : enhancedConfluenceScore > 50 ? 'medium' : 'low'
   };
 }
 
@@ -471,6 +555,68 @@ function getIndicatorWeight(name: string): number {
     'MACD': 8
   };
   return weights[name] || 5;
+}
+
+// ==================== PROBABILISTIC HELPER FUNCTIONS ====================
+
+function convertStrengthToProbability(strength: number, signal: 'buy' | 'sell' | 'neutral'): number {
+  // Convert strength (1-10) to probability (0.5-0.85 for buy, 0.5-0.15 for sell)
+  const normalizedStrength = Math.max(1, Math.min(10, strength));
+  
+  if (signal === 'buy') {
+    return 0.51 + (normalizedStrength - 1) * 0.034; // Maps 1-10 to 0.51-0.816
+  } else if (signal === 'sell') {
+    return 0.49 - (normalizedStrength - 1) * 0.034; // Maps 1-10 to 0.49-0.184
+  }
+  return 0.5; // Neutral
+}
+
+function fuseProbabilities(factors: any[]): { combinedProbability: number; combinedLogOdds: number; entropy: number } {
+  if (factors.length === 0) {
+    return { combinedProbability: 0.5, combinedLogOdds: 0, entropy: 1 };
+  }
+
+  // Decorrelate signals by reducing weight of similar factor types
+  const typeGroups: Record<string, any[]> = {};
+  factors.forEach(f => {
+    if (!typeGroups[f.type]) typeGroups[f.type] = [];
+    typeGroups[f.type].push(f);
+  });
+
+  // Weighted combination with decorrelation
+  let weightedLogOdds = 0;
+  let totalWeight = 0;
+
+  Object.values(typeGroups).forEach(group => {
+    const correlationPenalty = 1 / Math.sqrt(group.length); // Reduce correlation within groups
+    
+    group.forEach(factor => {
+      const adjustedWeight = factor.weight * factor.confidence * correlationPenalty;
+      weightedLogOdds += adjustedWeight * factor.logOdds;
+      totalWeight += adjustedWeight;
+    });
+  });
+
+  const combinedLogOdds = totalWeight > 0 ? weightedLogOdds / totalWeight : 0;
+  const combinedProbability = 1 / (1 + Math.exp(-combinedLogOdds));
+
+  // Calculate entropy: H(p) = -p*log2(p) - (1-p)*log2(1-p)
+  const entropy = -combinedProbability * Math.log2(Math.max(0.001, combinedProbability)) - 
+                 (1 - combinedProbability) * Math.log2(Math.max(0.001, 1 - combinedProbability));
+
+  return { combinedProbability, combinedLogOdds, entropy };
+}
+
+function calculateKellyFraction(winProbability: number, expectedReturn: number, expectedLoss: number): number {
+  // Kelly Criterion: f* = (p * b - q) / b
+  // Where: p = win probability, q = loss probability, b = reward/risk ratio
+  const lossProbability = 1 - winProbability;
+  const rewardRiskRatio = Math.abs(expectedReturn / expectedLoss);
+  
+  const kelly = (winProbability * rewardRiskRatio - lossProbability) / rewardRiskRatio;
+  
+  // Cap Kelly at 25% for safety and ensure non-negative
+  return Math.max(0, Math.min(0.25, kelly));
 }
 
 function calculateConfluenceScore(factors: ConfluenceFactor[]): number {
