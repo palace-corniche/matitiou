@@ -315,10 +315,32 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // Calculate Kelly Fraction for position sizing
   const kellyFraction = calculateKellyFraction(combinedProbability, expectedReturn, expectedLoss);
   
-  // Enhanced confluence score using probabilistic methods
-  const enhancedConfluenceScore = Math.min(100, Math.max(0, 
-    (Math.abs(combinedProbability - 0.5) * 2) * 100 * (1 - entropy) // Score based on probability and certainty
-  ));
+  // Enhanced confluence score using probabilistic methods with regime awareness
+  const baseScore = (Math.abs(combinedProbability - 0.5) * 2) * 100 * (1 - entropy);
+  
+  // Detect current market regime for score adjustment
+  const currentRegime = detectMarketRegime(candles, [1, 1, 1]); // Simplified volume array
+  let regimeMultiplier = 1.0;
+  
+  // Adjust score based on regime confidence and strength
+  switch (currentRegime.type) {
+    case 'trending':
+      regimeMultiplier = 1.2; // Higher confidence in trending markets
+      break;
+    case 'ranging':
+      regimeMultiplier = 0.9; // Lower confidence in ranging markets
+      break;
+    case 'shock':
+      regimeMultiplier = 0.6; // Much lower confidence in shock regimes
+      break;
+    case 'news_driven':
+      regimeMultiplier = 0.7; // Lower confidence during news events
+      break;
+    default:
+      regimeMultiplier = 1.0;
+  }
+  
+  const enhancedConfluenceScore = Math.min(100, Math.max(0, baseScore * regimeMultiplier));
 
   // Only proceed if confluence score meets minimum threshold
   if (enhancedConfluenceScore < 25) {
@@ -331,7 +353,7 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
 
   const signalId = `prob_${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  console.log(`🎯 Probabilistic signal generated: ${signalType.toUpperCase()} | Probability: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(6)} | Kelly: ${(kellyFraction * 100).toFixed(2)}%`);
+  console.log(`🎯 Probabilistic signal generated: ${signalType.toUpperCase()} | Regime: ${currentRegime.type} | Probability: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(6)} | Kelly: ${(kellyFraction * 100).toFixed(2)}%`);
   
   return {
     signal_id: signalId,
@@ -354,7 +376,7 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
         kellyFraction: kellyFraction
       }
     })),
-    description: `${signalType.toUpperCase()} signal | Prob: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(4)} | Kelly: ${(kellyFraction * 100).toFixed(1)}%`,
+    description: `${signalType.toUpperCase()} signal | Regime: ${currentRegime.type} | Prob: ${(combinedProbability * 100).toFixed(1)}% | Edge: ${netEdge.toFixed(4)} | Kelly: ${(kellyFraction * 100).toFixed(1)}%`,
     alert_level: enhancedConfluenceScore > 70 ? 'high' : enhancedConfluenceScore > 50 ? 'medium' : 'low'
   };
 }
@@ -617,6 +639,37 @@ function calculateKellyFraction(winProbability: number, expectedReturn: number, 
   
   // Cap Kelly at 25% for safety and ensure non-negative
   return Math.max(0, Math.min(0.25, kelly));
+}
+
+function detectMarketRegime(candles: any[], volume: number[]): { type: string; strength: number; confidence: number } {
+  // Simplified regime detection for Edge Function
+  const recent = candles.slice(-10);
+  const prices = recent.map((c: any) => c.close);
+  
+  if (prices.length < 5) {
+    return { type: 'ranging', strength: 0.5, confidence: 0.3 };
+  }
+  
+  // Calculate volatility
+  const returns = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push((prices[i] - prices[i-1]) / prices[i-1]);
+  }
+  const volatility = returns.length > 0 ? Math.sqrt(returns.reduce((sum, r) => sum + r*r, 0) / returns.length) : 0;
+  
+  // Calculate trend
+  const firstPrice = prices[0];
+  const lastPrice = prices[prices.length - 1];
+  const trendStrength = Math.abs(lastPrice - firstPrice) / firstPrice;
+  
+  // Determine regime
+  if (volatility > 0.003) {
+    return { type: 'shock', strength: Math.min(1, volatility * 300), confidence: 0.8 };
+  } else if (trendStrength > 0.008) {
+    return { type: 'trending', strength: Math.min(1, trendStrength * 100), confidence: 0.7 };
+  } else {
+    return { type: 'ranging', strength: Math.min(1, (0.008 - trendStrength) * 100), confidence: 0.6 };
+  }
 }
 
 function calculateConfluenceScore(factors: ConfluenceFactor[]): number {

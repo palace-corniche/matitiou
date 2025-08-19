@@ -49,6 +49,11 @@ export interface MarketRegime {
   momentum: number;
   confidence: number;
   adjustmentFactors: Record<string, number>; // Factor type -> multiplier
+  duration?: number; // Optional duration
+  microstructure?: any; // Optional microstructure
+  riskMultiplier?: number; // Optional risk multiplier
+  expectedDuration?: number; // Optional expected duration
+  transitionProbabilities?: Record<string, number>; // Optional transition probabilities
 }
 
 export interface BayesianParameters {
@@ -284,9 +289,13 @@ export class ProbabilisticSignalEngine {
   }
 
   // ==================== REGIME DETECTION ====================
+  // Note: This method is now deprecated in favor of the full RegimeDetectionEngine
+  // Kept for backward compatibility
 
   detectMarketRegime(candles: any[], volume: number[], news: any[]): MarketRegime {
-    // Simplified regime detection - in production, use Hidden Semi-Markov Model
+    console.warn('⚠️ Using deprecated simple regime detection. Use RegimeDetectionEngine for full HSMM analysis.');
+    
+    // Simplified regime detection - maintained for compatibility
     const recent = candles.slice(-20);
     const prices = recent.map((c: any) => c.close);
     
@@ -307,8 +316,8 @@ export class ProbabilisticSignalEngine {
     const longMA = prices.slice(-15).reduce((sum, p) => sum + p, 0) / 15;
     const momentum = Math.abs(shortMA - longMA) / longMA;
     
-    // Determine regime type
-    let regimeType: 'trending' | 'ranging' | 'shock' | 'liquidity_crisis' | 'news_driven';
+    // Determine regime type (simplified mapping)
+    let regimeType: any;
     let strength: number;
     
     if (volatility > 0.002) { // High volatility threshold
@@ -316,32 +325,35 @@ export class ProbabilisticSignalEngine {
         regimeType = 'news_driven';
         strength = Math.min(1, volatility * 500);
       } else {
-        regimeType = 'shock';
+        regimeType = 'shock_up'; // Default to shock_up for compatibility
         strength = Math.min(1, volatility * 300);
       }
     } else if (trendStrength > 0.01) {
-      regimeType = 'trending';
+      // Determine trend direction
+      regimeType = lastPrice > firstPrice ? 'trending_bullish' : 'trending_bearish';
       strength = Math.min(1, trendStrength * 100);
     } else {
-      regimeType = 'ranging';
+      regimeType = 'ranging_tight';
       strength = Math.min(1, (0.01 - trendStrength) * 100);
     }
     
-    // Define adjustment factors for each regime
+    // Define adjustment factors for each regime (simplified)
     const adjustmentFactors: Record<string, number> = {};
     
     switch (regimeType) {
-      case 'trending':
+      case 'trending_bullish':
+      case 'trending_bearish':
         adjustmentFactors.momentum = 1.3;
         adjustmentFactors.technical = 1.2;
         adjustmentFactors.pattern = 0.9;
         break;
-      case 'ranging':
+      case 'ranging_tight':
         adjustmentFactors.pattern = 1.3;
         adjustmentFactors.technical = 1.1;
         adjustmentFactors.momentum = 0.8;
         break;
-      case 'shock':
+      case 'shock_up':
+      case 'shock_down':
         adjustmentFactors.volume = 1.4;
         adjustmentFactors.technical = 0.7;
         adjustmentFactors.news = 1.5;
@@ -360,11 +372,21 @@ export class ProbabilisticSignalEngine {
     return {
       type: regimeType,
       strength,
-      volatility,
-      volume: volume.slice(-10).reduce((sum, v) => sum + v, 0) / 10,
-      momentum,
       confidence: strength,
-      adjustmentFactors
+      duration: 60, // Default duration
+      volatility,
+      momentum: (shortMA - longMA) / longMA, // Directional momentum
+      volume: volume.slice(-10).reduce((sum, v) => sum + v, 0) / 10,
+      microstructure: {
+        bidAskSpread: volatility * 0.1,
+        marketDepth: Math.max(0.1, 2 - volatility),
+        orderFlow: 'neutral',
+        institutionalActivity: 0.5
+      },
+      adjustmentFactors,
+      riskMultiplier: regimeType.includes('shock') ? 0.3 : regimeType.includes('news') ? 0.4 : 1.0,
+      expectedDuration: 900, // 15 minutes
+      transitionProbabilities: {} // Empty for compatibility
     };
   }
 
