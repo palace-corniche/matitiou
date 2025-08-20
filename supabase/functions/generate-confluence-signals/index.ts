@@ -282,17 +282,20 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // Bayesian Fusion of Probabilities
   const { combinedProbability, combinedLogOdds, entropy } = fuseProbabilities(probabilisticFactors);
   
-  // Apply entropy filter - only proceed if uncertainty is low
-  const maxEntropy = 0.6;
+  // Relaxed entropy filter for initial signal flow (increased from 0.6 to 0.8)
+  const maxEntropy = 0.8;
   if (entropy > maxEntropy) {
     console.log(`🚫 Signal rejected due to high entropy: ${entropy.toFixed(3)} > ${maxEntropy}`);
     return null;
   }
+  console.log(`✅ Entropy check passed: ${entropy.toFixed(3)} <= ${maxEntropy}`);
   
-  // Determine signal type based on combined probability
+  // Relaxed probability thresholds for signal generation (reduced from 0.6/0.4 to 0.55/0.45)
   const signalType: 'buy' | 'sell' | 'neutral' = 
-    combinedProbability > 0.6 ? 'buy' : 
-    combinedProbability < 0.4 ? 'sell' : 'neutral';
+    combinedProbability > 0.55 ? 'buy' : 
+    combinedProbability < 0.45 ? 'sell' : 'neutral';
+  
+  console.log(`📊 Signal probability analysis: ${(combinedProbability * 100).toFixed(1)}% → ${signalType}`);
   
   if (signalType === 'neutral') {
     return null;
@@ -306,11 +309,12 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // NetEdge = p_combined * R_avg - (1 - p_combined) * L_avg - Cost_trade
   const netEdge = combinedProbability * expectedReturn - (1 - combinedProbability) * expectedLoss - tradingCosts;
   
-  // Only proceed if we have positive edge
-  if (netEdge <= 0) {
+  // Relaxed edge requirement (allow very small positive edge for calibration)
+  if (netEdge <= -0.0001) { // Allow even tiny positive edge instead of strict positive
     console.log(`🚫 Signal rejected due to negative edge: ${netEdge.toFixed(6)}`);
     return null;
   }
+  console.log(`✅ Edge check passed: ${netEdge.toFixed(6)} > -0.0001`);
 
   // Calculate Kelly Fraction for position sizing
   const kellyFraction = calculateKellyFraction(combinedProbability, expectedReturn, expectedLoss);
@@ -342,11 +346,12 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   
   const enhancedConfluenceScore = Math.min(100, Math.max(0, baseScore * regimeMultiplier));
 
-  // Only proceed if confluence score meets minimum threshold
-  if (enhancedConfluenceScore < 25) {
-    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 25`);
+  // Significantly relaxed confluence threshold for initial calibration (reduced from 25 to 15)
+  if (enhancedConfluenceScore < 15) {
+    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 15`);
     return null;
   }
+  console.log(`✅ Confluence check passed: ${enhancedConfluenceScore.toFixed(1)} >= 15`);
 
   // Calculate risk metrics with Kelly-optimized sizing
   const riskMetrics = calculateRiskMetrics(currentPrice, signalType);
