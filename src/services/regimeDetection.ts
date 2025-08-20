@@ -785,7 +785,7 @@ export class RegimeDetectionEngine {
   }
 
   getAdaptiveWeights(regimeType: string): Record<string, number> {
-    return { ...this.adaptiveWeights[regimeType] } || {};
+    return this.adaptiveWeights[regimeType] ? { ...this.adaptiveWeights[regimeType] } : {};
   }
 
   // Force regime change for testing

@@ -595,7 +595,7 @@ export class AdaptiveWeightEngine {
   // ==================== PUBLIC INTERFACE ====================
 
   getWeights(regime: string): Record<string, number> {
-    return { ...this.currentWeights[regime] } || {};
+    return this.currentWeights[regime] ? { ...this.currentWeights[regime] } : {};
   }
 
   getAllWeights(): Record<string, Record<string, number>> {
