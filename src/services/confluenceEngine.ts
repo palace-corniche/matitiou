@@ -107,7 +107,7 @@ export class ConfluenceEngine {
     const confluenceScore = this.calculateConfluenceScore(validFactors);
     const signal = this.determineOverallSignal(validFactors);
     
-    if (signal === 'neutral' || confluenceScore < 15) return null;
+    if (signal === 'neutral' || confluenceScore < 3) return null;
 
     // Calculate risk metrics
     const riskMetrics = this.calculateRiskMetrics(currentPrice, signal, validFactors);
@@ -536,7 +536,17 @@ export class ConfluenceEngine {
     }
 
     const maxScore = Math.max(bullishScore, bearishScore);
-    const score = Math.min((maxScore / totalWeight) * 10, 100);
+    // More permissive confluence calculation - use percentage of factors in agreement
+    const signalDirection = bullishScore > bearishScore ? 'bullish' : 'bearish';
+    const dominantScore = maxScore;
+    const opposingScore = signalDirection === 'bullish' ? bearishScore : bullishScore;
+    
+    // Calculate score based on dominance ratio with boosted scaling
+    const dominanceRatio = dominantScore / (dominantScore + opposingScore);
+    const factorCount = factors.length;
+    const scoreMultiplier = Math.min(30, 10 + factorCount * 0.5); // Higher multiplier for more factors
+    
+    const score = Math.min(dominanceRatio * scoreMultiplier, 100);
     
     // Final validation
     if (isNaN(score) || !isFinite(score)) {
@@ -544,7 +554,7 @@ export class ConfluenceEngine {
       return 0;
     }
 
-    console.log(`Confluence calculation: bullish=${bullishScore.toFixed(2)}, bearish=${bearishScore.toFixed(2)}, totalWeight=${totalWeight.toFixed(2)}, score=${score.toFixed(2)}`);
+    console.log(`Confluence calculation: bullish=${bullishScore.toFixed(2)}, bearish=${bearishScore.toFixed(2)}, totalWeight=${totalWeight.toFixed(2)}, dominance=${dominanceRatio.toFixed(3)}, factors=${factorCount}, score=${score.toFixed(2)}`);
     return score;
   }
 
