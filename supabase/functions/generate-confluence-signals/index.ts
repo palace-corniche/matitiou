@@ -66,7 +66,7 @@ serve(async (req) => {
       .order('timestamp', { ascending: false })
       .limit(100);
 
-    if (dataError || !marketData || marketData.length < 20) {
+    if (dataError || !marketData || marketData.length < 10) {
       throw new Error(`Insufficient market data: ${dataError?.message || 'Not enough candles'}`);
     }
 
@@ -282,18 +282,18 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // Bayesian Fusion of Probabilities
   const { combinedProbability, combinedLogOdds, entropy } = fuseProbabilities(probabilisticFactors);
   
-  // Relaxed entropy filter for initial signal flow (increased from 0.6 to 0.8)
-  const maxEntropy = 0.8;
+  // Further relaxed entropy filter for calibration (increased to 0.9)
+  const maxEntropy = 0.9;
   if (entropy > maxEntropy) {
     console.log(`🚫 Signal rejected due to high entropy: ${entropy.toFixed(3)} > ${maxEntropy}`);
     return null;
   }
   console.log(`✅ Entropy check passed: ${entropy.toFixed(3)} <= ${maxEntropy}`);
   
-  // Relaxed probability thresholds for signal generation (reduced from 0.6/0.4 to 0.55/0.45)
+  // Further relaxed probability thresholds for calibration (widened to 0.6/0.4)
   const signalType: 'buy' | 'sell' | 'neutral' = 
-    combinedProbability > 0.55 ? 'buy' : 
-    combinedProbability < 0.45 ? 'sell' : 'neutral';
+    combinedProbability > 0.6 ? 'buy' : 
+    combinedProbability < 0.4 ? 'sell' : 'neutral';
   
   console.log(`📊 Signal probability analysis: ${(combinedProbability * 100).toFixed(1)}% → ${signalType}`);
   
@@ -346,12 +346,12 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   
   const enhancedConfluenceScore = Math.min(100, Math.max(0, baseScore * regimeMultiplier));
 
-  // Significantly relaxed confluence threshold for initial calibration (reduced from 25 to 15)
-  if (enhancedConfluenceScore < 15) {
-    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 15`);
+  // Dramatically relaxed confluence threshold for calibration (reduced to 10)
+  if (enhancedConfluenceScore < 10) {
+    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 10`);
     return null;
   }
-  console.log(`✅ Confluence check passed: ${enhancedConfluenceScore.toFixed(1)} >= 15`);
+  console.log(`✅ Confluence check passed: ${enhancedConfluenceScore.toFixed(1)} >= 10`);
 
   // Calculate risk metrics with Kelly-optimized sizing
   const riskMetrics = calculateRiskMetrics(currentPrice, signalType);
