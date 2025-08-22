@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import NavigationBar from '@/components/NavigationBar';
-import ShadowTradingDashboard from '@/components/ShadowTradingDashboard';
+import ShadowTradingDashboardV3 from '@/components/ShadowTradingDashboardV3';
 import { getForexData } from '@/services/realMarketData';
 import { CandleData } from '@/services/realMarketData';
 
@@ -48,7 +48,7 @@ const ShadowTrading: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <NavigationBar />
-      <ShadowTradingDashboard marketData={marketData} />
+      <ShadowTradingDashboardV3 />
     </div>
   );
 };

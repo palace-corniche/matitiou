@@ -22,6 +22,21 @@ export interface ShadowPortfolio {
   is_active: boolean;
   auto_trading_enabled: boolean;
   max_open_positions: number;
+  // MetaTrader-style fields
+  account_currency: string;
+  leverage: number;
+  account_type: string;
+  initial_deposit: number;
+  deposits_total: number;
+  withdrawals_total: number;
+  daily_loss_limit: number;
+  max_drawdown_limit: number;
+  lot_size_type: string;
+  custom_lot_multiplier: number;
+  margin_call_level: number;
+  stop_out_level: number;
+  daily_pnl_today: number;
+  last_daily_reset: string;
   created_at: string;
   updated_at: string;
 }
@@ -46,6 +61,12 @@ export interface ShadowTrade {
   pnl_percent?: number;
   risk_reward_ratio?: number;
   holding_time_minutes?: number;
+  // MetaTrader-style fields
+  lot_size: number;
+  pip_value?: number;
+  pip_pnl?: number;
+  margin_required?: number;
+  contract_size: number;
   created_at: string;
   updated_at: string;
 }

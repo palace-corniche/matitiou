@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_transactions: {
+        Row: {
+          amount: number
+          amount_in_account_currency: number
+          created_at: string
+          currency: string
+          description: string | null
+          exchange_rate: number | null
+          id: string
+          portfolio_id: string
+          reference_id: string | null
+          transaction_type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          amount_in_account_currency: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string
+          portfolio_id: string
+          reference_id?: string | null
+          transaction_type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          amount_in_account_currency?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string
+          portfolio_id?: string
+          reference_id?: string | null
+          transaction_type?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analysis_jobs: {
         Row: {
           completed_at: string | null
@@ -339,88 +381,131 @@ export type Database = {
       }
       shadow_portfolios: {
         Row: {
+          account_currency: string
+          account_type: string
           auto_trading_enabled: boolean
           average_loss: number
           average_win: number
           balance: number
           created_at: string
+          custom_lot_multiplier: number
+          daily_loss_limit: number
+          daily_pnl_today: number
+          deposits_total: number
           equity: number
           expectancy: number
           free_margin: number
           id: string
+          initial_deposit: number
           is_active: boolean
+          last_daily_reset: string | null
+          leverage: number
           losing_trades: number
+          lot_size_type: string
           margin: number
+          margin_call_level: number
           margin_level: number
           max_drawdown: number
+          max_drawdown_limit: number
           max_open_positions: number
           profit_factor: number
           risk_per_trade: number
           session_id: string | null
           sharpe_ratio: number
+          stop_out_level: number
           total_trades: number
           updated_at: string
           user_id: string | null
           win_rate: number
           winning_trades: number
+          withdrawals_total: number
         }
         Insert: {
+          account_currency?: string
+          account_type?: string
           auto_trading_enabled?: boolean
           average_loss?: number
           average_win?: number
           balance?: number
           created_at?: string
+          custom_lot_multiplier?: number
+          daily_loss_limit?: number
+          daily_pnl_today?: number
+          deposits_total?: number
           equity?: number
           expectancy?: number
           free_margin?: number
           id?: string
+          initial_deposit?: number
           is_active?: boolean
+          last_daily_reset?: string | null
+          leverage?: number
           losing_trades?: number
+          lot_size_type?: string
           margin?: number
+          margin_call_level?: number
           margin_level?: number
           max_drawdown?: number
+          max_drawdown_limit?: number
           max_open_positions?: number
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
+          stop_out_level?: number
           total_trades?: number
           updated_at?: string
           user_id?: string | null
           win_rate?: number
           winning_trades?: number
+          withdrawals_total?: number
         }
         Update: {
+          account_currency?: string
+          account_type?: string
           auto_trading_enabled?: boolean
           average_loss?: number
           average_win?: number
           balance?: number
           created_at?: string
+          custom_lot_multiplier?: number
+          daily_loss_limit?: number
+          daily_pnl_today?: number
+          deposits_total?: number
           equity?: number
           expectancy?: number
           free_margin?: number
           id?: string
+          initial_deposit?: number
           is_active?: boolean
+          last_daily_reset?: string | null
+          leverage?: number
           losing_trades?: number
+          lot_size_type?: string
           margin?: number
+          margin_call_level?: number
           margin_level?: number
           max_drawdown?: number
+          max_drawdown_limit?: number
           max_open_positions?: number
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
+          stop_out_level?: number
           total_trades?: number
           updated_at?: string
           user_id?: string | null
           win_rate?: number
           winning_trades?: number
+          withdrawals_total?: number
         }
         Relationships: []
       }
       shadow_trades: {
         Row: {
           confluence_score: number
+          contract_size: number
           created_at: string
           entry_price: number
           entry_time: string
@@ -429,6 +514,10 @@ export type Database = {
           exit_time: string | null
           holding_time_minutes: number | null
           id: string
+          lot_size: number
+          margin_required: number | null
+          pip_pnl: number | null
+          pip_value: number | null
           pnl: number | null
           pnl_percent: number | null
           portfolio_id: string
@@ -444,6 +533,7 @@ export type Database = {
         }
         Insert: {
           confluence_score?: number
+          contract_size?: number
           created_at?: string
           entry_price: number
           entry_time?: string
@@ -452,6 +542,10 @@ export type Database = {
           exit_time?: string | null
           holding_time_minutes?: number | null
           id?: string
+          lot_size?: number
+          margin_required?: number | null
+          pip_pnl?: number | null
+          pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
           portfolio_id: string
@@ -467,6 +561,7 @@ export type Database = {
         }
         Update: {
           confluence_score?: number
+          contract_size?: number
           created_at?: string
           entry_price?: number
           entry_time?: string
@@ -475,6 +570,10 @@ export type Database = {
           exit_time?: string | null
           holding_time_minutes?: number | null
           id?: string
+          lot_size?: number
+          margin_required?: number | null
+          pip_pnl?: number | null
+          pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
           portfolio_id?: string
