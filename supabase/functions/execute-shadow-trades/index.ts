@@ -1,6 +1,76 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Enhanced position reconciliation
+async function reconcilePortfolioState(supabase: any, portfolioId: string): Promise<boolean> {
+  try {
+    // Get actual open trades
+    const { data: openTrades } = await supabase
+      .from('shadow_trades')
+      .select('*')
+      .eq('portfolio_id', portfolioId)
+      .eq('status', 'open');
+
+    const actualOpenPositions = openTrades?.length || 0;
+    
+    // Get portfolio state
+    const { data: portfolio } = await supabase
+      .from('shadow_portfolios')
+      .select('*')
+      .eq('id', portfolioId)
+      .single();
+
+    if (!portfolio) return false;
+
+    // Calculate actual margin
+    const actualMargin = openTrades?.reduce((total: number, trade: any) => {
+      return total + (trade.margin_required || (parseFloat(trade.position_size.toString()) * 0.01));
+    }, 0) || 0;
+
+    const reportedMargin = parseFloat(portfolio.margin.toString());
+
+    // Fix ghost positions
+    if (actualOpenPositions === 0 && reportedMargin > 0) {
+      console.log(`👻 Clearing ghost positions for portfolio ${portfolioId.slice(0, 8)}`);
+      
+      await supabase
+        .from('shadow_portfolios')
+        .update({
+          margin: 0,
+          free_margin: portfolio.balance,
+          margin_level: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', portfolioId);
+      
+      return true;
+    }
+
+    // Fix margin inconsistencies
+    if (Math.abs(actualMargin - reportedMargin) > 0.01) {
+      const newFreeMargin = parseFloat(portfolio.balance.toString()) - actualMargin;
+      const newMarginLevel = actualMargin > 0 ? (parseFloat(portfolio.equity.toString()) / actualMargin) * 100 : 0;
+
+      await supabase
+        .from('shadow_portfolios')
+        .update({
+          margin: actualMargin,
+          free_margin: Math.max(0, newFreeMargin),
+          margin_level: newMarginLevel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', portfolioId);
+      
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error(`Error reconciling portfolio ${portfolioId}:`, error);
+    return false;
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -79,15 +149,20 @@ serve(async (req) => {
     for (const signal of signals) {
       for (const portfolio of portfolios) {
         try {
+          // Reconcile portfolio state first
+          await reconcilePortfolioState(supabase, portfolio.id);
+          
           // Check if portfolio can accept new trades
           const { data: openTrades } = await supabase
             .from('shadow_trades')
-            .select('id')
+            .select('id, margin_required, position_size')
             .eq('portfolio_id', portfolio.id)
             .eq('status', 'open');
 
-          if (openTrades && openTrades.length >= portfolio.max_open_positions) {
-            console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions`);
+          const actualOpenPositions = openTrades?.length || 0;
+
+          if (actualOpenPositions >= portfolio.max_open_positions) {
+            console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${actualOpenPositions}/${portfolio.max_open_positions})`);
             continue;
           }
 
