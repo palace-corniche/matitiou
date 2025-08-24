@@ -153,7 +153,7 @@ export class MasterQuantSystem {
       microstructureState = await this.microstructure.analyzeMicrostructure(
         rawSignalData.orderBook,
         rawSignalData.recentTrades,
-        rawSignalData.candles.slice(-50),
+        rawSignalData.candles.slice(-50).map(c => ({ ...c, volume: c.volume || 0 })),
         rawSignalData.currentPrice
       );
     }
@@ -816,7 +816,7 @@ export class MasterQuantSystem {
     if (decision) {
       const counterfactual: CounterfactualAnalysis = {
         signalId,
-        originalDecision: decision.action,
+        originalDecision: decision.action === 'wait' || decision.action === 'modify' ? 'reject' : decision.action,
         actualOutcome,
         counterfactualOutcome: decision.expectedEdge,
         learningValue: Math.abs(actualOutcome - decision.expectedEdge),

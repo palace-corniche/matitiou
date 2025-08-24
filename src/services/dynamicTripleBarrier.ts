@@ -372,7 +372,7 @@ export class DynamicTripleBarrierEngine {
     this.updateBarrierStats(regime, hitResult);
 
     // Learn from hit patterns
-    this.updateRegimeConfig(regime, hitResult);
+    this.learnFromBarrierResult(regime, hitResult);
   }
 
   private updateBarrierStats(regime: string, hitResult: BarrierHitResult): void {
@@ -426,7 +426,7 @@ export class DynamicTripleBarrierEngine {
     }
   }
 
-  private updateRegimeConfig(regime: string, hitResult: BarrierHitResult): void {
+  private learnFromBarrierResult(regime: string, hitResult: BarrierHitResult): void {
     const config = this.regimeConfigs.get(regime);
     if (!config) return;
 

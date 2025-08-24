@@ -52,6 +52,7 @@ export interface EnhancedSignal extends CandidateSignal {
   finalScore: number; // Combined base + meta score
   recommendation: 'strong_buy' | 'buy' | 'weak_buy' | 'hold' | 'weak_sell' | 'sell' | 'strong_sell';
   riskProfile: 'conservative' | 'moderate' | 'aggressive';
+  regime?: string;
 }
 
 export interface ModelPerformance {
@@ -727,7 +728,8 @@ export class TwoLayerPredictionSystem {
       metaPrediction,
       finalScore,
       recommendation,
-      riskProfile
+      riskProfile,
+      regime: metaPrediction.regime
     };
 
     // Store for performance tracking
