@@ -1,6 +1,305 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+// Enhanced Edge Engine - integrated directly into edge function
+interface EdgeComponents {
+  baseEdge: number;
+  executionCosts: number;
+  slippageCosts: number;
+  microstructureCosts: number;
+  opportunityCosts: number;
+  regimeAdjustment: number;
+  volatilityAdjustment: number;
+  liquidityAdjustment: number;
+  timingPenalty: number;
+  netEdge: number;
+}
+
+class EnhancedEdgeEngine {
+  static calculateEnhancedEdge(
+    winProbability: number,
+    expectedReturn: number,
+    expectedLoss: number,
+    candles: any[],
+    regime: string,
+    currentPrice: number,
+    positionSize: number
+  ): EdgeComponents {
+    // Base edge calculation
+    const baseEdge = (winProbability * expectedReturn) - ((1 - winProbability) * Math.abs(expectedLoss));
+    
+    // Calculate various cost components
+    const executionCosts = this.calculateExecutionCosts(positionSize);
+    const slippageCosts = this.calculateSlippageCosts(candles, positionSize);
+    const microstructureCosts = this.calculateMicrostructureCosts(candles);
+    const opportunityCosts = this.calculateOpportunityCosts(regime);
+    
+    // Apply adjustments
+    const regimeAdjustment = this.calculateRegimeAdjustment(baseEdge, regime);
+    const volatilityAdjustment = this.calculateVolatilityAdjustment(candles);
+    const liquidityAdjustment = this.calculateLiquidityAdjustment(candles, positionSize);
+    const timingPenalty = this.calculateTimingPenalty(candles);
+    
+    // Calculate net edge
+    const netEdge = baseEdge 
+      - executionCosts 
+      - slippageCosts 
+      - microstructureCosts 
+      - opportunityCosts
+      + regimeAdjustment
+      + volatilityAdjustment
+      + liquidityAdjustment
+      - timingPenalty;
+    
+    return {
+      baseEdge,
+      executionCosts,
+      slippageCosts,
+      microstructureCosts,
+      opportunityCosts,
+      regimeAdjustment,
+      volatilityAdjustment,
+      liquidityAdjustment,
+      timingPenalty,
+      netEdge
+    };
+  }
+  
+  private static calculateExecutionCosts(positionSize: number): number {
+    const spread = 0.0001; // 1 pip for EUR/USD
+    const commission = 0.00002; // $2 per 100k
+    return (spread + commission) * (positionSize / 100000);
+  }
+  
+  private static calculateSlippageCosts(candles: any[], positionSize: number): number {
+    if (!candles.length) return 0;
+    
+    const avgVolume = candles.reduce((sum, c) => sum + (c.volume || 1000), 0) / candles.length;
+    const currentVolume = candles[candles.length - 1]?.volume || avgVolume;
+    
+    const volumeRatio = currentVolume / avgVolume;
+    const liquidityMultiplier = volumeRatio < 0.5 ? 2.0 : volumeRatio < 0.8 ? 1.5 : 1.0;
+    
+    const baseSlippage = 0.00005; // 0.5 pips base
+    return baseSlippage * liquidityMultiplier * Math.min(positionSize / 500000, 2.0);
+  }
+  
+  private static calculateMicrostructureCosts(candles: any[]): number {
+    if (!candles.length) return 0;
+    
+    // Information asymmetry cost
+    const priceChanges = candles.slice(-5).map((c, i, arr) => 
+      i > 0 ? Math.abs(c.close - arr[i-1].close) / arr[i-1].close : 0
+    ).filter(x => x > 0);
+    
+    const avgPriceChange = priceChanges.reduce((sum, change) => sum + change, 0) / priceChanges.length;
+    return avgPriceChange * 0.1; // 10% of average price volatility as info cost
+  }
+  
+  private static calculateOpportunityCosts(regime: string): number {
+    const regimeCosts = {
+      'trending': 0.00002,
+      'ranging': 0.00005,
+      'shock': 0.0001,
+      'news_driven': 0.00015
+    };
+    return regimeCosts[regime as keyof typeof regimeCosts] || 0.00003;
+  }
+  
+  private static calculateRegimeAdjustment(baseEdge: number, regime: string): number {
+    const regimeMultipliers = {
+      'trending': 1.2,
+      'ranging': 0.8,
+      'shock': 0.6,
+      'news_driven': 1.1
+    };
+    const multiplier = regimeMultipliers[regime as keyof typeof regimeMultipliers] || 1.0;
+    return baseEdge * (multiplier - 1);
+  }
+  
+  private static calculateVolatilityAdjustment(candles: any[]): number {
+    if (!candles.length) return 0;
+    
+    const returns = candles.slice(-10).map((c, i, arr) => 
+      i > 0 ? (c.close - arr[i-1].close) / arr[i-1].close : 0
+    ).filter(x => x !== 0);
+    
+    const volatility = Math.sqrt(returns.reduce((sum, r) => sum + r * r, 0) / returns.length);
+    const normalizedVol = volatility / 0.0001; // Normalize to typical FX volatility
+    
+    return normalizedVol > 2.0 ? -0.00005 : normalizedVol < 0.5 ? 0.00002 : 0;
+  }
+  
+  private static calculateLiquidityAdjustment(candles: any[], positionSize: number): number {
+    if (!candles.length) return 0;
+    
+    const avgVolume = candles.reduce((sum, c) => sum + (c.volume || 1000), 0) / candles.length;
+    const sizeToVolumeRatio = positionSize / (avgVolume * 100);
+    
+    return sizeToVolumeRatio > 0.1 ? -0.00003 : sizeToVolumeRatio < 0.01 ? 0.00001 : 0;
+  }
+  
+  private static calculateTimingPenalty(candles: any[]): number {
+    if (!candles.length) return 0;
+    
+    const now = new Date();
+    const marketClose = new Date(now);
+    marketClose.setUTCHours(21, 0, 0, 0); // 21:00 UTC = NY close
+    
+    const hoursToClose = (marketClose.getTime() - now.getTime()) / (1000 * 60 * 60);
+    
+    // Penalty for trading close to market close
+    return hoursToClose < 1 ? 0.00002 : 0;
+  }
+}
+
+// Continuous Learning Engine - integrated directly into edge function
+interface LearningMetrics {
+  accuracy: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  winRate: number;
+  profitFactor: number;
+  avgHoldingTime: number;
+  signalCount: number;
+  lastUpdate: string;
+}
+
+class ContinuousLearningEngine {
+  private static outcomeHistory: Array<{
+    signalId: string;
+    outcome: 'win' | 'loss';
+    pnl: number;
+    holdingTime: number;
+    signalStrength: number;
+    confluenceScore: number;
+    marketRegime: string;
+    timestamp: string;
+  }> = [];
+  
+  static addOutcome(
+    signalId: string,
+    outcome: 'win' | 'loss',
+    pnl: number,
+    holdingTime: number,
+    signalStrength: number,
+    confluenceScore: number,
+    marketRegime: string
+  ): void {
+    this.outcomeHistory.push({
+      signalId,
+      outcome,
+      pnl,
+      holdingTime,
+      signalStrength,
+      confluenceScore,
+      marketRegime,
+      timestamp: new Date().toISOString()
+    });
+    
+    // Keep only last 1000 outcomes for memory efficiency
+    if (this.outcomeHistory.length > 1000) {
+      this.outcomeHistory = this.outcomeHistory.slice(-1000);
+    }
+  }
+  
+  static calculatePerformanceMetrics(): LearningMetrics {
+    if (this.outcomeHistory.length === 0) {
+      return {
+        accuracy: 0,
+        sharpeRatio: 0,
+        maxDrawdown: 0,
+        winRate: 0,
+        profitFactor: 0,
+        avgHoldingTime: 0,
+        signalCount: 0,
+        lastUpdate: new Date().toISOString()
+      };
+    }
+    
+    const recentOutcomes = this.outcomeHistory.slice(-100); // Last 100 trades
+    const wins = recentOutcomes.filter(o => o.outcome === 'win');
+    const losses = recentOutcomes.filter(o => o.outcome === 'loss');
+    
+    const winRate = wins.length / recentOutcomes.length;
+    const totalWinAmount = wins.reduce((sum, w) => sum + Math.abs(w.pnl), 0);
+    const totalLossAmount = losses.reduce((sum, l) => sum + Math.abs(l.pnl), 0);
+    const profitFactor = totalLossAmount > 0 ? totalWinAmount / totalLossAmount : 0;
+    
+    // Calculate Sharpe ratio
+    const returns = recentOutcomes.map(o => o.pnl);
+    const avgReturn = returns.reduce((sum, r) => sum + r, 0) / returns.length;
+    const returnStdDev = Math.sqrt(
+      returns.reduce((sum, r) => sum + Math.pow(r - avgReturn, 2), 0) / returns.length
+    );
+    const sharpeRatio = returnStdDev > 0 ? avgReturn / returnStdDev : 0;
+    
+    // Calculate max drawdown
+    let maxDrawdown = 0;
+    let peak = 0;
+    let runningTotal = 0;
+    
+    for (const outcome of recentOutcomes) {
+      runningTotal += outcome.pnl;
+      if (runningTotal > peak) {
+        peak = runningTotal;
+      }
+      const drawdown = (peak - runningTotal) / Math.max(peak, 1);
+      maxDrawdown = Math.max(maxDrawdown, drawdown);
+    }
+    
+    const avgHoldingTime = recentOutcomes.reduce((sum, o) => sum + o.holdingTime, 0) / recentOutcomes.length;
+    
+    return {
+      accuracy: winRate,
+      sharpeRatio,
+      maxDrawdown: maxDrawdown * 100,
+      winRate: winRate * 100,
+      profitFactor,
+      avgHoldingTime,
+      signalCount: recentOutcomes.length,
+      lastUpdate: new Date().toISOString()
+    };
+  }
+  
+  static getSystemHealth(): {
+    status: 'healthy' | 'warning' | 'critical';
+    issues: string[];
+    recommendations: string[];
+  } {
+    const metrics = this.calculatePerformanceMetrics();
+    const issues: string[] = [];
+    const recommendations: string[] = [];
+    
+    let status: 'healthy' | 'warning' | 'critical' = 'healthy';
+    
+    if (metrics.winRate < 40) {
+      issues.push('Low win rate detected');
+      recommendations.push('Review signal generation thresholds');
+      status = 'warning';
+    }
+    
+    if (metrics.sharpeRatio < 0.5) {
+      issues.push('Poor risk-adjusted returns');
+      recommendations.push('Optimize position sizing and risk management');
+      status = 'warning';
+    }
+    
+    if (metrics.maxDrawdown > 15) {
+      issues.push('High drawdown detected');
+      recommendations.push('Reduce position sizes or tighten stop losses');
+      status = 'critical';
+    }
+    
+    if (metrics.signalCount < 10) {
+      issues.push('Insufficient signal history for reliable analysis');
+      recommendations.push('Continue trading to build performance history');
+    }
+    
+    return { status, issues, recommendations };
+  }
+}
+
 // Enhanced position reconciliation
 async function reconcilePortfolioState(supabase: any, portfolioId: string): Promise<boolean> {
   try {
