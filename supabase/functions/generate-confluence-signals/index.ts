@@ -1,6 +1,93 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { AdaptiveSignalEngine } from "./adaptiveSignalEngine.ts";
+
+// Adaptive Signal Engine - integrated directly into edge function
+interface AdaptiveThresholds {
+  entropy: { min: number; max: number; current: number };
+  probability: { buy: number; sell: number };
+  confluence: { min: number; adaptive: number };
+  edge: { min: number; adaptive: number };
+}
+
+class AdaptiveSignalEngine {
+  private thresholds: AdaptiveThresholds;
+  private rejectionLog: Array<{ timestamp: string; reason: string; value: number; threshold: number }> = [];
+  private signalHistory: Array<{ timestamp: string; accepted: boolean; score: number }> = [];
+
+  constructor() {
+    this.thresholds = {
+      entropy: { min: 0.7, max: 0.95, current: 0.85 },
+      probability: { buy: 0.58, sell: 0.42 },
+      confluence: { min: 10, adaptive: 15 },
+      edge: { min: -0.0001, adaptive: 0.0001 }
+    };
+  }
+
+  evaluateSignal(
+    probabilisticFactors: any[],
+    combinedProbability: number,
+    entropy: number,
+    netEdge: number,
+    confluenceScore: number,
+    regime: string,
+    signalType: 'buy' | 'sell' | 'neutral'
+  ): { accepted: boolean; reason?: string } {
+    
+    // Entropy check with adaptive threshold
+    if (entropy > this.thresholds.entropy.current) {
+      this.logRejection('entropy', entropy, this.thresholds.entropy.current);
+      return { accepted: false, reason: `entropy_too_high_${entropy.toFixed(3)}_>${this.thresholds.entropy.current.toFixed(3)}` };
+    }
+
+    // Probability check with adaptive thresholds
+    if (signalType === 'buy' && combinedProbability < this.thresholds.probability.buy) {
+      this.logRejection('probability', combinedProbability, this.thresholds.probability.buy);
+      return { accepted: false, reason: `buy_probability_too_low_${(combinedProbability*100).toFixed(1)}%_<${(this.thresholds.probability.buy*100).toFixed(1)}%` };
+    }
+
+    if (signalType === 'sell' && combinedProbability > this.thresholds.probability.sell) {
+      this.logRejection('probability', combinedProbability, this.thresholds.probability.sell);
+      return { accepted: false, reason: `sell_probability_too_high_${(combinedProbability*100).toFixed(1)}%_>${(this.thresholds.probability.sell*100).toFixed(1)}%` };
+    }
+
+    // Edge check with adaptive threshold
+    if (netEdge <= this.thresholds.edge.adaptive) {
+      this.logRejection('edge', netEdge, this.thresholds.edge.adaptive);
+      return { accepted: false, reason: `edge_too_low_${netEdge.toFixed(6)}_<=${this.thresholds.edge.adaptive.toFixed(6)}` };
+    }
+
+    // Confluence check
+    if (confluenceScore < this.thresholds.confluence.adaptive) {
+      this.logRejection('confluence', confluenceScore, this.thresholds.confluence.adaptive);
+      return { accepted: false, reason: `confluence_too_low_${confluenceScore.toFixed(1)}_<${this.thresholds.confluence.adaptive.toFixed(1)}` };
+    }
+
+    // Signal accepted
+    this.logSignal(true, confluenceScore);
+    return { accepted: true };
+  }
+
+  private logRejection(reason: string, value: number, threshold: number): void {
+    this.rejectionLog.push({
+      timestamp: new Date().toISOString(),
+      reason,
+      value,
+      threshold
+    });
+  }
+
+  private logSignal(accepted: boolean, score: number): void {
+    this.signalHistory.push({
+      timestamp: new Date().toISOString(),
+      accepted,
+      score
+    });
+  }
+
+  getCurrentThresholds(): AdaptiveThresholds {
+    return { ...this.thresholds };
+  }
+}
 
 // Initialize adaptive engine
 const adaptiveEngine = new AdaptiveSignalEngine();
