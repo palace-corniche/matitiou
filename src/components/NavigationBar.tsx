@@ -17,16 +17,34 @@ const NavigationBar: React.FC = () => {
   const navItems = [
     {
       path: '/',
-      label: 'Trading Dashboard',
+      label: 'Dashboard',
       icon: <BarChart3 className="h-4 w-4" />,
       description: 'Live market analysis & signals'
+    },
+    {
+      path: '/enhanced-trading',
+      label: 'Enhanced Trading',
+      icon: <Zap className="h-4 w-4" />,
+      description: 'Advanced trading features',
+      badge: 'PRO'
+    },
+    {
+      path: '/signal-analytics',
+      label: 'Signal Analytics',
+      icon: <TrendingUp className="h-4 w-4" />,
+      description: 'Signal performance metrics'
     },
     {
       path: '/shadow-trading',
       label: 'Shadow Trading',
       icon: <Target className="h-4 w-4" />,
-      description: 'Virtual portfolio performance',
-      badge: 'NEW'
+      description: 'Virtual portfolio performance'
+    },
+    {
+      path: '/system-monitor',
+      label: 'System Monitor',
+      icon: <Activity className="h-4 w-4" />,
+      description: 'Real-time system status'
     }
   ];
 
@@ -48,7 +66,7 @@ const NavigationBar: React.FC = () => {
           </div>
 
           {/* Navigation Items */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1">
             {navItems.map((item) => {
               const isActive = location.pathname === item.path;
               
@@ -57,10 +75,11 @@ const NavigationBar: React.FC = () => {
                   <Button 
                     variant={isActive ? 'default' : 'ghost'}
                     size="sm"
-                    className="flex items-center gap-2 relative"
+                    className="flex items-center gap-2 relative text-xs"
                   >
                     {item.icon}
-                    <span className="hidden sm:inline">{item.label}</span>
+                    <span className="hidden lg:inline">{item.label}</span>
+                    <span className="hidden md:inline lg:hidden">{item.label.split(' ')[0]}</span>
                     {item.badge && (
                       <Badge variant="secondary" className="ml-1 text-xs">
                         {item.badge}
