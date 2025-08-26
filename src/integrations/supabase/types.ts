@@ -56,6 +56,54 @@ export type Database = {
         }
         Relationships: []
       }
+      adaptive_thresholds: {
+        Row: {
+          confluence_adaptive: number
+          confluence_min: number
+          created_at: string
+          edge_adaptive: number
+          edge_min: number
+          entropy_current: number
+          entropy_max: number
+          entropy_min: number
+          id: string
+          last_adaptation: string
+          probability_buy: number
+          probability_sell: number
+          updated_at: string
+        }
+        Insert: {
+          confluence_adaptive?: number
+          confluence_min?: number
+          created_at?: string
+          edge_adaptive?: number
+          edge_min?: number
+          entropy_current?: number
+          entropy_max?: number
+          entropy_min?: number
+          id?: string
+          last_adaptation?: string
+          probability_buy?: number
+          probability_sell?: number
+          updated_at?: string
+        }
+        Update: {
+          confluence_adaptive?: number
+          confluence_min?: number
+          created_at?: string
+          edge_adaptive?: number
+          edge_min?: number
+          entropy_current?: number
+          entropy_max?: number
+          entropy_min?: number
+          id?: string
+          last_adaptation?: string
+          probability_buy?: number
+          probability_sell?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analysis_jobs: {
         Row: {
           completed_at: string | null
@@ -596,6 +644,81 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      signal_rejection_logs: {
+        Row: {
+          confluence_score: number | null
+          created_at: string
+          entropy: number | null
+          factors_count: number
+          id: string
+          market_regime: string | null
+          net_edge: number | null
+          probability: number | null
+          reason: string
+          signal_type: string
+          threshold: number
+          timestamp: string
+          value: number
+        }
+        Insert: {
+          confluence_score?: number | null
+          created_at?: string
+          entropy?: number | null
+          factors_count?: number
+          id?: string
+          market_regime?: string | null
+          net_edge?: number | null
+          probability?: number | null
+          reason: string
+          signal_type: string
+          threshold: number
+          timestamp?: string
+          value: number
+        }
+        Update: {
+          confluence_score?: number | null
+          created_at?: string
+          entropy?: number | null
+          factors_count?: number
+          id?: string
+          market_regime?: string | null
+          net_edge?: number | null
+          probability?: number | null
+          reason?: string
+          signal_type?: string
+          threshold?: number
+          timestamp?: string
+          value?: number
+        }
+        Relationships: []
+      }
+      system_config: {
+        Row: {
+          config_key: string
+          config_value: Json
+          created_at: string
+          description: string | null
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          config_key: string
+          config_value?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          config_key?: string
+          config_value?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       system_health: {
         Row: {
