@@ -208,7 +208,7 @@ const RealtimeSystemMonitor: React.FC = () => {
         },
         (payload) => {
           const eventType = payload.eventType === 'INSERT' ? 'opened' : 'updated';
-          const trade = payload.new;
+          const trade = payload.new as any;
           
           const newEvent: RealtimeEvent = {
             timestamp: new Date().toISOString(),
