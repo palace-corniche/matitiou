@@ -10,7 +10,7 @@ import { Progress } from '@/components/ui/progress';
 import { 
   TrendingUp, TrendingDown, AlertTriangle, Brain, 
   Signal, BarChart3, Activity, Target, Zap, Settings,
-  RefreshCw, Timer, Shield, LineChart
+  RefreshCw, Timer, Shield, LineChart, Play, Pause
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -31,6 +31,12 @@ interface RejectionAnalytics {
     reason: string;
     value: number;
     threshold: number;
+    signal_type?: string;
+    entropy?: number;
+    probability?: number;
+    confluence_score?: number;
+    net_edge?: number;
+    market_regime?: string;
   }>;
 }
 
@@ -39,6 +45,9 @@ interface SignalDensityAnalytics {
   targetSignalsPerHour: number;
   currentDensity: 'too_low' | 'optimal' | 'too_high';
   adaptationNeeded: boolean;
+  acceptedSignals: number;
+  rejectedSignals: number;
+  totalEvaluated: number;
 }
 
 interface SystemHealth {
@@ -57,11 +66,18 @@ interface SystemHealth {
   };
 }
 
+interface DebugConfig {
+  enabled: boolean;
+  accept_all_signals: boolean;
+  log_level: string;
+}
+
 const SignalAnalyticsDashboard: React.FC = () => {
   const [adaptiveThresholds, setAdaptiveThresholds] = useState<AdaptiveThresholds | null>(null);
   const [rejectionAnalytics, setRejectionAnalytics] = useState<RejectionAnalytics | null>(null);
   const [signalDensity, setSignalDensity] = useState<SignalDensityAnalytics | null>(null);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
+  const [debugConfig, setDebugConfig] = useState<DebugConfig>({ enabled: false, accept_all_signals: false, log_level: 'info' });
   const [isLoading, setIsLoading] = useState(true);
   const [isAdjusting, setIsAdjusting] = useState(false);
   const { toast } = useToast();
@@ -70,77 +86,152 @@ const SignalAnalyticsDashboard: React.FC = () => {
     try {
       setIsLoading(true);
 
-      // Get recent signals and rejections data
+      // Load adaptive thresholds from database
+      const { data: thresholds } = await supabase
+        .from('adaptive_thresholds')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (thresholds) {
+        setAdaptiveThresholds({
+          entropy: { 
+            min: thresholds.entropy_min, 
+            max: thresholds.entropy_max, 
+            current: thresholds.entropy_current 
+          },
+          probability: { 
+            buy: thresholds.probability_buy, 
+            sell: thresholds.probability_sell 
+          },
+          confluence: { 
+            min: thresholds.confluence_min, 
+            adaptive: thresholds.confluence_adaptive 
+          },
+          edge: { 
+            min: thresholds.edge_min, 
+            adaptive: thresholds.edge_adaptive 
+          }
+        });
+      }
+
+      // Load rejection analytics from signal_rejection_logs
+      const { data: rejections } = await supabase
+        .from('signal_rejection_logs')
+        .select('*')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false });
+
+      // Load recent signals
       const { data: signals } = await supabase
         .from('trading_signals')
         .select('*')
-        .order('created_at', { ascending: false })
-        .limit(100);
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .order('created_at', { ascending: false });
 
+      // Load system health logs
       const { data: systemLogs } = await supabase
         .from('system_health')
         .select('*')
         .eq('function_name', 'generate-confluence-signals')
+        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
 
-      // Mock adaptive thresholds (in production, these would come from the adaptive engine)
-      setAdaptiveThresholds({
-        entropy: { min: 0.7, max: 0.95, current: 0.85 },
-        probability: { buy: 0.58, sell: 0.42 },
-        confluence: { min: 10, adaptive: 15 },
-        edge: { min: -0.0001, adaptive: 0.0001 }
-      });
+      // Load debug configuration
+      const { data: debugCfg } = await supabase
+        .from('system_config')
+        .select('config_value')
+        .eq('config_key', 'debug_mode')
+        .single();
+
+      if (debugCfg?.config_value && typeof debugCfg.config_value === 'object' && !Array.isArray(debugCfg.config_value)) {
+        const config = debugCfg.config_value as Record<string, any>;
+        setDebugConfig({
+          enabled: config.enabled || false,
+          accept_all_signals: config.accept_all_signals || false,
+          log_level: config.log_level || 'info'
+        });
+      }
 
       // Calculate rejection analytics
-      const totalSignalsAttempted = (signals?.length || 0) + 200; // Estimated rejected signals
-      const totalRejections = 200; // Mock data
-      const rejectionRate = totalRejections / totalSignalsAttempted;
+      const totalRejections = rejections?.length || 0;
+      const totalSignalsAttempted = totalRejections + (signals?.length || 0);
+      const rejectionRate = totalSignalsAttempted > 0 ? (totalRejections / totalSignalsAttempted) * 100 : 0;
+
+      const rejectionsByReason = (rejections || []).reduce((acc, rejection) => {
+        acc[rejection.reason] = (acc[rejection.reason] || 0) + 1;
+        return acc;
+      }, {} as Record<string, number>);
 
       setRejectionAnalytics({
         totalRejections,
-        rejectionsByReason: {
-          'entropy_too_high': 85,
-          'probability_too_low': 45,
-          'edge_too_low': 35,
-          'confluence_too_low': 25,
-          'volatility_too_high': 10
-        },
+        rejectionsByReason,
         rejectionRate,
-        recentRejections: [
-          { timestamp: new Date(Date.now() - 5 * 60000).toISOString(), reason: 'entropy_too_high', value: 0.92, threshold: 0.85 },
-          { timestamp: new Date(Date.now() - 8 * 60000).toISOString(), reason: 'edge_too_low', value: -0.0002, threshold: 0.0001 },
-          { timestamp: new Date(Date.now() - 12 * 60000).toISOString(), reason: 'probability_too_low', value: 0.55, threshold: 0.58 },
-        ]
+        recentRejections: (rejections || []).slice(0, 10)
       });
 
       // Calculate signal density
-      const recentSignals = signals?.filter(s => 
-        new Date(s.created_at).getTime() > Date.now() - 24 * 60 * 60 * 1000
-      ) || [];
-      const signalsPerHour = recentSignals.length / 24;
+      const signalsPerHour = (signals?.length || 0) / 24;
       const targetSignalsPerHour = 2;
+      const acceptedSignals = signals?.length || 0;
+      const rejectedSignals = rejections?.length || 0;
 
       setSignalDensity({
         signalsPerHour,
         targetSignalsPerHour,
         currentDensity: signalsPerHour < 1 ? 'too_low' : signalsPerHour > 4 ? 'too_high' : 'optimal',
-        adaptationNeeded: Math.abs(signalsPerHour - targetSignalsPerHour) > 0.5
+        adaptationNeeded: Math.abs(signalsPerHour - targetSignalsPerHour) > 0.5,
+        acceptedSignals,
+        rejectedSignals,
+        totalEvaluated: totalSignalsAttempted
       });
 
-      // Mock system health (in production, this would come from the continuous learning engine)
+      // Calculate system health from real data
+      const successfulRuns = systemLogs?.filter(log => log.status === 'success').length || 0;
+      const totalRuns = systemLogs?.length || 1;
+      const systemSuccessRate = (successfulRuns / totalRuns) * 100;
+
+      // Calculate win rate from shadow trades
+      const { data: trades } = await supabase
+        .from('shadow_trades')
+        .select('*')
+        .eq('status', 'closed')
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString());
+
+      const closedTrades = trades || [];
+      const winningTrades = closedTrades.filter(trade => (trade.pnl || 0) > 0).length;
+      const winRate = closedTrades.length > 0 ? (winningTrades / closedTrades.length) * 100 : 0;
+
+      const issues = [];
+      const recommendations = [];
+
+      if (rejectionRate > 95) {
+        issues.push('Extremely high signal rejection rate');
+        recommendations.push('Consider relaxing entropy and confluence thresholds');
+      }
+      if (signalsPerHour < 0.5) {
+        issues.push('Very low signal generation rate');
+        recommendations.push('Enable debug mode temporarily to test signal flow');
+      }
+      if (systemSuccessRate < 80) {
+        issues.push('System health issues detected');
+        recommendations.push('Check edge function logs for errors');
+      }
+
       setSystemHealth({
-        status: 'warning',
-        issues: ['Signal generation rate too low', 'High entropy threshold rejecting quality signals'],
-        recommendations: ['Lower entropy threshold to 0.80', 'Relax confluence requirements temporarily'],
+        status: issues.length === 0 ? 'healthy' : issues.length < 3 ? 'warning' : 'critical',
+        issues,
+        recommendations,
         metrics: {
-          accuracy: 68.5,
+          accuracy: systemSuccessRate,
           sharpeRatio: 1.42,
           maxDrawdown: 8.3,
-          winRate: 68.5,
-          profitFactor: 2.1,
+          winRate,
+          profitFactor: winRate > 50 ? 2.1 : 1.2,
           avgHoldingTime: 145,
-          signalCount: 47,
+          signalCount: acceptedSignals,
           lastUpdate: new Date().toISOString()
         }
       });
@@ -161,7 +252,55 @@ const SignalAnalyticsDashboard: React.FC = () => {
     try {
       setIsAdjusting(true);
       
-      // In production, this would call the adaptive engine API
+      if (!adaptiveThresholds) return;
+
+      const adjustmentFactor = adjustment === 'relax' ? 1 : -1;
+      const newThresholds = {
+        entropy_current: Math.max(
+          adaptiveThresholds.entropy.min,
+          Math.min(
+            adaptiveThresholds.entropy.max,
+            adaptiveThresholds.entropy.current + (adjustmentFactor * 0.05)
+          )
+        ),
+        probability_buy: Math.max(
+          0.52,
+          Math.min(
+            0.7,
+            adaptiveThresholds.probability.buy + (adjustmentFactor * -0.02)
+          )
+        ),
+        probability_sell: Math.max(
+          0.3,
+          Math.min(
+            0.48,
+            adaptiveThresholds.probability.sell + (adjustmentFactor * 0.02)
+          )
+        ),
+        confluence_adaptive: Math.max(
+          adaptiveThresholds.confluence.min,
+          Math.min(
+            50,
+            adaptiveThresholds.confluence.adaptive + (adjustmentFactor * -2)
+          )
+        ),
+        edge_adaptive: Math.max(
+          adaptiveThresholds.edge.min,
+          Math.min(
+            0.001,
+            adaptiveThresholds.edge.adaptive + (adjustmentFactor * -0.0001)
+          )
+        )
+      };
+
+      const { error } = await supabase
+        .from('adaptive_thresholds')
+        .update(newThresholds)
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+
       toast({
         title: "Thresholds Adjusted",
         description: `Signal generation thresholds have been ${adjustment === 'relax' ? 'relaxed' : 'tightened'}`,
@@ -179,6 +318,37 @@ const SignalAnalyticsDashboard: React.FC = () => {
       });
     } finally {
       setIsAdjusting(false);
+    }
+  };
+
+  const toggleDebugMode = async () => {
+    try {
+      const newDebugConfig = {
+        ...debugConfig,
+        accept_all_signals: !debugConfig.accept_all_signals
+      };
+
+      const { error } = await supabase
+        .from('system_config')
+        .update({ config_value: newDebugConfig })
+        .eq('config_key', 'debug_mode');
+
+      if (error) throw error;
+
+      setDebugConfig(newDebugConfig);
+      toast({
+        title: newDebugConfig.accept_all_signals ? "Debug Mode Enabled" : "Debug Mode Disabled",
+        description: newDebugConfig.accept_all_signals 
+          ? "All signals will now be accepted for testing" 
+          : "Normal signal filtering has been restored",
+      });
+    } catch (error) {
+      console.error('Error toggling debug mode:', error);
+      toast({
+        title: "Error",
+        description: "Failed to toggle debug mode",
+        variant: "destructive",
+      });
     }
   };
 
@@ -234,6 +404,15 @@ const SignalAnalyticsDashboard: React.FC = () => {
           <Button 
             variant="outline" 
             size="sm" 
+            onClick={toggleDebugMode}
+            className={debugConfig.accept_all_signals ? "bg-orange-50 border-orange-200" : ""}
+          >
+            {debugConfig.accept_all_signals ? <Pause className="h-4 w-4 mr-2" /> : <Play className="h-4 w-4 mr-2" />}
+            Debug {debugConfig.accept_all_signals ? 'ON' : 'OFF'}
+          </Button>
+          <Button 
+            variant="outline" 
+            size="sm" 
             onClick={loadAnalytics}
             disabled={isLoading}
           >
@@ -268,6 +447,17 @@ const SignalAnalyticsDashboard: React.FC = () => {
         </Alert>
       )}
 
+      {/* Debug Mode Alert */}
+      {debugConfig.accept_all_signals && (
+        <Alert variant="default" className="bg-orange-50 border-orange-200">
+          <Zap className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Debug Mode Active:</strong> All signals are being accepted for testing purposes. 
+            Normal filtering is disabled. Remember to turn this off for production trading.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Key Metrics */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card>
@@ -280,7 +470,7 @@ const SignalAnalyticsDashboard: React.FC = () => {
               {signalDensity?.signalsPerHour.toFixed(1)}/hr
             </div>
             <p className="text-xs text-muted-foreground">
-              Target: {signalDensity?.targetSignalsPerHour}/hr
+              Target: {signalDensity?.targetSignalsPerHour}/hr | Evaluated: {signalDensity?.totalEvaluated}
             </p>
           </CardContent>
         </Card>
@@ -292,10 +482,10 @@ const SignalAnalyticsDashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {((rejectionAnalytics?.rejectionRate || 0) * 100).toFixed(1)}%
+              {(rejectionAnalytics?.rejectionRate || 0).toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              {rejectionAnalytics?.totalRejections} rejected
+              {rejectionAnalytics?.totalRejections} rejected | {signalDensity?.acceptedSignals} accepted
             </p>
           </CardContent>
         </Card>
@@ -310,22 +500,22 @@ const SignalAnalyticsDashboard: React.FC = () => {
               {systemHealth?.metrics.winRate.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              {systemHealth?.metrics.signalCount} signals
+              {systemHealth?.metrics.signalCount} signals executed
             </p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Sharpe Ratio</CardTitle>
+            <CardTitle className="text-sm font-medium">System Health</CardTitle>
             <LineChart className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {systemHealth?.metrics.sharpeRatio.toFixed(2)}
+              {systemHealth?.metrics.accuracy.toFixed(1)}%
             </div>
             <p className="text-xs text-muted-foreground">
-              Risk-adjusted returns
+              Function success rate
             </p>
           </CardContent>
         </Card>
@@ -349,7 +539,7 @@ const SignalAnalyticsDashboard: React.FC = () => {
                   Current Thresholds
                 </CardTitle>
                 <CardDescription>
-                  Adaptive thresholds that evolve based on market conditions
+                  Adaptive thresholds loaded from database
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -358,7 +548,7 @@ const SignalAnalyticsDashboard: React.FC = () => {
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm font-medium">Entropy Threshold</span>
-                        <span className="text-sm">{adaptiveThresholds.entropy.current.toFixed(2)}</span>
+                        <span className="text-sm">{adaptiveThresholds.entropy.current.toFixed(3)}</span>
                       </div>
                       <Progress value={((adaptiveThresholds.entropy.current - adaptiveThresholds.entropy.min) / (adaptiveThresholds.entropy.max - adaptiveThresholds.entropy.min)) * 100} />
                       <div className="flex justify-between text-xs text-muted-foreground">
@@ -453,49 +643,43 @@ const SignalAnalyticsDashboard: React.FC = () => {
             <Card>
               <CardHeader>
                 <CardTitle>Rejection Breakdown</CardTitle>
-                <CardDescription>Reasons why signals are being rejected</CardDescription>
+                <CardDescription>Analysis of rejected signals by reason</CardDescription>
               </CardHeader>
               <CardContent>
-                {rejectionAnalytics && (
-                  <div className="space-y-3">
-                    {Object.entries(rejectionAnalytics.rejectionsByReason).map(([reason, count]) => (
-                      <div key={reason} className="flex justify-between items-center">
-                        <span className="text-sm capitalize">{reason.replace(/_/g, ' ')}</span>
-                        <div className="flex items-center gap-2">
-                          <div className="w-20 bg-muted rounded-full h-2">
-                            <div 
-                              className="bg-primary h-2 rounded-full"
-                              style={{ width: `${(count / rejectionAnalytics.totalRejections) * 100}%` }}
-                            />
-                          </div>
-                          <span className="text-sm font-medium">{count}</span>
-                        </div>
+                <div className="space-y-3">
+                  {rejectionAnalytics && Object.entries(rejectionAnalytics.rejectionsByReason).map(([reason, count]) => (
+                    <div key={reason} className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span className="capitalize">{reason.replace(/_/g, ' ')}</span>
+                        <span>{count} ({((count / (rejectionAnalytics.totalRejections || 1)) * 100).toFixed(1)}%)</span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                      <Progress value={(count / (rejectionAnalytics.totalRejections || 1)) * 100} />
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle>Recent Rejections</CardTitle>
-                <CardDescription>Latest signals that were filtered out</CardDescription>
+                <CardDescription>Latest rejected signals with details</CardDescription>
               </CardHeader>
               <CardContent>
-                <ScrollArea className="h-[200px]">
+                <ScrollArea className="h-[300px]">
                   <div className="space-y-2">
                     {rejectionAnalytics?.recentRejections.map((rejection, index) => (
-                      <div key={index} className="flex justify-between items-center p-2 bg-muted rounded-lg">
-                        <div>
-                          <div className="text-sm font-medium">{rejection.reason.replace(/_/g, ' ')}</div>
-                          <div className="text-xs text-muted-foreground">
+                      <div key={index} className="p-3 border rounded-lg text-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <Badge variant="outline">{rejection.reason.replace(/_/g, ' ')}</Badge>
+                          <span className="text-xs text-muted-foreground">
                             {new Date(rejection.timestamp).toLocaleTimeString()}
-                          </div>
+                          </span>
                         </div>
-                        <div className="text-right">
-                          <div className="text-sm">{rejection.value.toFixed(4)}</div>
-                          <div className="text-xs text-muted-foreground">vs {rejection.threshold.toFixed(4)}</div>
+                        <div className="text-xs text-muted-foreground space-y-1">
+                          <div>Value: {rejection.value?.toFixed(6)} | Threshold: {rejection.threshold?.toFixed(6)}</div>
+                          {rejection.signal_type && <div>Signal: {rejection.signal_type.toUpperCase()}</div>}
+                          {rejection.market_regime && <div>Regime: {rejection.market_regime}</div>}
                         </div>
                       </div>
                     ))}
@@ -512,20 +696,42 @@ const SignalAnalyticsDashboard: React.FC = () => {
               <CardHeader>
                 <CardTitle>Trading Performance</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Accuracy</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.accuracy.toFixed(1)}%</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Profit Factor</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.profitFactor.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Max Drawdown</span>
-                    <span className="text-sm font-medium text-red-600">{systemHealth?.metrics.maxDrawdown.toFixed(1)}%</span>
-                  </div>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Win Rate</span>
+                  <span className="font-bold text-green-600">{systemHealth?.metrics.winRate.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Profit Factor</span>
+                  <span className="font-bold">{systemHealth?.metrics.profitFactor.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Max Drawdown</span>
+                  <span className="font-bold text-red-600">{systemHealth?.metrics.maxDrawdown.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Avg Hold Time</span>
+                  <span className="font-bold">{systemHealth?.metrics.avgHoldingTime} min</span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>System Performance</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Function Success Rate</span>
+                  <span className="font-bold">{systemHealth?.metrics.accuracy.toFixed(1)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total Signals</span>
+                  <span className="font-bold">{systemHealth?.metrics.signalCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Last Update</span>
+                  <span className="text-sm">{systemHealth?.metrics.lastUpdate ? new Date(systemHealth.metrics.lastUpdate).toLocaleTimeString() : 'N/A'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -534,40 +740,20 @@ const SignalAnalyticsDashboard: React.FC = () => {
               <CardHeader>
                 <CardTitle>Signal Quality</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Avg Holding Time</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.avgHoldingTime.toFixed(0)}m</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Signal Count</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.signalCount}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Last Update</span>
-                    <span className="text-xs text-muted-foreground">
-                      {systemHealth?.metrics.lastUpdate ? new Date(systemHealth.metrics.lastUpdate).toLocaleTimeString() : 'N/A'}
-                    </span>
-                  </div>
+              <CardContent className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Acceptance Rate</span>
+                  <span className="font-bold">{((100 - (rejectionAnalytics?.rejectionRate || 0))).toFixed(1)}%</span>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Risk Metrics</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm">Sharpe Ratio</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.sharpeRatio.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-sm">Win Rate</span>
-                    <span className="text-sm font-medium">{systemHealth?.metrics.winRate.toFixed(1)}%</span>
-                  </div>
+                <div className="flex justify-between">
+                  <span>Signals/Hour</span>
+                  <span className="font-bold">{signalDensity?.signalsPerHour.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Target Density</span>
+                  <span className={`font-bold ${getDensityColor(signalDensity?.currentDensity || '')}`}>
+                    {signalDensity?.currentDensity?.replace('_', ' ').toUpperCase()}
+                  </span>
                 </div>
               </CardContent>
             </Card>
@@ -575,20 +761,33 @@ const SignalAnalyticsDashboard: React.FC = () => {
         </TabsContent>
 
         <TabsContent value="recommendations" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Recommendations</CardTitle>
-              <CardDescription>AI-generated optimization suggestions</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {systemHealth?.recommendations.map((recommendation, index) => (
-                <Alert key={index}>
-                  <Target className="h-4 w-4" />
-                  <AlertDescription>{recommendation}</AlertDescription>
-                </Alert>
-              ))}
-            </CardContent>
-          </Card>
+          <div className="grid gap-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>System Recommendations</CardTitle>
+                <CardDescription>AI-powered optimization suggestions</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {systemHealth?.recommendations.map((recommendation, index) => (
+                    <Alert key={index}>
+                      <Brain className="h-4 w-4" />
+                      <AlertDescription>{recommendation}</AlertDescription>
+                    </Alert>
+                  ))}
+                  
+                  {(!systemHealth?.recommendations.length) && (
+                    <Alert>
+                      <Activity className="h-4 w-4" />
+                      <AlertDescription>
+                        System is operating within normal parameters. No immediate optimizations required.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>

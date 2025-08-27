@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-// Adaptive Signal Engine - integrated directly into edge function
+// Enhanced Adaptive Signal Engine with database integration
 interface AdaptiveThresholds {
   entropy: { min: number; max: number; current: number };
   probability: { buy: number; sell: number };
@@ -9,21 +9,79 @@ interface AdaptiveThresholds {
   edge: { min: number; adaptive: number };
 }
 
+interface DebugConfig {
+  enabled: boolean;
+  accept_all_signals: boolean;
+  log_level: string;
+}
+
 class AdaptiveSignalEngine {
   private thresholds: AdaptiveThresholds;
-  private rejectionLog: Array<{ timestamp: string; reason: string; value: number; threshold: number }> = [];
-  private signalHistory: Array<{ timestamp: string; accepted: boolean; score: number }> = [];
+  private supabase: any;
+  private debugConfig: DebugConfig = { enabled: false, accept_all_signals: false, log_level: 'info' };
 
-  constructor() {
+  constructor(supabaseClient: any) {
+    this.supabase = supabaseClient;
     this.thresholds = {
-      entropy: { min: 0.7, max: 0.95, current: 0.85 },
-      probability: { buy: 0.58, sell: 0.42 },
-      confluence: { min: 10, adaptive: 15 },
-      edge: { min: -0.0001, adaptive: 0.0001 }
+      entropy: { min: 0.7, max: 0.95, current: 0.80 }, // More relaxed default
+      probability: { buy: 0.56, sell: 0.44 }, // More relaxed defaults
+      confluence: { min: 8, adaptive: 12 }, // More relaxed defaults
+      edge: { min: -0.0002, adaptive: 0.00005 } // More permissive defaults
     };
   }
 
-  evaluateSignal(
+  async loadThresholds(): Promise<void> {
+    try {
+      const { data: thresholds } = await this.supabase
+        .from('adaptive_thresholds')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (thresholds) {
+        this.thresholds = {
+          entropy: { 
+            min: thresholds.entropy_min, 
+            max: thresholds.entropy_max, 
+            current: thresholds.entropy_current 
+          },
+          probability: { 
+            buy: thresholds.probability_buy, 
+            sell: thresholds.probability_sell 
+          },
+          confluence: { 
+            min: thresholds.confluence_min, 
+            adaptive: thresholds.confluence_adaptive 
+          },
+          edge: { 
+            min: thresholds.edge_min, 
+            adaptive: thresholds.edge_adaptive 
+          }
+        };
+      }
+    } catch (error) {
+      console.warn('Failed to load adaptive thresholds from database, using defaults:', error);
+    }
+  }
+
+  async loadDebugConfig(): Promise<void> {
+    try {
+      const { data: config } = await this.supabase
+        .from('system_config')
+        .select('config_value')
+        .eq('config_key', 'debug_mode')
+        .single();
+
+      if (config?.config_value) {
+        this.debugConfig = config.config_value;
+      }
+    } catch (error) {
+      console.warn('Failed to load debug config:', error);
+    }
+  }
+
+  async evaluateSignal(
     probabilisticFactors: any[],
     combinedProbability: number,
     entropy: number,
@@ -31,57 +89,106 @@ class AdaptiveSignalEngine {
     confluenceScore: number,
     regime: string,
     signalType: 'buy' | 'sell' | 'neutral'
-  ): { accepted: boolean; reason?: string } {
+  ): Promise<{ accepted: boolean; reason?: string }> {
     
+    // Load latest config and thresholds
+    await this.loadDebugConfig();
+    await this.loadThresholds();
+
+    // Debug mode: accept all signals
+    if (this.debugConfig.accept_all_signals) {
+      console.log('🔧 DEBUG MODE: Accepting all signals');
+      await this.logSignal(true, confluenceScore, null, signalType, probabilisticFactors.length);
+      return { accepted: true, reason: 'debug_mode_accept_all' };
+    }
+
     // Entropy check with adaptive threshold
     if (entropy > this.thresholds.entropy.current) {
-      this.logRejection('entropy', entropy, this.thresholds.entropy.current);
-      return { accepted: false, reason: `entropy_too_high_${entropy.toFixed(3)}_>${this.thresholds.entropy.current.toFixed(3)}` };
+      const reason = `entropy_too_high_${entropy.toFixed(3)}_>${this.thresholds.entropy.current.toFixed(3)}`;
+      await this.logRejection('entropy', entropy, this.thresholds.entropy.current, signalType, probabilisticFactors.length, combinedProbability, confluenceScore, netEdge, regime);
+      return { accepted: false, reason };
     }
 
     // Probability check with adaptive thresholds
     if (signalType === 'buy' && combinedProbability < this.thresholds.probability.buy) {
-      this.logRejection('probability', combinedProbability, this.thresholds.probability.buy);
-      return { accepted: false, reason: `buy_probability_too_low_${(combinedProbability*100).toFixed(1)}%_<${(this.thresholds.probability.buy*100).toFixed(1)}%` };
+      const reason = `buy_probability_too_low_${(combinedProbability*100).toFixed(1)}%_<${(this.thresholds.probability.buy*100).toFixed(1)}%`;
+      await this.logRejection('probability', combinedProbability, this.thresholds.probability.buy, signalType, probabilisticFactors.length, combinedProbability, confluenceScore, netEdge, regime);
+      return { accepted: false, reason };
     }
 
     if (signalType === 'sell' && combinedProbability > this.thresholds.probability.sell) {
-      this.logRejection('probability', combinedProbability, this.thresholds.probability.sell);
-      return { accepted: false, reason: `sell_probability_too_high_${(combinedProbability*100).toFixed(1)}%_>${(this.thresholds.probability.sell*100).toFixed(1)}%` };
+      const reason = `sell_probability_too_high_${(combinedProbability*100).toFixed(1)}%_>${(this.thresholds.probability.sell*100).toFixed(1)}%`;
+      await this.logRejection('probability', combinedProbability, this.thresholds.probability.sell, signalType, probabilisticFactors.length, combinedProbability, confluenceScore, netEdge, regime);
+      return { accepted: false, reason };
     }
 
     // Edge check with adaptive threshold
     if (netEdge <= this.thresholds.edge.adaptive) {
-      this.logRejection('edge', netEdge, this.thresholds.edge.adaptive);
-      return { accepted: false, reason: `edge_too_low_${netEdge.toFixed(6)}_<=${this.thresholds.edge.adaptive.toFixed(6)}` };
+      const reason = `edge_too_low_${netEdge.toFixed(6)}_<=${this.thresholds.edge.adaptive.toFixed(6)}`;
+      await this.logRejection('edge', netEdge, this.thresholds.edge.adaptive, signalType, probabilisticFactors.length, combinedProbability, confluenceScore, netEdge, regime);
+      return { accepted: false, reason };
     }
 
     // Confluence check
     if (confluenceScore < this.thresholds.confluence.adaptive) {
-      this.logRejection('confluence', confluenceScore, this.thresholds.confluence.adaptive);
-      return { accepted: false, reason: `confluence_too_low_${confluenceScore.toFixed(1)}_<${this.thresholds.confluence.adaptive.toFixed(1)}` };
+      const reason = `confluence_too_low_${confluenceScore.toFixed(1)}_<${this.thresholds.confluence.adaptive.toFixed(1)}`;
+      await this.logRejection('confluence', confluenceScore, this.thresholds.confluence.adaptive, signalType, probabilisticFactors.length, combinedProbability, confluenceScore, netEdge, regime);
+      return { accepted: false, reason };
     }
 
     // Signal accepted
-    this.logSignal(true, confluenceScore);
+    await this.logSignal(true, confluenceScore, null, signalType, probabilisticFactors.length);
     return { accepted: true };
   }
 
-  private logRejection(reason: string, value: number, threshold: number): void {
-    this.rejectionLog.push({
-      timestamp: new Date().toISOString(),
-      reason,
-      value,
-      threshold
-    });
+  private async logRejection(
+    reason: string, 
+    value: number, 
+    threshold: number, 
+    signalType: string, 
+    factorsCount: number,
+    probability?: number,
+    confluenceScore?: number,
+    netEdge?: number,
+    regime?: string
+  ): Promise<void> {
+    try {
+      await this.supabase.from('signal_rejection_logs').insert({
+        reason,
+        value,
+        threshold,
+        signal_type: signalType,
+        factors_count: factorsCount,
+        entropy: reason === 'entropy' ? value : null,
+        probability: probability,
+        confluence_score: confluenceScore,
+        net_edge: netEdge,
+        market_regime: regime
+      });
+    } catch (error) {
+      console.warn('Failed to log signal rejection:', error);
+    }
   }
 
-  private logSignal(accepted: boolean, score: number): void {
-    this.signalHistory.push({
-      timestamp: new Date().toISOString(),
-      accepted,
-      score
-    });
+  private async logSignal(
+    accepted: boolean, 
+    score: number, 
+    reason?: string | null,
+    signalType?: string,
+    factorsCount?: number
+  ): Promise<void> {
+    try {
+      // Log to system health for tracking
+      await this.supabase.from('system_health').insert({
+        function_name: 'signal-evaluation',
+        status: accepted ? 'success' : 'warning',
+        error_message: reason,
+        processed_items: 1,
+        execution_time_ms: 0
+      });
+    } catch (error) {
+      console.warn('Failed to log signal evaluation:', error);
+    }
   }
 
   getCurrentThresholds(): AdaptiveThresholds {
@@ -89,8 +196,8 @@ class AdaptiveSignalEngine {
   }
 }
 
-// Initialize adaptive engine
-const adaptiveEngine = new AdaptiveSignalEngine();
+// Initialize adaptive engine (will be created with supabase client in serve function)
+let adaptiveEngine: AdaptiveSignalEngine;
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -145,6 +252,11 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    // Initialize adaptive engine with supabase client
+    if (!adaptiveEngine) {
+      adaptiveEngine = new AdaptiveSignalEngine(supabase);
+    }
 
     console.log('🔄 Starting confluence signal generation...');
 
@@ -373,15 +485,7 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // Bayesian Fusion of Probabilities
   const { combinedProbability, combinedLogOdds, entropy } = fuseProbabilities(probabilisticFactors);
   
-  // Further relaxed entropy filter for calibration (increased to 0.9)
-  const maxEntropy = 0.9;
-  if (entropy > maxEntropy) {
-    console.log(`🚫 Signal rejected due to high entropy: ${entropy.toFixed(3)} > ${maxEntropy}`);
-    return null;
-  }
-  console.log(`✅ Entropy check passed: ${entropy.toFixed(3)} <= ${maxEntropy}`);
-  
-  // Further relaxed probability thresholds for calibration (widened to 0.6/0.4)
+  // Determine signal type based on probability
   const signalType: 'buy' | 'sell' | 'neutral' = 
     combinedProbability > 0.6 ? 'buy' : 
     combinedProbability < 0.4 ? 'sell' : 'neutral';
@@ -400,12 +504,7 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   // NetEdge = p_combined * R_avg - (1 - p_combined) * L_avg - Cost_trade
   const netEdge = combinedProbability * expectedReturn - (1 - combinedProbability) * expectedLoss - tradingCosts;
   
-  // Relaxed edge requirement (allow very small positive edge for calibration)
-  if (netEdge <= -0.0001) { // Allow even tiny positive edge instead of strict positive
-    console.log(`🚫 Signal rejected due to negative edge: ${netEdge.toFixed(6)}`);
-    return null;
-  }
-  console.log(`✅ Edge check passed: ${netEdge.toFixed(6)} > -0.0001`);
+  console.log(`📊 Net edge calculated: ${netEdge.toFixed(6)}`);
 
   // Calculate Kelly Fraction for position sizing
   const kellyFraction = calculateKellyFraction(combinedProbability, expectedReturn, expectedLoss);
@@ -437,12 +536,24 @@ async function generateConfluenceSignal(candles: any[], currentPrice: number): P
   
   const enhancedConfluenceScore = Math.min(100, Math.max(0, baseScore * regimeMultiplier));
 
-  // Dramatically relaxed confluence threshold for calibration (reduced to 10)
-  if (enhancedConfluenceScore < 10) {
-    console.log(`🚫 Signal rejected due to low confluence: ${enhancedConfluenceScore.toFixed(1)} < 10`);
+  console.log(`📊 Confluence score calculated: ${enhancedConfluenceScore.toFixed(1)}`);
+
+  // Use adaptive engine for signal evaluation
+  const evaluation = await adaptiveEngine.evaluateSignal(
+    probabilisticFactors,
+    combinedProbability,
+    entropy,
+    netEdge,
+    enhancedConfluenceScore,
+    currentRegime.type,
+    signalType
+  );
+
+  if (!evaluation.accepted) {
+    console.log(`🚫 Signal rejected: ${evaluation.reason}`);
     return null;
   }
-  console.log(`✅ Confluence check passed: ${enhancedConfluenceScore.toFixed(1)} >= 10`);
+  console.log(`✅ Signal accepted by adaptive engine`);
 
   // Calculate risk metrics with Kelly-optimized sizing
   const riskMetrics = calculateRiskMetrics(currentPrice, signalType);
