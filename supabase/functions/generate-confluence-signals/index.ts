@@ -1,5 +1,74 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { 
+  generateTechnicalSignals, 
+  generateFundamentalSignals, 
+  generatePatternSignals,
+  fuseSignalsWithBayesian,
+  generateSignalDiagnostics
+} from './master-signal-modules.ts';
+
+// Master Signal Engine - Comprehensive signal generation with modular analysis
+interface StandardSignal {
+  source: string;
+  timestamp: string;
+  pair: string;
+  timeframe: string;
+  signal: 'buy' | 'sell' | 'hold';
+  confidence: number;
+  strength: number;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  factors: Array<{
+    name: string;
+    value: number;
+    weight: number;
+    contribution: number;
+  }>;
+}
+
+interface MasterSignal {
+  signal: 'buy' | 'sell' | 'hold' | null;
+  probability: number;
+  confidence: number;
+  strength: number;
+  entryPrice: number;
+  stopLoss: number;
+  takeProfit: number;
+  riskRewardRatio: number;
+  kellyFraction: number;
+  entropy: number;
+  consensusLevel: number;
+  reasoning: string;
+  warnings: string[];
+  contributingSignals: StandardSignal[];
+  qualityMetrics: {
+    dataQuality: number;
+    signalReliability: number;
+    marketAlignment: number;
+    diversification: number;
+  };
+}
+
+interface CompleteSignalAnalysis {
+  success: boolean;
+  timestamp: string;
+  pair: string;
+  timeframe: string;
+  masterSignal?: MasterSignal;
+  rejectionReason?: string;
+  modularResults: any;
+  fusionResults: any;
+  diagnostics: any;
+  performanceMetrics: any;
+  qualityIndicators: any;
+  recommendation: {
+    action: 'TRADE' | 'WAIT' | 'REVIEW_SETUP' | 'CHECK_DATA';
+    reasoning: string;
+    nextActions: string[];
+  };
+}
 
 // Enhanced Adaptive Signal Engine with database integration
 interface AdaptiveThresholds {
@@ -287,10 +356,13 @@ serve(async (req) => {
 
     const currentPrice = candles[candles.length - 1].close;
 
-    // Generate confluence signal
-    const confluenceSignal = await generateConfluenceSignal(candles, currentPrice);
+    // Generate comprehensive signal analysis using Master Signal Engine
+    const signalAnalysis = await generateMasterSignalAnalysis(candles, 'EUR/USD', '15m', 'trending');
 
-    if (confluenceSignal && confluenceSignal.signal_type !== 'neutral') {
+    if (signalAnalysis?.success && signalAnalysis.masterSignal?.signal !== 'hold') {
+      // Convert master signal to database format
+      const confluenceSignal = convertMasterSignalToDatabase(signalAnalysis);
+      
       // Check if similar signal was generated recently (last 30 minutes)
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: recentSignals } = await supabase
@@ -319,28 +391,20 @@ serve(async (req) => {
           console.log(`🎯 Generated ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
           processedItems = 1;
 
-          // Trigger trade execution for qualifying signals
-          if (confluenceSignal.confluence_score >= 30) {
-            console.log('🚀 Triggering trade execution for high-quality signal');
+          // Trigger trade execution for high-quality master signals
+          if (signalAnalysis.masterSignal.confidence >= 0.75) {
+            console.log('🚀 Triggering trade execution for high-quality master signal');
             
-            // Call execute-shadow-trades function
             try {
-              const executeUrl = `${supabaseUrl}/functions/v1/execute-shadow-trades`;
-              const executeResponse = await fetch(executeUrl, {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ 
+              const { data: executeResult } = await supabase.functions.invoke('execute-shadow-trades', {
+                body: { 
                   signal_id: confluenceSignal.signal_id,
-                  trigger: 'auto_execution'
-                })
+                  trigger: 'auto_execution_master_signal',
+                  master_signal: signalAnalysis.masterSignal
+                }
               });
-
-              if (!executeResponse.ok) {
-                console.warn('Failed to trigger trade execution:', executeResponse.statusText);
-              } else {
+              
+              if (executeResult) {
                 console.log('✅ Trade execution triggered successfully');
               }
             } catch (executeError) {
@@ -349,10 +413,21 @@ serve(async (req) => {
           }
         }
       } else {
-        console.log(`⏭️  Skipping signal - similar recent signal exists`);
+        console.log(`⏭️ Skipping signal - similar recent signal exists`);
       }
+    } else if (signalAnalysis?.rejectionReason) {
+      console.log(`📊 Signal rejected: ${signalAnalysis.rejectionReason}`);
+      
+      // Log detailed rejection analysis
+      await supabase.from('signal_rejection_logs').insert({
+        reason: signalAnalysis.rejectionReason,
+        signal_type: 'master_signal_analysis',
+        factors_count: signalAnalysis.modularResults?.allSignals?.length || 0,
+        value: signalAnalysis.masterSignal?.confidence || 0,
+        threshold: 0.5
+      });
     } else {
-      console.log('📊 No qualifying confluence signal generated');
+      console.log('📊 No qualifying master signal generated');
     }
 
     // Log system health
@@ -371,11 +446,17 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         message: `Signal generation completed in ${executionTime}ms`,
-        signal: confluenceSignal ? {
-          type: confluenceSignal.signal_type,
-          score: confluenceSignal.confluence_score,
-          strength: confluenceSignal.strength
+        signal: signalAnalysis?.masterSignal ? {
+          type: signalAnalysis.masterSignal.signal,
+          confidence: signalAnalysis.masterSignal.confidence,
+          strength: signalAnalysis.masterSignal.strength,
+          recommendation: signalAnalysis.recommendation.action
         } : null,
+        analysis: {
+          modularSignals: signalAnalysis?.modularResults?.allSignals?.length || 0,
+          fusionMethod: 'bayesian_hierarchical',
+          diagnostics: signalAnalysis?.diagnostics || null
+        },
         processedItems,
         executionTimeMs: executionTime
       }),
@@ -418,6 +499,106 @@ serve(async (req) => {
     );
   }
 });
+
+// Master Signal Analysis Engine
+async function generateMasterSignalAnalysis(
+  candles: any[], 
+  pair: string, 
+  timeframe: string, 
+  regime: string
+): Promise<CompleteSignalAnalysis | null> {
+  try {
+    console.log(`🎯 Starting comprehensive analysis for ${pair} (${timeframe}) with ${candles.length} candles`);
+    
+    // Phase 1: Generate modular signals
+    const modularResults = await generateModularSignals(candles, pair, timeframe);
+    
+    // Phase 2: Advanced fusion
+    const fusionResults = modularResults.allSignals.length > 0 ? 
+      await fuseSignalsWithBayesian(modularResults) : null;
+    
+    // Phase 3: Diagnostic analysis
+    const diagnostics = await generateSignalDiagnostics(modularResults, fusionResults);
+    
+    // Phase 4: Build complete analysis
+    return buildCompleteAnalysis(modularResults, fusionResults, diagnostics, pair, timeframe);
+    
+  } catch (error) {
+    console.error('❌ Error in master signal analysis:', error);
+    return buildErrorAnalysis(error.message, pair, timeframe);
+  }
+}
+
+// Generate signals from all analysis modules
+async function generateModularSignals(candles: any[], pair: string, timeframe: string) {
+  const allSignals: StandardSignal[] = [];
+  const modulePerformance: any[] = [];
+  
+  // Technical Analysis Module
+  try {
+    const technicalSignals = await generateTechnicalSignals(candles, pair, timeframe);
+    allSignals.push(...technicalSignals);
+    modulePerformance.push({ module: 'technical', signalCount: technicalSignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'technical', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  // Fundamental Analysis Module (placeholder for now)
+  try {
+    const fundamentalSignals = await generateFundamentalSignals(candles, pair, timeframe);
+    allSignals.push(...fundamentalSignals);
+    modulePerformance.push({ module: 'fundamental', signalCount: fundamentalSignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'fundamental', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  // Pattern Recognition Module
+  try {
+    const patternSignals = await generatePatternSignals(candles, pair, timeframe);
+    allSignals.push(...patternSignals);
+    modulePerformance.push({ module: 'patterns', signalCount: patternSignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'patterns', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  return {
+    allSignals,
+    modulePerformance,
+    totalSignals: allSignals.length,
+    activeModules: modulePerformance.filter(m => m.status === 'active').length
+  };
+}
+
+// Convert master signal to database format
+function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
+  const masterSignal = analysis.masterSignal!;
+  const currentPrice = masterSignal.entryPrice;
+  
+  return {
+    signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    pair: analysis.pair,
+    signal_type: masterSignal.signal,
+    confluence_score: Math.round(masterSignal.confidence * 100),
+    strength: Math.round(masterSignal.strength * 10),
+    confidence: masterSignal.confidence,
+    entry_price: masterSignal.entryPrice,
+    stop_loss: masterSignal.stopLoss,
+    take_profit: masterSignal.takeProfit,
+    risk_reward_ratio: masterSignal.riskRewardRatio,
+    description: masterSignal.reasoning,
+    alert_level: masterSignal.confidence > 0.8 ? 'high' : 
+                 masterSignal.confidence > 0.6 ? 'medium' : 'low',
+    factors: masterSignal.contributingSignals.map(signal => ({
+      type: signal.source,
+      name: signal.signal,
+      strength: signal.strength,
+      confidence: signal.confidence,
+      factors: signal.factors
+    })),
+    execution_reason: `Master signal analysis: ${analysis.recommendation.action}`,
+    was_executed: false
+  };
+}
 
 async function generateConfluenceSignal(candles: any[], currentPrice: number): Promise<ConfluenceSignal | null> {
   // Initialize the Probabilistic Signal Engine inline
@@ -941,5 +1122,185 @@ function calculateRiskMetrics(entryPrice: number, signal: 'buy' | 'sell') {
     stopLoss: Math.round(stopLoss * 100000) / 100000,
     takeProfit: Math.round(takeProfit * 100000) / 100000,
     riskReward: rewardRatio
+  };
+}
+
+// Build complete analysis from all components
+function buildCompleteAnalysis(
+  modularResults: any, 
+  fusionResults: any, 
+  diagnostics: any, 
+  pair: string, 
+  timeframe: string
+): CompleteSignalAnalysis {
+  const timestamp = new Date().toISOString();
+  
+  if (!fusionResults || fusionResults.signal === 'hold') {
+    return {
+      success: false,
+      timestamp,
+      pair,
+      timeframe,
+      rejectionReason: `No valid signal generated: ${!fusionResults ? 'No fusion results' : 'Hold signal'}`,
+      modularResults,
+      fusionResults: fusionResults || null,
+      diagnostics,
+      performanceMetrics: {
+        processingTimeMs: diagnostics.processingTime,
+        activeModules: modularResults.activeModules,
+        totalSignals: modularResults.totalSignals
+      },
+      qualityIndicators: {
+        dataQuality: diagnostics.dataQuality || 0,
+        signalDiversity: diagnostics.signalDiversity || 0,
+        confidence: 0
+      },
+      recommendation: {
+        action: 'WAIT',
+        reasoning: 'No qualifying signals detected across analysis modules',
+        nextActions: ['Wait for clearer market conditions', 'Check module configurations']
+      }
+    };
+  }
+  
+  // Build master signal
+  const masterSignal: MasterSignal = {
+    signal: fusionResults.signal,
+    probability: fusionResults.probability,
+    confidence: fusionResults.confidence,
+    strength: fusionResults.strength,
+    entryPrice: fusionResults.entryPrice,
+    stopLoss: fusionResults.stopLoss,
+    takeProfit: fusionResults.takeProfit,
+    riskRewardRatio: fusionResults.riskRewardRatio,
+    kellyFraction: fusionResults.kellyFraction,
+    entropy: fusionResults.entropy,
+    consensusLevel: fusionResults.consensusLevel,
+    reasoning: fusionResults.reasoning,
+    warnings: fusionResults.warnings,
+    contributingSignals: fusionResults.contributingSignals,
+    qualityMetrics: {
+      dataQuality: diagnostics.dataQuality || 0.5,
+      signalReliability: fusionResults.confidence,
+      marketAlignment: Math.max(0, 1 - fusionResults.entropy),
+      diversification: Math.min(1, modularResults.allSignals.length / 5)
+    }
+  };
+  
+  // Determine recommendation
+  const recommendation = generateRecommendation(masterSignal, diagnostics);
+  
+  return {
+    success: true,
+    timestamp,
+    pair,
+    timeframe,
+    masterSignal,
+    modularResults,
+    fusionResults,
+    diagnostics,
+    performanceMetrics: {
+      processingTimeMs: diagnostics.processingTime,
+      activeModules: modularResults.activeModules,
+      totalSignals: modularResults.totalSignals,
+      fusionEfficiency: fusionResults.consensusLevel
+    },
+    qualityIndicators: {
+      dataQuality: diagnostics.dataQuality || 0,
+      signalDiversity: modularResults.allSignals.length > 1 ? 1 : 0,
+      confidence: masterSignal.confidence,
+      entropy: masterSignal.entropy
+    },
+    recommendation
+  };
+}
+
+// Generate recommendation based on master signal quality
+function generateRecommendation(masterSignal: MasterSignal, diagnostics: any): any {
+  const { confidence, entropy, warnings } = masterSignal;
+  const { dataQuality } = diagnostics;
+  
+  // High confidence, low entropy = TRADE
+  if (confidence >= 0.75 && entropy <= 0.6 && dataQuality >= 0.7) {
+    return {
+      action: 'TRADE',
+      reasoning: `High-quality signal with ${(confidence * 100).toFixed(1)}% confidence and low uncertainty`,
+      nextActions: [
+        'Execute trade with calculated position size',
+        'Monitor signal performance',
+        'Set alerts for stop-loss and take-profit levels'
+      ]
+    };
+  }
+  
+  // Medium confidence = WAIT for better setup
+  if (confidence >= 0.6 && entropy <= 0.75) {
+    return {
+      action: 'WAIT',
+      reasoning: `Moderate signal quality - wait for better confirmation`,
+      nextActions: [
+        'Monitor for additional confirming signals',
+        'Wait for entropy to decrease below 0.6',
+        'Check for fundamental catalysts'
+      ]
+    };
+  }
+  
+  // Low data quality = CHECK_DATA
+  if (dataQuality < 0.5) {
+    return {
+      action: 'CHECK_DATA',
+      reasoning: 'Poor data quality detected - verify system inputs',
+      nextActions: [
+        'Check market data feed connectivity',
+        'Verify technical indicator calculations',
+        'Review module error logs'
+      ]
+    };
+  }
+  
+  // High entropy or warnings = REVIEW_SETUP
+  if (entropy > 0.8 || warnings.length > 0) {
+    return {
+      action: 'REVIEW_SETUP',
+      reasoning: `High uncertainty (${(entropy * 100).toFixed(1)}%) or system warnings detected`,
+      nextActions: [
+        'Review signal threshold configurations',
+        'Check for conflicting module outputs',
+        'Consider market regime adjustments'
+      ]
+    };
+  }
+  
+  // Default fallback
+  return {
+    action: 'WAIT',
+    reasoning: 'Signal quality below trading threshold',
+    nextActions: [
+      'Wait for clearer market conditions',
+      'Monitor signal development',
+      'Review system performance'
+    ]
+  };
+}
+
+// Build error analysis when master signal generation fails
+function buildErrorAnalysis(errorMessage: string, pair: string, timeframe: string): CompleteSignalAnalysis {
+  return {
+    success: false,
+    timestamp: new Date().toISOString(),
+    pair,
+    timeframe,
+    rejectionReason: `Error in signal generation: ${errorMessage}`,
+    modularResults: { allSignals: [], modulePerformance: [], totalSignals: 0, activeModules: 0 },
+    fusionResults: null,
+    diagnostics: { warnings: [errorMessage], recommendations: ['Check system logs', 'Verify data inputs'] },
+    performanceMetrics: { processingTimeMs: 0, activeModules: 0, totalSignals: 0 },
+    qualityIndicators: { dataQuality: 0, signalDiversity: 0, confidence: 0 },
+    recommendation: {
+      action: 'CHECK_DATA',
+      reasoning: 'Critical error in signal generation pipeline',
+      nextActions: ['Review system logs', 'Check data connectivity', 'Restart signal generation service']
+    }
   };
 }

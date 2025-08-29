@@ -35,6 +35,13 @@ const NavigationBar: React.FC = () => {
       description: 'Signal performance metrics'
     },
     {
+      path: '/enhanced-signal-analytics',
+      label: 'Enhanced Analytics',
+      icon: <Zap className="h-4 w-4" />,
+      description: 'Master signal analysis & diagnostics',
+      badge: 'NEW'
+    },
+    {
       path: '/shadow-trading',
       label: 'Shadow Trading',
       icon: <Target className="h-4 w-4" />,

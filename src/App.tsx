@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ShadowTrading from "./pages/ShadowTrading";
 import SignalAnalytics from "./pages/SignalAnalytics";
+import EnhancedSignalAnalytics from "./pages/EnhancedSignalAnalytics";
 import EnhancedTrading from "./pages/EnhancedTrading";
 import SystemMonitor from "./pages/SystemMonitor";
 import NotFound from "./pages/NotFound";
@@ -22,6 +23,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/enhanced-trading" element={<EnhancedTrading />} />
           <Route path="/signal-analytics" element={<SignalAnalytics />} />
+          <Route path="/enhanced-signal-analytics" element={<EnhancedSignalAnalytics />} />
           <Route path="/shadow-trading" element={<ShadowTrading />} />
           <Route path="/system-monitor" element={<SystemMonitor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
