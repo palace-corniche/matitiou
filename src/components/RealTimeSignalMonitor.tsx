@@ -107,9 +107,20 @@ const RealTimeSignalMonitor: React.FC = () => {
         .limit(1);
 
       if (signals && signals.length > 0) {
+        const signal = signals[0];
         setLatestSignal({
-          ...signals[0],
-          timestamp: signals[0].created_at
+          id: signal.id,
+          timestamp: signal.created_at,
+          signal_type: signal.signal_type as 'buy' | 'sell' | 'hold',
+          confluence_score: signal.confluence_score,
+          confidence: signal.confidence,
+          strength: signal.strength,
+          entry_price: signal.entry_price,
+          stop_loss: signal.stop_loss,
+          take_profit: signal.take_profit,
+          risk_reward_ratio: signal.risk_reward_ratio,
+          description: signal.description,
+          factors: Array.isArray(signal.factors) ? signal.factors : []
         });
       }
 
