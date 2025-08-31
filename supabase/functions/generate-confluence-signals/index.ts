@@ -3,7 +3,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { 
   generateTechnicalSignals, 
   generateFundamentalSignals, 
+  generateSentimentSignals,
+  generateMultiTimeframeSignals,
   generatePatternSignals,
+  generateStrategySignals,
   fuseSignalsWithBayesian,
   generateSignalDiagnostics
 } from './master-signal-modules.ts';
@@ -543,13 +546,31 @@ async function generateModularSignals(candles: any[], pair: string, timeframe: s
     modulePerformance.push({ module: 'technical', signalCount: 0, status: 'error', error: error.message });
   }
   
-  // Fundamental Analysis Module (placeholder for now)
+  // Fundamental Analysis Module
   try {
     const fundamentalSignals = await generateFundamentalSignals(candles, pair, timeframe);
     allSignals.push(...fundamentalSignals);
     modulePerformance.push({ module: 'fundamental', signalCount: fundamentalSignals.length, status: 'active' });
   } catch (error) {
     modulePerformance.push({ module: 'fundamental', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  // Sentiment Analysis Module
+  try {
+    const sentimentSignals = await generateSentimentSignals(candles, pair, timeframe);
+    allSignals.push(...sentimentSignals);
+    modulePerformance.push({ module: 'sentiment', signalCount: sentimentSignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'sentiment', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  // Multi-Timeframe Analysis Module
+  try {
+    const multiTimeframeSignals = await generateMultiTimeframeSignals(candles, pair, timeframe);
+    allSignals.push(...multiTimeframeSignals);
+    modulePerformance.push({ module: 'multi_timeframe', signalCount: multiTimeframeSignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'multi_timeframe', signalCount: 0, status: 'error', error: error.message });
   }
   
   // Pattern Recognition Module
@@ -559,6 +580,15 @@ async function generateModularSignals(candles: any[], pair: string, timeframe: s
     modulePerformance.push({ module: 'patterns', signalCount: patternSignals.length, status: 'active' });
   } catch (error) {
     modulePerformance.push({ module: 'patterns', signalCount: 0, status: 'error', error: error.message });
+  }
+  
+  // Strategy-Based Analysis Module
+  try {
+    const strategySignals = await generateStrategySignals(candles, pair, timeframe);
+    allSignals.push(...strategySignals);
+    modulePerformance.push({ module: 'strategy', signalCount: strategySignals.length, status: 'active' });
+  } catch (error) {
+    modulePerformance.push({ module: 'strategy', signalCount: 0, status: 'error', error: error.message });
   }
   
   return {
@@ -579,7 +609,7 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     pair: analysis.pair,
     signal_type: masterSignal.signal,
     confluence_score: Math.round(masterSignal.confidence * 100),
-    strength: Math.round(masterSignal.strength * 10),
+    strength: Math.min(100, Math.max(0, Math.round(masterSignal.strength * 10))),
     confidence: masterSignal.confidence,
     entry_price: masterSignal.entryPrice,
     stop_loss: masterSignal.stopLoss,
