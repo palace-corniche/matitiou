@@ -63,8 +63,27 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
 
   useEffect(() => {
     loadDashboardData();
-    const interval = setInterval(loadDashboardData, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Set up real-time subscriptions
+    const signalsChannel = supabase
+      .channel('signal-updates')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'trading_signals' },
+        () => loadDashboardData()
+      )
+      .on('postgres_changes',
+        { event: '*', schema: 'public', table: 'system_health' },
+        () => loadDashboardData()
+      )
+      .subscribe();
+    
+    // Update every 15 seconds for real-time feel
+    const interval = setInterval(loadDashboardData, 15000);
+    
+    return () => {
+      supabase.removeChannel(signalsChannel);
+      clearInterval(interval);
+    };
   }, []);
 
   const loadDashboardData = async () => {
