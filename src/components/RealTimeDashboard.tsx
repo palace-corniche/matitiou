@@ -19,7 +19,8 @@ import { performanceTracker, SystemPerformance } from '@/services/performanceTra
 
 interface LiveSignal {
   id: string;
-  timestamp: string;
+  timestamp?: string;
+  created_at: string;
   signal_type: 'buy' | 'sell' | 'hold';
   confluence_score: number;
   confidence: number;
@@ -121,7 +122,11 @@ const RealTimeDashboard: React.FC = () => {
         .limit(20);
       
       if (signals) {
-        setLiveSignals(signals as LiveSignal[]);
+        const mappedSignals = signals.map(signal => ({
+          ...signal,
+          timestamp: signal.created_at
+        }));
+        setLiveSignals(mappedSignals as LiveSignal[]);
       }
       
       // Load system performance
@@ -389,7 +394,7 @@ const RealTimeDashboard: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-medium">
-                          {new Date(signal.timestamp).toLocaleTimeString()}
+                          {new Date(signal.timestamp || signal.created_at).toLocaleTimeString()}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {signal.factors?.length || 0} factors

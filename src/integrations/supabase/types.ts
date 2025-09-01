@@ -356,6 +356,105 @@ export type Database = {
           },
         ]
       }
+      module_correlations: {
+        Row: {
+          confidence_interval: number[] | null
+          correlation_value: number
+          created_at: string | null
+          id: string
+          last_calculated: string | null
+          module_a: string
+          module_b: string
+          sample_size: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          confidence_interval?: number[] | null
+          correlation_value?: number
+          created_at?: string | null
+          id?: string
+          last_calculated?: string | null
+          module_a: string
+          module_b: string
+          sample_size?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          confidence_interval?: number[] | null
+          correlation_value?: number
+          created_at?: string | null
+          id?: string
+          last_calculated?: string | null
+          module_a?: string
+          module_b?: string
+          sample_size?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      module_performance: {
+        Row: {
+          average_confidence: number | null
+          average_return: number | null
+          average_strength: number | null
+          created_at: string | null
+          failed_signals: number | null
+          id: string
+          information_ratio: number | null
+          last_updated: string | null
+          max_drawdown: number | null
+          module_id: string
+          recent_performance: Json | null
+          reliability: number | null
+          sharpe_ratio: number | null
+          signals_generated: number | null
+          status: string | null
+          successful_signals: number | null
+          trend: string | null
+          win_rate: number | null
+        }
+        Insert: {
+          average_confidence?: number | null
+          average_return?: number | null
+          average_strength?: number | null
+          created_at?: string | null
+          failed_signals?: number | null
+          id?: string
+          information_ratio?: number | null
+          last_updated?: string | null
+          max_drawdown?: number | null
+          module_id: string
+          recent_performance?: Json | null
+          reliability?: number | null
+          sharpe_ratio?: number | null
+          signals_generated?: number | null
+          status?: string | null
+          successful_signals?: number | null
+          trend?: string | null
+          win_rate?: number | null
+        }
+        Update: {
+          average_confidence?: number | null
+          average_return?: number | null
+          average_strength?: number | null
+          created_at?: string | null
+          failed_signals?: number | null
+          id?: string
+          information_ratio?: number | null
+          last_updated?: string | null
+          max_drawdown?: number | null
+          module_id?: string
+          recent_performance?: Json | null
+          reliability?: number | null
+          sharpe_ratio?: number | null
+          signals_generated?: number | null
+          status?: string | null
+          successful_signals?: number | null
+          trend?: string | null
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
       performance_snapshots: {
         Row: {
           balance: number
@@ -753,6 +852,51 @@ export type Database = {
         }
         Relationships: []
       }
+      system_performance_snapshots: {
+        Row: {
+          active_modules_count: number | null
+          adaptive_thresholds: Json | null
+          average_processing_time: number | null
+          created_at: string | null
+          error_count: number | null
+          id: string
+          module_performance_data: Json | null
+          overall_win_rate: number | null
+          snapshot_date: string
+          system_reliability: number | null
+          total_signals_executed: number | null
+          total_signals_generated: number | null
+        }
+        Insert: {
+          active_modules_count?: number | null
+          adaptive_thresholds?: Json | null
+          average_processing_time?: number | null
+          created_at?: string | null
+          error_count?: number | null
+          id?: string
+          module_performance_data?: Json | null
+          overall_win_rate?: number | null
+          snapshot_date?: string
+          system_reliability?: number | null
+          total_signals_executed?: number | null
+          total_signals_generated?: number | null
+        }
+        Update: {
+          active_modules_count?: number | null
+          adaptive_thresholds?: Json | null
+          average_processing_time?: number | null
+          created_at?: string | null
+          error_count?: number | null
+          id?: string
+          module_performance_data?: Json | null
+          overall_win_rate?: number | null
+          snapshot_date?: string
+          system_reliability?: number | null
+          total_signals_executed?: number | null
+          total_signals_generated?: number | null
+        }
+        Relationships: []
+      }
       trading_signals: {
         Row: {
           alert_level: string
@@ -832,6 +976,10 @@ export type Database = {
         Returns: undefined
       }
       cleanup_stuck_jobs: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      create_daily_performance_snapshot: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
