@@ -19,12 +19,13 @@ import { performanceTracker, SystemPerformance } from '@/services/performanceTra
 
 interface LiveSignal {
   id: string;
-  timestamp?: string;
-  created_at: string;
-  signal_type: 'buy' | 'sell' | 'hold';
+  pair: string;
+  signal_type: string;
   confluence_score: number;
   confidence: number;
   strength: number;
+  created_at: string; // Use created_at instead of timestamp
+  alert_level: 'low' | 'medium' | 'high';
   factors: any[];
   was_executed: boolean;
   description: string;
@@ -122,11 +123,19 @@ const RealTimeDashboard: React.FC = () => {
         .limit(20);
       
       if (signals) {
-        const mappedSignals = signals.map(signal => ({
-          ...signal,
-          timestamp: signal.created_at
-        }));
-        setLiveSignals(mappedSignals as LiveSignal[]);
+        setLiveSignals(signals.map(signal => ({
+          id: signal.id,
+          pair: signal.pair,
+          signal_type: signal.signal_type,
+          confluence_score: signal.confluence_score,
+          confidence: signal.confidence,
+          strength: signal.strength,
+          created_at: signal.created_at,
+          alert_level: signal.alert_level as 'low' | 'medium' | 'high',
+          factors: signal.factors as any[],
+          was_executed: signal.was_executed,
+          description: signal.description
+        })));
       }
       
       // Load system performance
@@ -394,7 +403,7 @@ const RealTimeDashboard: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <div className="text-sm font-medium">
-                          {new Date(signal.timestamp || signal.created_at).toLocaleTimeString()}
+                          {new Date(signal.created_at).toLocaleTimeString()}
                         </div>
                         <div className="text-xs text-muted-foreground">
                           {signal.factors?.length || 0} factors

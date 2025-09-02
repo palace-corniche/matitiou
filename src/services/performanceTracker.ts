@@ -58,10 +58,25 @@ export class PerformanceTracker {
     console.log(`📊 Tracking performance for ${moduleId}: ${outcome.success ? 'WIN' : 'LOSS'} (${(outcome.return * 100).toFixed(2)}%)`);
     
     try {
-      // Use temporary mock implementation until types are regenerated
-      console.log(`📊 Tracking performance for ${moduleId}: ${outcome.success ? 'WIN' : 'LOSS'} (${(outcome.return * 100).toFixed(2)}%)`);
+      // Check if module performance record exists
+      const { data: existing } = await supabase
+        .from('module_performance')
+        .select('*')
+        .eq('module_id', moduleId)
+        .maybeSingle();
+
+      if (existing) {
+        await this.updateExistingPerformance(existing, outcome);
+      } else {
+        await this.createNewPerformanceRecord(moduleId, outcome);
+      }
+
+      // Update cache
+      await this.refreshPerformanceCache(moduleId);
       
-      // Store in local cache for now
+    } catch (error) {
+      console.error('Failed to track performance:', error);
+      // Store in local cache as fallback
       this.performanceCache.set(moduleId, {
         moduleId,
         signalsGenerated: (this.performanceCache.get(moduleId)?.signalsGenerated || 0) + 1,
@@ -80,9 +95,6 @@ export class PerformanceTracker {
         trend: 'stable' as const,
         status: 'active' as const
       });
-      
-    } catch (error) {
-      console.error('Failed to track performance:', error);
     }
   }
   
@@ -236,8 +248,36 @@ export class PerformanceTracker {
   }
   
   private async refreshPerformanceCache(moduleId: string): Promise<void> {
-    // Mock implementation until database types are available
-    console.log(`Refreshing cache for ${moduleId}`);
+    try {
+      const { data } = await supabase
+        .from('module_performance')
+        .select('*')
+        .eq('module_id', moduleId)
+        .maybeSingle();
+
+      if (data) {
+        this.performanceCache.set(moduleId, {
+          moduleId: data.module_id,
+          signalsGenerated: data.signals_generated || 0,
+          successfulSignals: data.successful_signals || 0,
+          failedSignals: data.failed_signals || 0,
+          winRate: data.win_rate || 0,
+          averageReturn: data.average_return || 0,
+          sharpeRatio: data.sharpe_ratio || 0,
+          maxDrawdown: data.max_drawdown || 0,
+          reliability: data.reliability || 0.7,
+          informationRatio: data.information_ratio || 0,
+          averageConfidence: data.average_confidence || 0.5,
+          averageStrength: data.average_strength || 5,
+          recentPerformance: (data.recent_performance as number[]) || [],
+          lastUpdated: new Date(data.last_updated || new Date()),
+          trend: (data.trend as 'improving' | 'declining' | 'stable') || 'stable',
+          status: (data.status as 'active' | 'underperforming' | 'excellent') || 'active'
+        });
+      }
+    } catch (error) {
+      console.error(`Failed to refresh cache for ${moduleId}:`, error);
+    }
   }
   
   // Update correlation between modules based on signal co-occurrence
