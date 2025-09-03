@@ -255,6 +255,41 @@ export type Database = {
           },
         ]
       }
+      lot_size_presets: {
+        Row: {
+          created_at: string
+          id: string
+          is_default: boolean | null
+          lot_size: number
+          portfolio_id: string
+          preset_name: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          lot_size: number
+          portfolio_id: string
+          preset_name: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_default?: boolean | null
+          lot_size?: number
+          portfolio_id?: string
+          preset_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lot_size_presets_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       market_data_feed: {
         Row: {
           created_at: string
@@ -534,34 +569,49 @@ export type Database = {
           average_loss: number
           average_win: number
           balance: number
+          consecutive_losses: number | null
+          consecutive_wins: number | null
           created_at: string
+          current_drawdown: number | null
           custom_lot_multiplier: number
           daily_loss_limit: number
           daily_pnl_today: number
           deposits_total: number
           equity: number
           expectancy: number
+          floating_pnl: number | null
           free_margin: number
           id: string
           initial_deposit: number
           is_active: boolean
+          largest_loss: number | null
+          largest_win: number | null
           last_daily_reset: string | null
+          last_trade_time: string | null
           leverage: number
           losing_trades: number
           lot_size_type: string
           margin: number
           margin_call_level: number
           margin_level: number
+          margin_percentage: number | null
           max_drawdown: number
+          max_drawdown_amount: number | null
           max_drawdown_limit: number
+          max_equity: number | null
           max_open_positions: number
+          peak_balance: number | null
           profit_factor: number
           risk_per_trade: number
           session_id: string | null
           sharpe_ratio: number
           stop_out_level: number
+          total_commission: number | null
+          total_swap: number | null
           total_trades: number
+          trading_days: number | null
           updated_at: string
+          used_margin: number | null
           user_id: string | null
           win_rate: number
           winning_trades: number
@@ -574,34 +624,49 @@ export type Database = {
           average_loss?: number
           average_win?: number
           balance?: number
+          consecutive_losses?: number | null
+          consecutive_wins?: number | null
           created_at?: string
+          current_drawdown?: number | null
           custom_lot_multiplier?: number
           daily_loss_limit?: number
           daily_pnl_today?: number
           deposits_total?: number
           equity?: number
           expectancy?: number
+          floating_pnl?: number | null
           free_margin?: number
           id?: string
           initial_deposit?: number
           is_active?: boolean
+          largest_loss?: number | null
+          largest_win?: number | null
           last_daily_reset?: string | null
+          last_trade_time?: string | null
           leverage?: number
           losing_trades?: number
           lot_size_type?: string
           margin?: number
           margin_call_level?: number
           margin_level?: number
+          margin_percentage?: number | null
           max_drawdown?: number
+          max_drawdown_amount?: number | null
           max_drawdown_limit?: number
+          max_equity?: number | null
           max_open_positions?: number
+          peak_balance?: number | null
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
           stop_out_level?: number
+          total_commission?: number | null
+          total_swap?: number | null
           total_trades?: number
+          trading_days?: number | null
           updated_at?: string
+          used_margin?: number | null
           user_id?: string | null
           win_rate?: number
           winning_trades?: number
@@ -614,34 +679,49 @@ export type Database = {
           average_loss?: number
           average_win?: number
           balance?: number
+          consecutive_losses?: number | null
+          consecutive_wins?: number | null
           created_at?: string
+          current_drawdown?: number | null
           custom_lot_multiplier?: number
           daily_loss_limit?: number
           daily_pnl_today?: number
           deposits_total?: number
           equity?: number
           expectancy?: number
+          floating_pnl?: number | null
           free_margin?: number
           id?: string
           initial_deposit?: number
           is_active?: boolean
+          largest_loss?: number | null
+          largest_win?: number | null
           last_daily_reset?: string | null
+          last_trade_time?: string | null
           leverage?: number
           losing_trades?: number
           lot_size_type?: string
           margin?: number
           margin_call_level?: number
           margin_level?: number
+          margin_percentage?: number | null
           max_drawdown?: number
+          max_drawdown_amount?: number | null
           max_drawdown_limit?: number
+          max_equity?: number | null
           max_open_positions?: number
+          peak_balance?: number | null
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
           stop_out_level?: number
+          total_commission?: number | null
+          total_swap?: number | null
           total_trades?: number
+          trading_days?: number | null
           updated_at?: string
+          used_margin?: number | null
           user_id?: string | null
           win_rate?: number
           winning_trades?: number
@@ -651,11 +731,15 @@ export type Database = {
       }
       shadow_trades: {
         Row: {
+          close_type: string | null
+          commission: number | null
           confluence_score: number
           contract_size: number
           created_at: string
+          current_price: number | null
           entry_price: number
           entry_time: string
+          execution_price: number | null
           exit_price: number | null
           exit_reason: string | null
           exit_time: string | null
@@ -663,27 +747,40 @@ export type Database = {
           id: string
           lot_size: number
           margin_required: number | null
+          original_lot_size: number | null
+          partial_close_count: number | null
           pip_pnl: number | null
           pip_value: number | null
           pnl: number | null
           pnl_percent: number | null
           portfolio_id: string
           position_size: number
+          profit: number | null
+          profit_pips: number | null
+          realized_pnl: number | null
+          remaining_lot_size: number | null
           risk_reward_ratio: number | null
           signal_id: string | null
+          slippage_pips: number | null
           status: string
           stop_loss: number
+          swap: number | null
           symbol: string
           take_profit: number
           trade_type: string
+          unrealized_pnl: number | null
           updated_at: string
         }
         Insert: {
+          close_type?: string | null
+          commission?: number | null
           confluence_score?: number
           contract_size?: number
           created_at?: string
+          current_price?: number | null
           entry_price: number
           entry_time?: string
+          execution_price?: number | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
@@ -691,27 +788,40 @@ export type Database = {
           id?: string
           lot_size?: number
           margin_required?: number | null
+          original_lot_size?: number | null
+          partial_close_count?: number | null
           pip_pnl?: number | null
           pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
           portfolio_id: string
           position_size: number
+          profit?: number | null
+          profit_pips?: number | null
+          realized_pnl?: number | null
+          remaining_lot_size?: number | null
           risk_reward_ratio?: number | null
           signal_id?: string | null
+          slippage_pips?: number | null
           status?: string
           stop_loss: number
+          swap?: number | null
           symbol?: string
           take_profit: number
           trade_type: string
+          unrealized_pnl?: number | null
           updated_at?: string
         }
         Update: {
+          close_type?: string | null
+          commission?: number | null
           confluence_score?: number
           contract_size?: number
           created_at?: string
+          current_price?: number | null
           entry_price?: number
           entry_time?: string
+          execution_price?: number | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
@@ -719,19 +829,28 @@ export type Database = {
           id?: string
           lot_size?: number
           margin_required?: number | null
+          original_lot_size?: number | null
+          partial_close_count?: number | null
           pip_pnl?: number | null
           pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
           portfolio_id?: string
           position_size?: number
+          profit?: number | null
+          profit_pips?: number | null
+          realized_pnl?: number | null
+          remaining_lot_size?: number | null
           risk_reward_ratio?: number | null
           signal_id?: string | null
+          slippage_pips?: number | null
           status?: string
           stop_loss?: number
+          swap?: number | null
           symbol?: string
           take_profit?: number
           trade_type?: string
+          unrealized_pnl?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -897,6 +1016,89 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_history: {
+        Row: {
+          action_type: string
+          balance_after: number
+          balance_before: number
+          commission: number | null
+          created_at: string
+          equity_after: number
+          equity_before: number
+          execution_price: number
+          execution_time: string
+          id: string
+          lot_size: number
+          margin_used: number | null
+          original_trade_id: string | null
+          portfolio_id: string
+          profit: number | null
+          profit_pips: number | null
+          slippage_pips: number | null
+          stop_loss: number | null
+          swap: number | null
+          symbol: string
+          take_profit: number | null
+          trade_type: string
+        }
+        Insert: {
+          action_type: string
+          balance_after: number
+          balance_before: number
+          commission?: number | null
+          created_at?: string
+          equity_after: number
+          equity_before: number
+          execution_price: number
+          execution_time?: string
+          id?: string
+          lot_size: number
+          margin_used?: number | null
+          original_trade_id?: string | null
+          portfolio_id: string
+          profit?: number | null
+          profit_pips?: number | null
+          slippage_pips?: number | null
+          stop_loss?: number | null
+          swap?: number | null
+          symbol?: string
+          take_profit?: number | null
+          trade_type: string
+        }
+        Update: {
+          action_type?: string
+          balance_after?: number
+          balance_before?: number
+          commission?: number | null
+          created_at?: string
+          equity_after?: number
+          equity_before?: number
+          execution_price?: number
+          execution_time?: string
+          id?: string
+          lot_size?: number
+          margin_used?: number | null
+          original_trade_id?: string | null
+          portfolio_id?: string
+          profit?: number | null
+          profit_pips?: number | null
+          slippage_pips?: number | null
+          stop_loss?: number | null
+          swap?: number | null
+          symbol?: string
+          take_profit?: number | null
+          trade_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_history_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_portfolios"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trading_signals: {
         Row: {
           alert_level: string
@@ -971,6 +1173,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_trade_pnl: {
+        Args: { p_current_price: number; p_trade_id: string }
+        Returns: {
+          profit: number
+          profit_pips: number
+          unrealized_pnl: number
+        }[]
+      }
       cleanup_anonymous_data: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -978,6 +1188,15 @@ export type Database = {
       cleanup_stuck_jobs: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      close_shadow_trade: {
+        Args: {
+          p_close_lot_size?: number
+          p_close_price: number
+          p_close_reason?: string
+          p_trade_id: string
+        }
+        Returns: Json
       }
       create_daily_performance_snapshot: {
         Args: Record<PropertyKey, never>
