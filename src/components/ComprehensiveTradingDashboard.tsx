@@ -8,98 +8,94 @@ import { CandleData } from '@/services/technicalAnalysis';
 import { type ConfluenceSignal, type MarketSentiment, type RiskAssessment } from '@/services/confluenceEngine';
 import { EnhancedSignalEngine } from '@/services/enhancedSignalEngine';
 import { useToast } from '@/hooks/use-toast';
-
 interface ComprehensiveTradingDashboardProps {
   data: CandleData[];
   pair?: string;
 }
-
-export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboardProps> = ({ 
-  data, 
-  pair = "EUR/USD" 
+export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboardProps> = ({
+  data,
+  pair = "EUR/USD"
 }) => {
   const [confluenceSignal, setConfluenceSignal] = useState<ConfluenceSignal | null>(null);
   const [marketSentiment, setMarketSentiment] = useState<MarketSentiment | null>(null);
   const [riskAssessment, setRiskAssessment] = useState<RiskAssessment | null>(null);
   const [loading, setLoading] = useState(false);
   const [analysisProgress, setAnalysisProgress] = useState('');
-
   const enhancedEngine = new EnhancedSignalEngine();
-  const { toast } = useToast();
-
+  const {
+    toast
+  } = useToast();
   useEffect(() => {
     if (data.length > 50) {
       analyzeMarket();
     }
   }, [data]);
-
   const analyzeMarket = async () => {
     setLoading(true);
     setAnalysisProgress('Initializing comprehensive analysis...');
-    
     try {
       // Phase 1: Generate comprehensive signal using all 120+ indicators
       setAnalysisProgress('Calculating 120+ technical indicators...');
       const confluenceSignal = await enhancedEngine.generateComprehensiveSignal(data, pair, '1h');
-      
       if (confluenceSignal) {
         setConfluenceSignal(confluenceSignal);
-        
+
         // Phase 2: Analyze market sentiment using all factors
         setAnalysisProgress('Analyzing market sentiment across all factors...');
         const sentiment = await enhancedEngine.analyzeMarketSentiment(data);
         setMarketSentiment(sentiment);
-        
+
         // Phase 3: Assess risk using advanced metrics
         setAnalysisProgress('Performing advanced risk assessment...');
         const risk = await enhancedEngine.assessRisk(data, confluenceSignal);
         setRiskAssessment(risk);
-        
         toast({
           title: "Analysis Complete",
-          description: `Generated ${confluenceSignal.signal.toUpperCase()} signal with ${confluenceSignal.confluenceScore.toFixed(1)}% confluence score`,
+          description: `Generated ${confluenceSignal.signal.toUpperCase()} signal with ${confluenceSignal.confluenceScore.toFixed(1)}% confluence score`
         });
       } else {
         toast({
-          title: "No Clear Signal", 
+          title: "No Clear Signal",
           description: "Insufficient confluence detected across all analysis methods",
-          variant: "destructive",
+          variant: "destructive"
         });
       }
-      
     } catch (error) {
       console.error('Comprehensive analysis error:', error);
       toast({
         title: "Analysis Failed",
         description: "Failed to complete comprehensive market analysis",
-        variant: "destructive",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
       setAnalysisProgress('');
     }
   };
-
   const getSignalIcon = (signal: string) => {
     switch (signal) {
-      case 'buy': return <TrendingUp className="w-4 h-4 text-green-500" />;
-      case 'sell': return <TrendingDown className="w-4 h-4 text-red-500" />;
-      default: return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
+      case 'buy':
+        return <TrendingUp className="w-4 h-4 text-green-500" />;
+      case 'sell':
+        return <TrendingDown className="w-4 h-4 text-red-500" />;
+      default:
+        return <AlertTriangle className="w-4 h-4 text-yellow-500" />;
     }
   };
-
   const getAlertBadgeVariant = (level: string) => {
     switch (level) {
-      case 'extreme': return 'destructive';
-      case 'high': return 'default';
-      case 'medium': return 'secondary';
-      default: return 'outline';
+      case 'extreme':
+        return 'destructive';
+      case 'high':
+        return 'default';
+      case 'medium':
+        return 'secondary';
+      default:
+        return 'outline';
     }
   };
-
   if (loading) {
-    return (
-      <div className="min-h-screen bg-background p-4">
+    return <div className="min-h-screen bg-background p-4">
         <div className="max-w-7xl mx-auto">
           <Card>
             <CardContent className="p-8 text-center">
@@ -113,22 +109,17 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
             </CardContent>
           </Card>
         </div>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="min-h-screen bg-background p-4">
+  return <div className="min-h-screen bg-background p-4">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h1 className="text-3xl font-bold text-foreground">Advanced Trading Analysis</h1>
-            {confluenceSignal && (
-              <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'}>
+            {confluenceSignal && <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'}>
                 {confluenceSignal.alertLevel.toUpperCase()} CONFLUENCE
-              </Badge>
-            )}
+              </Badge>}
           </div>
           <Button onClick={analyzeMarket} disabled={loading} className="flex items-center gap-2">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
@@ -136,8 +127,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
           </Button>
         </div>
       {/* Main Signal Card */}
-      {confluenceSignal && (
-        <Card>
+      {confluenceSignal && <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {getSignalIcon(confluenceSignal.signal)}
@@ -147,43 +137,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               </Badge>
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Signal</div>
-                <div className="font-semibold text-lg">{confluenceSignal.signal.toUpperCase()}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Confluence Score</div>
-                <div className="font-semibold text-lg">{confluenceSignal.confluenceScore.toFixed(1)}%</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Confidence</div>
-                <div className="font-semibold text-lg">{confluenceSignal.confidence.toFixed(1)}%</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Risk/Reward</div>
-                <div className="font-semibold text-lg">{confluenceSignal.riskReward.toFixed(2)}:1</div>
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <div className="text-sm text-muted-foreground">Entry Price</div>
-                <div className="font-mono">{confluenceSignal.entry.toFixed(5)}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Stop Loss</div>
-                <div className="font-mono text-red-500">{confluenceSignal.stopLoss.toFixed(5)}</div>
-              </div>
-              <div>
-                <div className="text-sm text-muted-foreground">Take Profit</div>
-                <div className="font-mono text-green-500">{confluenceSignal.takeProfit.toFixed(5)}</div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          
+        </Card>}
 
       <Tabs defaultValue="confluence" className="w-full">
         <TabsList className="grid w-full grid-cols-4">
@@ -199,8 +154,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <CardTitle>Confluence Factors</CardTitle>
             </CardHeader>
             <CardContent>
-              {confluenceSignal?.factors.map((factor, index) => (
-                <div key={index} className="flex items-center justify-between p-3 border rounded-lg mb-2">
+              {confluenceSignal?.factors.map((factor, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg mb-2">
                   <div>
                     <div className="font-medium">{factor.name}</div>
                     <div className="text-sm text-muted-foreground">{factor.description}</div>
@@ -210,8 +164,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
                     <Badge variant="outline">Strength: {factor.strength}</Badge>
                     {getSignalIcon(factor.signal)}
                   </div>
-                </div>
-              ))}
+                </div>)}
             </CardContent>
           </Card>
         </TabsContent>
@@ -222,8 +175,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <CardTitle>Market Sentiment Analysis</CardTitle>
             </CardHeader>
             <CardContent>
-              {marketSentiment && (
-                <div className="space-y-4">
+              {marketSentiment && <div className="space-y-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold">{marketSentiment.overall.replace('_', ' ').toUpperCase()}</div>
                     <div className="text-muted-foreground">Overall Score: {marketSentiment.score.toFixed(1)}</div>
@@ -246,8 +198,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
                     <div className="font-medium mb-2">Recommendation</div>
                     <div>{marketSentiment.recommendation}</div>
                   </div>
-                </div>
-              )}
+                </div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -261,8 +212,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               </CardTitle>
             </CardHeader>
             <CardContent>
-              {riskAssessment && (
-                <div className="space-y-4">
+              {riskAssessment && <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <div className="text-sm text-muted-foreground">Risk Level</div>
@@ -279,8 +229,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
                     <div className="text-sm text-muted-foreground">Market Conditions</div>
                     <div>{riskAssessment.marketConditions}</div>
                   </div>
-                </div>
-              )}
+                </div>}
             </CardContent>
           </Card>
         </TabsContent>
@@ -331,8 +280,6 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </Button>
       </div>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default ComprehensiveTradingDashboard;
