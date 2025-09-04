@@ -10,6 +10,8 @@ import EnhancedSignalAnalytics from "./pages/EnhancedSignalAnalytics";
 import EnhancedTrading from "./pages/EnhancedTrading";
 import SystemMonitor from "./pages/SystemMonitor";
 import NotFound from "./pages/NotFound";
+import MetaTrader4Dashboard from "./components/MetaTrader4Dashboard";
+import NavigationBar from "./components/NavigationBar";
 
 const queryClient = new QueryClient();
 
@@ -25,6 +27,7 @@ const App = () => (
           <Route path="/signal-analytics" element={<SignalAnalytics />} />
           <Route path="/enhanced-signal-analytics" element={<EnhancedSignalAnalytics />} />
           <Route path="/shadow-trading" element={<ShadowTrading />} />
+          <Route path="/metatrader4" element={<div className="min-h-screen bg-background"><NavigationBar /><MetaTrader4Dashboard /></div>} />
           <Route path="/system-monitor" element={<SystemMonitor />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
