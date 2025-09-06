@@ -14,6 +14,63 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_history: {
+        Row: {
+          action_type: string
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at: string | null
+          currency: string
+          description: string | null
+          exchange_rate: number | null
+          id: string
+          payment_method: string | null
+          portfolio_id: string
+          processed_at: string | null
+          processed_by: string | null
+          reference_number: string | null
+          status: string | null
+          transaction_fee: number | null
+        }
+        Insert: {
+          action_type: string
+          amount: number
+          balance_after: number
+          balance_before: number
+          created_at?: string | null
+          currency?: string
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string
+          payment_method?: string | null
+          portfolio_id: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reference_number?: string | null
+          status?: string | null
+          transaction_fee?: number | null
+        }
+        Update: {
+          action_type?: string
+          amount?: number
+          balance_after?: number
+          balance_before?: number
+          created_at?: string | null
+          currency?: string
+          description?: string | null
+          exchange_rate?: number | null
+          id?: string
+          payment_method?: string | null
+          portfolio_id?: string
+          processed_at?: string | null
+          processed_by?: string | null
+          reference_number?: string | null
+          status?: string | null
+          transaction_fee?: number | null
+        }
+        Relationships: []
+      }
       account_transactions: {
         Row: {
           amount: number
@@ -208,6 +265,93 @@ export type Database = {
         }
         Relationships: []
       }
+      ea_logs: {
+        Row: {
+          created_at: string | null
+          ea_name: string
+          execution_time_ms: number | null
+          id: string
+          log_level: string
+          memory_usage_kb: number | null
+          message: string
+          portfolio_id: string
+          symbol: string | null
+          trade_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          ea_name: string
+          execution_time_ms?: number | null
+          id?: string
+          log_level: string
+          memory_usage_kb?: number | null
+          message: string
+          portfolio_id: string
+          symbol?: string | null
+          trade_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          ea_name?: string
+          execution_time_ms?: number | null
+          id?: string
+          log_level?: string
+          memory_usage_kb?: number | null
+          message?: string
+          portfolio_id?: string
+          symbol?: string | null
+          trade_id?: string | null
+        }
+        Relationships: []
+      }
+      economic_calendar: {
+        Row: {
+          actual_value: string | null
+          affected_instruments: string[] | null
+          created_at: string | null
+          currency: string
+          description: string | null
+          event_name: string
+          event_time: string
+          forecast_value: string | null
+          id: string
+          impact_level: string
+          is_active: boolean | null
+          previous_value: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          actual_value?: string | null
+          affected_instruments?: string[] | null
+          created_at?: string | null
+          currency: string
+          description?: string | null
+          event_name: string
+          event_time: string
+          forecast_value?: string | null
+          id?: string
+          impact_level: string
+          is_active?: boolean | null
+          previous_value?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          actual_value?: string | null
+          affected_instruments?: string[] | null
+          created_at?: string | null
+          currency?: string
+          description?: string | null
+          event_name?: string
+          event_time?: string
+          forecast_value?: string | null
+          id?: string
+          impact_level?: string
+          is_active?: boolean | null
+          previous_value?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       insights: {
         Row: {
           analysis_job_id: string
@@ -289,6 +433,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      market_data_enhanced: {
+        Row: {
+          ask_price: number
+          bid_price: number
+          close_price: number
+          created_at: string | null
+          high_price: number
+          id: string
+          is_holiday: boolean | null
+          low_price: number
+          open_price: number
+          session_type: string | null
+          spread: number
+          symbol: string
+          tick_volume: number | null
+          timeframe: string
+          timestamp: string
+          volume: number | null
+        }
+        Insert: {
+          ask_price: number
+          bid_price: number
+          close_price: number
+          created_at?: string | null
+          high_price: number
+          id?: string
+          is_holiday?: boolean | null
+          low_price: number
+          open_price: number
+          session_type?: string | null
+          spread: number
+          symbol: string
+          tick_volume?: number | null
+          timeframe: string
+          timestamp: string
+          volume?: number | null
+        }
+        Update: {
+          ask_price?: number
+          bid_price?: number
+          close_price?: number
+          created_at?: string | null
+          high_price?: number
+          id?: string
+          is_holiday?: boolean | null
+          low_price?: number
+          open_price?: number
+          session_type?: string | null
+          spread?: number
+          symbol?: string
+          tick_volume?: number | null
+          timeframe?: string
+          timestamp?: string
+          volume?: number | null
+        }
+        Relationships: []
       }
       market_data_feed: {
         Row: {
@@ -490,6 +691,107 @@ export type Database = {
         }
         Relationships: []
       }
+      order_types: {
+        Row: {
+          created_at: string | null
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      pending_orders: {
+        Row: {
+          commission: number | null
+          created_at: string | null
+          expiry_time: string | null
+          expiry_type: string | null
+          filled_at: string | null
+          filled_lot_size: number | null
+          filled_price: number | null
+          id: string
+          lot_size: number
+          notes: string | null
+          order_type: string
+          partial_fill_allowed: boolean | null
+          portfolio_id: string
+          slippage_tolerance: number | null
+          status: string | null
+          stop_loss: number | null
+          symbol: string
+          take_profit: number | null
+          trade_type: string
+          trigger_price: number
+          updated_at: string | null
+        }
+        Insert: {
+          commission?: number | null
+          created_at?: string | null
+          expiry_time?: string | null
+          expiry_type?: string | null
+          filled_at?: string | null
+          filled_lot_size?: number | null
+          filled_price?: number | null
+          id?: string
+          lot_size?: number
+          notes?: string | null
+          order_type: string
+          partial_fill_allowed?: boolean | null
+          portfolio_id: string
+          slippage_tolerance?: number | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          trade_type: string
+          trigger_price: number
+          updated_at?: string | null
+        }
+        Update: {
+          commission?: number | null
+          created_at?: string | null
+          expiry_time?: string | null
+          expiry_type?: string | null
+          filled_at?: string | null
+          filled_lot_size?: number | null
+          filled_price?: number | null
+          id?: string
+          lot_size?: number
+          notes?: string | null
+          order_type?: string
+          partial_fill_allowed?: boolean | null
+          portfolio_id?: string
+          slippage_tolerance?: number | null
+          status?: string | null
+          stop_loss?: number | null
+          symbol?: string
+          take_profit?: number | null
+          trade_type?: string
+          trigger_price?: number
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_orders_order_type_fkey"
+            columns: ["order_type"]
+            isOneToOne: false
+            referencedRelation: "order_types"
+            referencedColumns: ["name"]
+          },
+        ]
+      }
       performance_snapshots: {
         Row: {
           balance: number
@@ -537,6 +839,36 @@ export type Database = {
           },
         ]
       }
+      position_correlations: {
+        Row: {
+          calculated_at: string | null
+          correlation_coefficient: number
+          id: string
+          portfolio_id: string
+          risk_exposure: number
+          symbol_a: string
+          symbol_b: string
+        }
+        Insert: {
+          calculated_at?: string | null
+          correlation_coefficient: number
+          id?: string
+          portfolio_id: string
+          risk_exposure: number
+          symbol_a: string
+          symbol_b: string
+        }
+        Update: {
+          calculated_at?: string | null
+          correlation_coefficient?: number
+          id?: string
+          portfolio_id?: string
+          risk_exposure?: number
+          symbol_a?: string
+          symbol_b?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
@@ -563,24 +895,35 @@ export type Database = {
       }
       shadow_portfolios: {
         Row: {
+          account_company: string | null
           account_currency: string
+          account_name: string | null
+          account_number: number | null
+          account_server: string | null
           account_type: string
           auto_trading_enabled: boolean
           average_loss: number
           average_win: number
           balance: number
+          bonus: number | null
+          commission_per_lot: number | null
           consecutive_losses: number | null
           consecutive_wins: number | null
           created_at: string
+          credit: number | null
           current_drawdown: number | null
           custom_lot_multiplier: number
           daily_loss_limit: number
           daily_pnl_today: number
           deposits_total: number
+          dll_allowed: boolean | null
+          ea_allowed: boolean | null
           equity: number
           expectancy: number
+          fifo_mode: boolean | null
           floating_pnl: number | null
           free_margin: number
+          hedge_mode: boolean | null
           id: string
           initial_deposit: number
           is_active: boolean
@@ -600,15 +943,22 @@ export type Database = {
           max_drawdown_limit: number
           max_equity: number | null
           max_open_positions: number
+          max_orders: number | null
           peak_balance: number | null
           profit_factor: number
           risk_per_trade: number
           session_id: string | null
           sharpe_ratio: number
+          spread_multiplier: number | null
           stop_out_level: number
+          swap_free: boolean | null
+          symbols_list: string[] | null
+          symbols_total: number | null
           total_commission: number | null
           total_swap: number | null
           total_trades: number
+          trade_context_busy: boolean | null
+          trading_allowed: boolean | null
           trading_days: number | null
           updated_at: string
           used_margin: number | null
@@ -618,24 +968,35 @@ export type Database = {
           withdrawals_total: number
         }
         Insert: {
+          account_company?: string | null
           account_currency?: string
+          account_name?: string | null
+          account_number?: number | null
+          account_server?: string | null
           account_type?: string
           auto_trading_enabled?: boolean
           average_loss?: number
           average_win?: number
           balance?: number
+          bonus?: number | null
+          commission_per_lot?: number | null
           consecutive_losses?: number | null
           consecutive_wins?: number | null
           created_at?: string
+          credit?: number | null
           current_drawdown?: number | null
           custom_lot_multiplier?: number
           daily_loss_limit?: number
           daily_pnl_today?: number
           deposits_total?: number
+          dll_allowed?: boolean | null
+          ea_allowed?: boolean | null
           equity?: number
           expectancy?: number
+          fifo_mode?: boolean | null
           floating_pnl?: number | null
           free_margin?: number
+          hedge_mode?: boolean | null
           id?: string
           initial_deposit?: number
           is_active?: boolean
@@ -655,15 +1016,22 @@ export type Database = {
           max_drawdown_limit?: number
           max_equity?: number | null
           max_open_positions?: number
+          max_orders?: number | null
           peak_balance?: number | null
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
+          spread_multiplier?: number | null
           stop_out_level?: number
+          swap_free?: boolean | null
+          symbols_list?: string[] | null
+          symbols_total?: number | null
           total_commission?: number | null
           total_swap?: number | null
           total_trades?: number
+          trade_context_busy?: boolean | null
+          trading_allowed?: boolean | null
           trading_days?: number | null
           updated_at?: string
           used_margin?: number | null
@@ -673,24 +1041,35 @@ export type Database = {
           withdrawals_total?: number
         }
         Update: {
+          account_company?: string | null
           account_currency?: string
+          account_name?: string | null
+          account_number?: number | null
+          account_server?: string | null
           account_type?: string
           auto_trading_enabled?: boolean
           average_loss?: number
           average_win?: number
           balance?: number
+          bonus?: number | null
+          commission_per_lot?: number | null
           consecutive_losses?: number | null
           consecutive_wins?: number | null
           created_at?: string
+          credit?: number | null
           current_drawdown?: number | null
           custom_lot_multiplier?: number
           daily_loss_limit?: number
           daily_pnl_today?: number
           deposits_total?: number
+          dll_allowed?: boolean | null
+          ea_allowed?: boolean | null
           equity?: number
           expectancy?: number
+          fifo_mode?: boolean | null
           floating_pnl?: number | null
           free_margin?: number
+          hedge_mode?: boolean | null
           id?: string
           initial_deposit?: number
           is_active?: boolean
@@ -710,15 +1089,22 @@ export type Database = {
           max_drawdown_limit?: number
           max_equity?: number | null
           max_open_positions?: number
+          max_orders?: number | null
           peak_balance?: number | null
           profit_factor?: number
           risk_per_trade?: number
           session_id?: string | null
           sharpe_ratio?: number
+          spread_multiplier?: number | null
           stop_out_level?: number
+          swap_free?: boolean | null
+          symbols_list?: string[] | null
+          symbols_total?: number | null
           total_commission?: number | null
           total_swap?: number | null
           total_trades?: number
+          trade_context_busy?: boolean | null
+          trading_allowed?: boolean | null
           trading_days?: number | null
           updated_at?: string
           used_margin?: number | null
@@ -731,7 +1117,9 @@ export type Database = {
       }
       shadow_trades: {
         Row: {
+          break_even_triggered: boolean | null
           close_type: string | null
+          comment: string | null
           commission: number | null
           confluence_score: number
           contract_size: number
@@ -743,16 +1131,25 @@ export type Database = {
           exit_price: number | null
           exit_reason: string | null
           exit_time: string | null
+          expert_advisor: string | null
           holding_time_minutes: number | null
           id: string
           lot_size: number
+          magic_number: number | null
           margin_required: number | null
+          max_loss: number | null
+          max_profit: number | null
+          order_type: string | null
           original_lot_size: number | null
+          original_stop_loss: number | null
+          original_take_profit: number | null
           partial_close_count: number | null
+          partial_closes_count: number | null
           pip_pnl: number | null
           pip_value: number | null
           pnl: number | null
           pnl_percent: number | null
+          point_value: number | null
           portfolio_id: string
           position_size: number
           profit: number | null
@@ -767,12 +1164,17 @@ export type Database = {
           swap: number | null
           symbol: string
           take_profit: number
+          tick_value: number | null
           trade_type: string
+          trailing_stop_distance: number | null
+          trailing_stop_triggered: boolean | null
           unrealized_pnl: number | null
           updated_at: string
         }
         Insert: {
+          break_even_triggered?: boolean | null
           close_type?: string | null
+          comment?: string | null
           commission?: number | null
           confluence_score?: number
           contract_size?: number
@@ -784,16 +1186,25 @@ export type Database = {
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
+          expert_advisor?: string | null
           holding_time_minutes?: number | null
           id?: string
           lot_size?: number
+          magic_number?: number | null
           margin_required?: number | null
+          max_loss?: number | null
+          max_profit?: number | null
+          order_type?: string | null
           original_lot_size?: number | null
+          original_stop_loss?: number | null
+          original_take_profit?: number | null
           partial_close_count?: number | null
+          partial_closes_count?: number | null
           pip_pnl?: number | null
           pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
+          point_value?: number | null
           portfolio_id: string
           position_size: number
           profit?: number | null
@@ -808,12 +1219,17 @@ export type Database = {
           swap?: number | null
           symbol?: string
           take_profit: number
+          tick_value?: number | null
           trade_type: string
+          trailing_stop_distance?: number | null
+          trailing_stop_triggered?: boolean | null
           unrealized_pnl?: number | null
           updated_at?: string
         }
         Update: {
+          break_even_triggered?: boolean | null
           close_type?: string | null
+          comment?: string | null
           commission?: number | null
           confluence_score?: number
           contract_size?: number
@@ -825,16 +1241,25 @@ export type Database = {
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
+          expert_advisor?: string | null
           holding_time_minutes?: number | null
           id?: string
           lot_size?: number
+          magic_number?: number | null
           margin_required?: number | null
+          max_loss?: number | null
+          max_profit?: number | null
+          order_type?: string | null
           original_lot_size?: number | null
+          original_stop_loss?: number | null
+          original_take_profit?: number | null
           partial_close_count?: number | null
+          partial_closes_count?: number | null
           pip_pnl?: number | null
           pip_value?: number | null
           pnl?: number | null
           pnl_percent?: number | null
+          point_value?: number | null
           portfolio_id?: string
           position_size?: number
           profit?: number | null
@@ -849,7 +1274,10 @@ export type Database = {
           swap?: number | null
           symbol?: string
           take_profit?: number
+          tick_value?: number | null
           trade_type?: string
+          trailing_stop_distance?: number | null
+          trailing_stop_triggered?: boolean | null
           unrealized_pnl?: number | null
           updated_at?: string
         }
@@ -1098,6 +1526,159 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      trade_signals_enhanced: {
+        Row: {
+          confidence_score: number
+          created_at: string | null
+          entry_price: number
+          execution_type: string | null
+          expiry_time: string | null
+          id: string
+          indicators_used: string[] | null
+          lot_size: number
+          notes: string | null
+          portfolio_id: string | null
+          risk_reward_ratio: number | null
+          signal_strength: number | null
+          signal_type: string
+          source: string | null
+          status: string | null
+          stop_loss: number | null
+          strategy_name: string | null
+          symbol: string
+          take_profit: number | null
+          timeframe: string
+          updated_at: string | null
+        }
+        Insert: {
+          confidence_score?: number
+          created_at?: string | null
+          entry_price: number
+          execution_type?: string | null
+          expiry_time?: string | null
+          id?: string
+          indicators_used?: string[] | null
+          lot_size?: number
+          notes?: string | null
+          portfolio_id?: string | null
+          risk_reward_ratio?: number | null
+          signal_strength?: number | null
+          signal_type: string
+          source?: string | null
+          status?: string | null
+          stop_loss?: number | null
+          strategy_name?: string | null
+          symbol: string
+          take_profit?: number | null
+          timeframe: string
+          updated_at?: string | null
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string | null
+          entry_price?: number
+          execution_type?: string | null
+          expiry_time?: string | null
+          id?: string
+          indicators_used?: string[] | null
+          lot_size?: number
+          notes?: string | null
+          portfolio_id?: string | null
+          risk_reward_ratio?: number | null
+          signal_strength?: number | null
+          signal_type?: string
+          source?: string | null
+          status?: string | null
+          stop_loss?: number | null
+          strategy_name?: string | null
+          symbol?: string
+          take_profit?: number | null
+          timeframe?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      trading_instruments: {
+        Row: {
+          base_currency: string
+          commission_type: string | null
+          commission_value: number | null
+          contract_size: number
+          created_at: string | null
+          display_name: string
+          id: string
+          instrument_type: string
+          is_active: boolean | null
+          lot_step: number
+          margin_percentage: number | null
+          max_lot_size: number
+          min_lot_size: number
+          pip_size: number
+          quote_currency: string
+          swap_long: number | null
+          swap_short: number | null
+          swap_type: string | null
+          symbol: string
+          tick_size: number
+          tick_value: number
+          trading_sessions: Json | null
+          typical_spread: number
+          updated_at: string | null
+        }
+        Insert: {
+          base_currency: string
+          commission_type?: string | null
+          commission_value?: number | null
+          contract_size?: number
+          created_at?: string | null
+          display_name: string
+          id?: string
+          instrument_type: string
+          is_active?: boolean | null
+          lot_step?: number
+          margin_percentage?: number | null
+          max_lot_size?: number
+          min_lot_size?: number
+          pip_size?: number
+          quote_currency: string
+          swap_long?: number | null
+          swap_short?: number | null
+          swap_type?: string | null
+          symbol: string
+          tick_size?: number
+          tick_value?: number
+          trading_sessions?: Json | null
+          typical_spread?: number
+          updated_at?: string | null
+        }
+        Update: {
+          base_currency?: string
+          commission_type?: string | null
+          commission_value?: number | null
+          contract_size?: number
+          created_at?: string | null
+          display_name?: string
+          id?: string
+          instrument_type?: string
+          is_active?: boolean | null
+          lot_step?: number
+          margin_percentage?: number | null
+          max_lot_size?: number
+          min_lot_size?: number
+          pip_size?: number
+          quote_currency?: string
+          swap_long?: number | null
+          swap_short?: number | null
+          swap_type?: string | null
+          symbol?: string
+          tick_size?: number
+          tick_value?: number
+          trading_sessions?: Json | null
+          typical_spread?: number
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       trading_signals: {
         Row: {
