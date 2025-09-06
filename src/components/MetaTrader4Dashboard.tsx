@@ -123,48 +123,145 @@ const MetaTrader4Dashboard: React.FC = () => {
     }
   }, [openTrades, currentPrice]);
 
+  // Helper function to generate unique session ID
+  const generateSessionId = () => {
+    return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  };
+
+  // Helper function to create default portfolio
+  const createDefaultPortfolio = async (sessionId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('shadow_portfolios')
+        .insert({
+          session_id: sessionId,
+          balance: 100000,
+          equity: 100000,
+          free_margin: 100000,
+          max_open_positions: 50,
+          risk_per_trade: 0.02,
+          auto_trading_enabled: true,
+          is_active: true,
+          account_type: 'demo',
+          account_currency: 'USD',
+          leverage: 100,
+          initial_deposit: 100000,
+          daily_loss_limit: 5000,
+          max_drawdown_limit: 20
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error creating default portfolio:', error);
+      throw error;
+    }
+  };
+
   const loadDashboardData = async () => {
-    await Promise.all([
-      loadPortfolio(),
-      loadOpenTrades(),
-      loadClosedTrades(),
-      loadLotSizePresets(),
-      loadAnalytics()
-    ]);
+    try {
+      // Ensure we have a session ID and portfolio
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = generateSessionId();
+        localStorage.setItem('session_id', sessionId);
+      }
+
+      // Load or create portfolio first
+      await loadPortfolio();
+      
+      // Then load other data
+      await Promise.all([
+        loadOpenTrades(),
+        loadClosedTrades(),
+        loadLotSizePresets(),
+        loadAnalytics()
+      ]);
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    }
   };
 
   const loadPortfolio = async () => {
     try {
-      const sessionId = localStorage.getItem('session_id');
-      if (!sessionId) return;
+      let sessionId = localStorage.getItem('session_id');
+      
+      // Generate session ID if missing
+      if (!sessionId) {
+        sessionId = generateSessionId();
+        localStorage.setItem('session_id', sessionId);
+      }
 
+      // Try to find existing portfolio
       const { data, error } = await supabase
         .from('shadow_portfolios')
         .select('*')
         .eq('session_id', sessionId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (error) throw error;
-      setPortfolio(data);
+      if (error && error.code !== 'PGRST116') {
+        throw error;
+      }
+
+      // If no portfolio found, create one
+      if (!data) {
+        console.log('No portfolio found, creating default portfolio...');
+        const newPortfolio = await createDefaultPortfolio(sessionId);
+        setPortfolio(newPortfolio);
+        toast.success('Welcome! A new trading portfolio has been created for you.');
+      } else {
+        setPortfolio(data);
+      }
     } catch (error) {
       console.error('Error loading portfolio:', error);
+      toast.error('Failed to load or create portfolio');
+      
+      // Set a minimal portfolio to prevent infinite loading
+      setPortfolio({
+        id: 'error',
+        balance: 0,
+        equity: 0,
+        margin: 0,
+        free_margin: 0,
+        floating_pnl: 0,
+        win_rate: 0,
+        profit_factor: 0,
+        total_trades: 0,
+        winning_trades: 0,
+        losing_trades: 0,
+        current_drawdown: 0,
+        max_drawdown: 0,
+        largest_win: 0,
+        largest_loss: 0,
+        consecutive_wins: 0,
+        consecutive_losses: 0
+      });
     }
   };
 
   const loadOpenTrades = async () => {
     try {
-      const sessionId = localStorage.getItem('session_id');
-      if (!sessionId) return;
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = generateSessionId();
+        localStorage.setItem('session_id', sessionId);
+      }
 
       const { data: portfolioData } = await supabase
         .from('shadow_portfolios')
         .select('id')
         .eq('session_id', sessionId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!portfolioData) return;
+      if (!portfolioData) {
+        setOpenTrades([]);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('shadow_trades')
@@ -180,22 +277,29 @@ const MetaTrader4Dashboard: React.FC = () => {
       })));
     } catch (error) {
       console.error('Error loading open trades:', error);
+      setOpenTrades([]);
     }
   };
 
   const loadClosedTrades = async () => {
     try {
-      const sessionId = localStorage.getItem('session_id');
-      if (!sessionId) return;
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = generateSessionId();
+        localStorage.setItem('session_id', sessionId);
+      }
 
       const { data: portfolioData } = await supabase
         .from('shadow_portfolios')
         .select('id')
         .eq('session_id', sessionId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!portfolioData) return;
+      if (!portfolioData) {
+        setClosedTrades([]);
+        return;
+      }
 
       const { data, error } = await supabase
         .from('trade_history')
@@ -209,6 +313,7 @@ const MetaTrader4Dashboard: React.FC = () => {
       setClosedTrades(data || []);
     } catch (error) {
       console.error('Error loading closed trades:', error);
+      setClosedTrades([]);
     }
   };
 
@@ -231,17 +336,23 @@ const MetaTrader4Dashboard: React.FC = () => {
 
   const loadAnalytics = async () => {
     try {
-      const sessionId = localStorage.getItem('session_id');
-      if (!sessionId) return;
+      let sessionId = localStorage.getItem('session_id');
+      if (!sessionId) {
+        sessionId = generateSessionId();
+        localStorage.setItem('session_id', sessionId);
+      }
 
       const { data: portfolioData } = await supabase
         .from('shadow_portfolios')
         .select('id')
         .eq('session_id', sessionId)
         .eq('is_active', true)
-        .single();
+        .maybeSingle();
 
-      if (!portfolioData) return;
+      if (!portfolioData) {
+        setAnalytics(null);
+        return;
+      }
 
       const response = await supabase.functions.invoke('manage-trades', {
         body: {
@@ -255,6 +366,7 @@ const MetaTrader4Dashboard: React.FC = () => {
       }
     } catch (error) {
       console.error('Error loading analytics:', error);
+      setAnalytics(null);
     }
   };
 
@@ -408,9 +520,44 @@ const MetaTrader4Dashboard: React.FC = () => {
 
   if (!portfolio) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <RefreshCw className="w-8 h-8 animate-spin" />
-        <span className="ml-2">Loading portfolio...</span>
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center h-96 space-y-4">
+          <RefreshCw className="w-8 h-8 animate-spin text-primary" />
+          <div className="text-center">
+            <h3 className="text-lg font-semibold">Setting up your trading environment...</h3>
+            <p className="text-muted-foreground">
+              Creating portfolio and loading market data
+            </p>
+          </div>
+          <Button onClick={loadDashboardData} variant="outline" className="mt-4">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Retry Setup
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state for portfolio
+  if (portfolio.id === 'error') {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex flex-col items-center justify-center h-96 space-y-4">
+          <AlertTriangle className="w-8 h-8 text-destructive" />
+          <div className="text-center">
+            <h3 className="text-lg font-semibold">Unable to load portfolio</h3>
+            <p className="text-muted-foreground">
+              There was an error setting up your trading environment. Please try again.
+            </p>
+          </div>
+          <Button onClick={() => {
+            localStorage.removeItem('session_id');
+            window.location.reload();
+          }} variant="default">
+            <RefreshCw className="w-4 h-4 mr-2" />
+            Start Fresh
+          </Button>
+        </div>
       </div>
     );
   }
