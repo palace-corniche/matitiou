@@ -34,6 +34,11 @@ interface TradingInstrument {
   instrument_type: string;
   pip_size: number;
   typical_spread: number;
+  min_lot_size: number;
+  max_lot_size: number;
+  lot_step: number;
+  contract_size: number;
+  margin_percentage: number;
   bid_price?: number;
   ask_price?: number;
   change?: number;
@@ -228,7 +233,10 @@ const TradingTerminal: React.FC = () => {
         .order('entry_time', { ascending: false });
 
       if (error) throw error;
-      setOpenTrades(data || []);
+      setOpenTrades((data || []).map(trade => ({
+        ...trade,
+        trade_type: trade.trade_type as 'buy' | 'sell'
+      })));
     } catch (error) {
       console.error('Error loading open trades:', error);
       setOpenTrades([]);
@@ -247,7 +255,10 @@ const TradingTerminal: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPendingOrders(data || []);
+      setPendingOrders((data || []).map(order => ({
+        ...order,
+        trade_type: order.trade_type as 'buy' | 'sell'
+      })));
     } catch (error) {
       console.error('Error loading pending orders:', error);
       setPendingOrders([]);
