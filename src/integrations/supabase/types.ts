@@ -1754,6 +1754,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      calculate_optimal_lot_size: {
+        Args: {
+          p_entry_price: number
+          p_portfolio_id: string
+          p_risk_percentage: number
+          p_stop_loss: number
+          p_symbol: string
+        }
+        Returns: Json
+      }
       calculate_trade_pnl: {
         Args: { p_current_price: number; p_trade_id: string }
         Returns: {
@@ -1780,6 +1790,18 @@ export type Database = {
         Returns: Json
       }
       create_daily_performance_snapshot: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      execute_advanced_order: {
+        Args: { p_order_data: Json; p_portfolio_id: string }
+        Returns: Json
+      }
+      manage_break_even: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_trailing_stops: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
