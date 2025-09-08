@@ -27,6 +27,8 @@ import { PendingOrders } from './PendingOrders';
 import { AdvancedChart } from './AdvancedChart';
 import { AccountInfo } from './AccountInfo';
 import { TradingHistory } from './TradingHistory';
+import RiskManagementPanel from './RiskManagementPanel';
+import AutomationPanel from './AutomationPanel';
 
 interface TradingInstrument {
   symbol: string;
@@ -60,6 +62,11 @@ interface Portfolio {
   account_name: string;
   account_server: string;
   account_company: string;
+  daily_pnl_today: number;
+  max_drawdown: number;
+  current_drawdown: number;
+  risk_per_trade: number;
+  max_open_positions: number;
 }
 
 interface Trade {
@@ -111,6 +118,7 @@ const TradingTerminal: React.FC = () => {
   // Dialog states
   const [showOrderEntry, setShowOrderEntry] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
     initializeTradingTerminal();
@@ -421,14 +429,44 @@ const TradingTerminal: React.FC = () => {
           </div>
         </div>
 
-        {/* Right Sidebar - Open Trades & Pending Orders */}
+        {/* Right Sidebar - Enhanced Panels */}
         <div className="col-span-3 space-y-4">
-          <Tabs defaultValue="trades" className="h-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="trades">Open Trades</TabsTrigger>
-              <TabsTrigger value="orders">Pending</TabsTrigger>
-              <TabsTrigger value="history">History</TabsTrigger>
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="overview">Overview</TabsTrigger>
+              <TabsTrigger value="trades">Trades</TabsTrigger>
+              <TabsTrigger value="orders">Orders</TabsTrigger>
+              <TabsTrigger value="risk">Risk</TabsTrigger>
+              <TabsTrigger value="automation">Auto</TabsTrigger>
             </TabsList>
+            
+            <TabsContent value="overview" className="mt-4">
+              <div className="grid gap-4">
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Portfolio Overview</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-sm">Balance:</span>
+                      <span className="font-medium">${portfolio?.balance.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm">Equity:</span>
+                      <span className="font-medium">${portfolio?.equity.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm">Free Margin:</span>
+                      <span className="font-medium">${portfolio?.free_margin.toFixed(2) || '0.00'}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm">Open Positions:</span>
+                      <span className="font-medium">{openTrades.length}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            </TabsContent>
             
             <TabsContent value="trades" className="mt-4">
               <Card>
@@ -491,9 +529,23 @@ const TradingTerminal: React.FC = () => {
                 }}
               />
             </TabsContent>
-            
-            <TabsContent value="history" className="mt-4">
-              <TradingHistory portfolioId={portfolio?.id} />
+
+            <TabsContent value="risk" className="mt-4">
+              <RiskManagementPanel 
+                portfolio={portfolio}
+                openPositions={openTrades.length}
+                onSettingsUpdate={(settings) => {
+                  console.log('Risk settings updated:', settings);
+                }}
+              />
+            </TabsContent>
+
+            <TabsContent value="automation" className="mt-4">
+              <AutomationPanel 
+                portfolioId={portfolio?.id || null}
+                autoTradingEnabled={autoTradingEnabled}
+                onToggleAutoTrading={setAutoTradingEnabled}
+              />
             </TabsContent>
           </Tabs>
         </div>
