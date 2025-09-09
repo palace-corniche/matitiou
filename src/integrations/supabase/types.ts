@@ -1444,6 +1444,48 @@ export type Database = {
         }
         Relationships: []
       }
+      tick_data: {
+        Row: {
+          ask: number
+          bid: number
+          created_at: string | null
+          data_source: string | null
+          id: string
+          is_live: boolean | null
+          session_type: string | null
+          spread: number
+          symbol: string
+          tick_volume: number | null
+          timestamp: string
+        }
+        Insert: {
+          ask: number
+          bid: number
+          created_at?: string | null
+          data_source?: string | null
+          id?: string
+          is_live?: boolean | null
+          session_type?: string | null
+          spread: number
+          symbol?: string
+          tick_volume?: number | null
+          timestamp?: string
+        }
+        Update: {
+          ask?: number
+          bid?: number
+          created_at?: string | null
+          data_source?: string | null
+          id?: string
+          is_live?: boolean | null
+          session_type?: string | null
+          spread?: number
+          symbol?: string
+          tick_volume?: number | null
+          timestamp?: string
+        }
+        Relationships: []
+      }
       trade_history: {
         Row: {
           action_type: string
@@ -1596,6 +1638,57 @@ export type Database = {
           take_profit?: number | null
           timeframe?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      trading_diagnostics: {
+        Row: {
+          created_at: string | null
+          diagnostic_type: string
+          error_message: string | null
+          id: string
+          latency_ms: number | null
+          margin_calculation_valid: boolean | null
+          metadata: Json | null
+          pnl_accuracy: number | null
+          price_source: string | null
+          severity_level: string | null
+          signal_modules_active: number | null
+          spread_points: number | null
+          symbol: string | null
+          timestamp: string
+        }
+        Insert: {
+          created_at?: string | null
+          diagnostic_type: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          margin_calculation_valid?: boolean | null
+          metadata?: Json | null
+          pnl_accuracy?: number | null
+          price_source?: string | null
+          severity_level?: string | null
+          signal_modules_active?: number | null
+          spread_points?: number | null
+          symbol?: string | null
+          timestamp?: string
+        }
+        Update: {
+          created_at?: string | null
+          diagnostic_type?: string
+          error_message?: string | null
+          id?: string
+          latency_ms?: number | null
+          margin_calculation_valid?: boolean | null
+          metadata?: Json | null
+          pnl_accuracy?: number | null
+          price_source?: string | null
+          severity_level?: string | null
+          signal_modules_active?: number | null
+          spread_points?: number | null
+          symbol?: string | null
+          timestamp?: string
         }
         Relationships: []
       }
@@ -1754,6 +1847,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      archive_old_trades: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      calculate_eurusd_pnl: {
+        Args: {
+          p_contract_size?: number
+          p_current_price: number
+          p_entry_price: number
+          p_lot_size: number
+          p_trade_type: string
+        }
+        Returns: {
+          pip_value: number
+          pips: number
+          pnl_usd: number
+        }[]
+      }
       calculate_optimal_lot_size: {
         Args: {
           p_entry_price: number
@@ -1798,6 +1909,19 @@ export type Database = {
         Returns: Json
       }
       manage_break_even: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      run_trading_diagnostics: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          check_name: string
+          message: string
+          status: string
+          value: number
+        }[]
+      }
+      update_eurusd_pnl: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
