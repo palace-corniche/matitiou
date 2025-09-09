@@ -29,6 +29,8 @@ import { AccountInfo } from './AccountInfo';
 import { TradingHistory } from './TradingHistory';
 import RiskManagementPanel from './RiskManagementPanel';
 import AutomationPanel from './AutomationPanel';
+import EnhancedTickDisplay from './EnhancedTickDisplay';
+import DiagnosticsPanel from './DiagnosticsPanel';
 
 interface TradingInstrument {
   symbol: string;
@@ -432,39 +434,23 @@ const TradingTerminal: React.FC = () => {
         {/* Right Sidebar - Enhanced Panels */}
         <div className="col-span-3 space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
               <TabsTrigger value="orders">Orders</TabsTrigger>
               <TabsTrigger value="risk">Risk</TabsTrigger>
               <TabsTrigger value="automation">Auto</TabsTrigger>
+              <TabsTrigger value="diagnostics">Diag</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="mt-4">
               <div className="grid gap-4">
-                <Card>
-                  <CardHeader className="pb-3">
-                    <CardTitle className="text-sm">Portfolio Overview</CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm">Balance:</span>
-                      <span className="font-medium">${portfolio?.balance.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Equity:</span>
-                      <span className="font-medium">${portfolio?.equity.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Free Margin:</span>
-                      <span className="font-medium">${portfolio?.free_margin.toFixed(2) || '0.00'}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm">Open Positions:</span>
-                      <span className="font-medium">{openTrades.length}</span>
-                    </div>
-                  </CardContent>
-                </Card>
+                <EnhancedTickDisplay 
+                  trades={openTrades}
+                  onTickUpdate={(tick) => {
+                    console.log('Tick updated in terminal:', tick);
+                  }}
+                />
               </div>
             </TabsContent>
             
@@ -546,6 +532,10 @@ const TradingTerminal: React.FC = () => {
                 autoTradingEnabled={autoTradingEnabled}
                 onToggleAutoTrading={setAutoTradingEnabled}
               />
+            </TabsContent>
+            
+            <TabsContent value="diagnostics" className="mt-4">
+              <DiagnosticsPanel />
             </TabsContent>
           </Tabs>
         </div>
