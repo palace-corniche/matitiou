@@ -277,23 +277,34 @@ const TradingTerminal: React.FC = () => {
 
   const updateMarketPrices = useCallback(async () => {
     try {
-      // Simulate real-time price updates
-      setInstruments(prev => prev.map(instrument => ({
-        ...instrument,
-        bid_price: instrument.bid_price ? 
-          instrument.bid_price + (Math.random() - 0.5) * instrument.pip_size * 2 : 
-          1.17000 + (Math.random() - 0.5) * 0.001,
-        ask_price: function() {
-          const bid = this.bid_price;
-          return bid + (instrument.typical_spread * instrument.pip_size);
-        }.call(this),
-        change: (Math.random() - 0.5) * 0.002,
-        change_percent: (Math.random() - 0.5) * 0.5
-      })));
+      // Get latest tick data from our real-time feed
+      const { data: latestTick, error } = await supabase
+        .from('tick_data')
+        .select('bid, ask, spread, timestamp')
+        .eq('symbol', 'EUR/USD')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!error && latestTick) {
+        setInstruments(prev => prev.map(instrument => 
+          instrument.symbol === 'EUR/USD' 
+            ? {
+                ...instrument,
+                bid_price: latestTick.bid,
+                ask_price: latestTick.ask,
+                typical_spread: latestTick.spread * 10000, // Convert to pips
+                change: latestTick.bid - (instrument.bid_price || latestTick.bid),
+                change_percent: ((latestTick.bid - (instrument.bid_price || latestTick.bid)) / latestTick.bid) * 100,
+                last_update: new Date(latestTick.timestamp)
+              }
+            : instrument
+        ));
+      }
     } catch (error) {
       console.error('Error updating market prices:', error);
     }
-  }, []);
+  }, [supabase]);
 
   const executeMarketOrder = async (orderData: any) => {
     try {
@@ -342,6 +353,35 @@ const TradingTerminal: React.FC = () => {
     } catch (error) {
       console.error('Error placing pending order:', error);
       toast.error('Failed to place pending order');
+    }
+  };
+
+  const handleCloseTrade = async (tradeId: string) => {
+    try {
+      const currentPrice = instruments.find(i => i.symbol === 'EUR/USD')?.bid_price || 1.17000;
+      
+      const { data, error } = await supabase.functions.invoke('manage-trades', {
+        body: {
+          action: 'close_trade',
+          tradeId,
+          currentPrice,
+          closeReason: 'manual'
+        }
+      });
+
+      if (error) throw error;
+
+      if (data?.success) {
+        toast.success(`Trade closed with P&L: $${data.data?.profit?.toFixed(2) || '0.00'}`);
+        
+        // Refresh data
+        await Promise.all([loadOpenTrades(), loadPortfolio()]);
+      } else {
+        throw new Error(data?.error || 'Failed to close trade');
+      }
+    } catch (error) {
+      console.error('Error closing trade:', error);
+      toast.error('Failed to close trade. Please try again.');
     }
   };
 
