@@ -59,7 +59,7 @@ serve(async (req) => {
       success: false, 
       error: error.message 
     }), {
-      status: 500,
+      status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }

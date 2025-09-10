@@ -181,14 +181,23 @@ async function updateRealTimePnL(supabase: any, request: PnLUpdateRequest) {
         .single()
 
       if (trade) {
-        await supabase
+        // Get current balance first, then calculate new equity
+        const { data: currentPortfolio } = await supabase
           .from('shadow_portfolios')
-          .update({
-            floating_pnl: totalFloatingPnL,
-            equity: supabase.raw(`balance + ${totalFloatingPnL}`),
-            updated_at: new Date().toISOString()
-          })
+          .select('balance')
           .eq('id', trade.portfolio_id)
+          .single()
+
+        if (currentPortfolio) {
+          await supabase
+            .from('shadow_portfolios')
+            .update({
+              floating_pnl: totalFloatingPnL,
+              equity: currentPortfolio.balance + totalFloatingPnL,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', trade.portfolio_id)
+        }
       }
     }
 
