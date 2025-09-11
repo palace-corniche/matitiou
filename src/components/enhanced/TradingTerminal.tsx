@@ -31,6 +31,12 @@ import RiskManagementPanel from './RiskManagementPanel';
 import AutomationPanel from './AutomationPanel';
 import EnhancedTickDisplay from './EnhancedTickDisplay';
 import DiagnosticsPanel from './DiagnosticsPanel';
+import { RealTimePriceTicker } from './RealTimePriceTicker';
+import { TradeModificationDialog } from './TradeModificationDialog';
+import { PerformanceCharts } from './PerformanceCharts';
+import { LotSizeManager } from './LotSizeManager';
+import AccountSettingsDialog from '../AccountSettingsDialog';
+import DepositWithdrawDialog from '../DepositWithdrawDialog';
 
 interface TradingInstrument {
   symbol: string;
@@ -69,6 +75,10 @@ interface Portfolio {
   current_drawdown: number;
   risk_per_trade: number;
   max_open_positions: number;
+  daily_loss_limit: number;
+  max_drawdown_limit: number;
+  margin_call_level: number;
+  stop_out_level: number;
 }
 
 interface Trade {
@@ -120,6 +130,8 @@ const TradingTerminal: React.FC = () => {
   // Dialog states
   const [showOrderEntry, setShowOrderEntry] = useState(false);
   const [showAccountSettings, setShowAccountSettings] = useState(false);
+  const [showTradeModification, setShowTradeModification] = useState(false);
+  const [selectedTradeForModification, setSelectedTradeForModification] = useState<Trade | null>(null);
   const [activeTab, setActiveTab] = useState('overview');
 
   useEffect(() => {
@@ -439,6 +451,17 @@ const TradingTerminal: React.FC = () => {
         {/* Left Sidebar - Market Watch & Account Info */}
         <div className="col-span-3 space-y-4">
           <AccountInfo portfolio={portfolio} />
+          <RealTimePriceTicker 
+            symbols={['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF']}
+            onPriceUpdate={(tick) => {
+              // Update current prices for real-time calculations
+              setInstruments(prev => prev.map(inst => 
+                inst.symbol === tick.symbol 
+                  ? { ...inst, bid_price: tick.bid, ask_price: tick.ask }
+                  : inst
+              ));
+            }}
+          />
           <MarketWatch 
             instruments={instruments}
             selectedSymbol={selectedSymbol}
@@ -474,23 +497,22 @@ const TradingTerminal: React.FC = () => {
         {/* Right Sidebar - Enhanced Panels */}
         <div className="col-span-3 space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-6">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
-              <TabsTrigger value="orders">Orders</TabsTrigger>
-              <TabsTrigger value="risk">Risk</TabsTrigger>
-              <TabsTrigger value="automation">Auto</TabsTrigger>
-              <TabsTrigger value="diagnostics">Diag</TabsTrigger>
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="mt-4">
-              <div className="grid gap-4">
+              <div className="space-y-4">
                 <EnhancedTickDisplay 
                   trades={openTrades}
                   onTickUpdate={(tick) => {
                     console.log('Tick updated in terminal:', tick);
                   }}
                 />
+                <TradingHistory portfolioId={portfolio?.id} />
               </div>
             </TabsContent>
             
@@ -500,7 +522,7 @@ const TradingTerminal: React.FC = () => {
                   <CardTitle className="text-sm">Open Positions ({openTrades.length})</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ScrollArea className="h-[300px]">
+                  <ScrollArea className="h-[350px]">
                     {openTrades.length === 0 ? (
                       <p className="text-sm text-muted-foreground text-center py-8">
                         No open positions
@@ -508,27 +530,68 @@ const TradingTerminal: React.FC = () => {
                     ) : (
                       <div className="space-y-2">
                         {openTrades.map((trade) => (
-                          <div key={trade.id} className="p-2 border rounded-lg text-xs">
-                            <div className="flex justify-between items-center">
-                              <span className="font-medium">{trade.symbol}</span>
-                              <Badge variant={trade.trade_type === 'buy' ? 'default' : 'destructive'}>
-                                {trade.trade_type.toUpperCase()}
-                              </Badge>
-                            </div>
-                            <div className="mt-1 space-y-1">
-                              <div className="flex justify-between">
-                                <span>Lots:</span>
-                                <span>{trade.lot_size}</span>
+                          <div key={trade.id} className="p-3 border rounded-lg text-xs">
+                            <div className="flex justify-between items-start mb-2">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{trade.symbol}</span>
+                                <Badge variant={trade.trade_type === 'buy' ? 'default' : 'destructive'}>
+                                  {trade.trade_type.toUpperCase()}
+                                </Badge>
                               </div>
-                              <div className="flex justify-between">
-                                <span>P&L:</span>
-                                <span className={trade.unrealized_pnl && trade.unrealized_pnl > 0 ? 'text-green-600' : 'text-red-600'}>
+                              <div className="flex gap-1">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedTradeForModification(trade);
+                                    setShowTradeModification(true);
+                                  }}
+                                  className="h-6 text-xs"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="destructive"
+                                  size="sm"
+                                  onClick={() => handleCloseTrade(trade.id)}
+                                  className="h-6 text-xs"
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-2 mb-2">
+                              <div>
+                                <span className="text-muted-foreground">Lots:</span>
+                                <span className="ml-1 font-medium">{trade.lot_size}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Entry:</span>
+                                <span className="ml-1 font-mono">{trade.entry_price.toFixed(5)}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Current:</span>
+                                <span className="ml-1 font-mono">{trade.current_price?.toFixed(5) || '-'}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">SL/TP:</span>
+                                <span className="ml-1 font-mono text-xs">
+                                  {trade.stop_loss.toFixed(5)}/{trade.take_profit.toFixed(5)}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-2">
+                              <div>
+                                <span className="text-muted-foreground">P&L:</span>
+                                <span className={`ml-1 font-medium ${(trade.unrealized_pnl || 0) >= 0 ? 'text-bullish' : 'text-bearish'}`}>
                                   ${trade.unrealized_pnl?.toFixed(2) || '0.00'}
                                 </span>
                               </div>
-                              <div className="flex justify-between">
-                                <span>Pips:</span>
-                                <span className={trade.profit_pips && trade.profit_pips > 0 ? 'text-green-600' : 'text-red-600'}>
+                              <div>
+                                <span className="text-muted-foreground">Pips:</span>
+                                <span className={`ml-1 font-medium ${(trade.profit_pips || 0) >= 0 ? 'text-bullish' : 'text-bearish'}`}>
                                   {trade.profit_pips?.toFixed(1) || '0.0'}
                                 </span>
                               </div>
@@ -542,40 +605,69 @@ const TradingTerminal: React.FC = () => {
               </Card>
             </TabsContent>
             
-            <TabsContent value="orders" className="mt-4">
-              <PendingOrders 
-                orders={pendingOrders}
-                onCancel={(orderId) => {
-                  // Implement cancel pending order
-                  toast.info('Cancel order functionality to be implemented');
-                }}
-                onModify={(orderId) => {
-                  // Implement modify pending order
-                  toast.info('Modify order functionality to be implemented');
-                }}
-              />
+            <TabsContent value="analytics" className="mt-4">
+              <ScrollArea className="h-[400px]">
+                <PerformanceCharts portfolioId={portfolio?.id} />
+              </ScrollArea>
             </TabsContent>
 
-            <TabsContent value="risk" className="mt-4">
-              <RiskManagementPanel 
-                portfolio={portfolio}
-                openPositions={openTrades.length}
-                onSettingsUpdate={(settings) => {
-                  console.log('Risk settings updated:', settings);
-                }}
-              />
-            </TabsContent>
-
-            <TabsContent value="automation" className="mt-4">
-              <AutomationPanel 
-                portfolioId={portfolio?.id || null}
-                autoTradingEnabled={autoTradingEnabled}
-                onToggleAutoTrading={setAutoTradingEnabled}
-              />
-            </TabsContent>
-            
-            <TabsContent value="diagnostics" className="mt-4">
-              <DiagnosticsPanel />
+            <TabsContent value="settings" className="mt-4">
+              <div className="space-y-4">
+                {portfolio && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2">
+                      <AccountSettingsDialog
+                        portfolioId={portfolio.id}
+                        currentSettings={{
+                          account_currency: portfolio.account_currency,
+                          leverage: portfolio.leverage,
+                          account_type: portfolio.account_type,
+                          balance: portfolio.balance,
+                          daily_loss_limit: portfolio.daily_loss_limit,
+                          max_drawdown_limit: portfolio.max_drawdown_limit,
+                          margin_call_level: portfolio.margin_call_level,
+                          stop_out_level: portfolio.stop_out_level
+                        }}
+                        onSettingsUpdate={loadPortfolio}
+                      />
+                      <DepositWithdrawDialog
+                        portfolioId={portfolio.id}
+                        currentBalance={portfolio.balance}
+                        currentEquity={portfolio.equity}
+                        accountCurrency={portfolio.account_currency}
+                        onTransactionComplete={loadPortfolio}
+                      />
+                    </div>
+                    
+                    <LotSizeManager
+                      portfolio={{
+                        id: portfolio.id,
+                        balance: portfolio.balance,
+                        leverage: portfolio.leverage,
+                        account_currency: portfolio.account_currency,
+                        risk_per_trade: portfolio.risk_per_trade
+                      }}
+                      symbol={selectedSymbol}
+                      entryPrice={instruments.find(i => i.symbol === selectedSymbol)?.ask_price}
+                      stopLoss={instruments.find(i => i.symbol === selectedSymbol)?.ask_price ? 
+                        instruments.find(i => i.symbol === selectedSymbol)!.ask_price - 0.0020 : undefined}
+                      onLotSizeChange={(lotSize) => {
+                        console.log('Selected lot size:', lotSize);
+                      }}
+                    />
+                    
+                    <PendingOrders 
+                      orders={pendingOrders}
+                      onCancel={(orderId) => {
+                        toast("Cancel order functionality to be implemented");
+                      }}
+                      onModify={(orderId) => {
+                        toast("Modify order functionality to be implemented");
+                      }}
+                    />
+                  </>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </div>
@@ -599,6 +691,21 @@ const TradingTerminal: React.FC = () => {
           />
         </DialogContent>
       </Dialog>
+
+      {/* Trade Modification Dialog */}
+      <TradeModificationDialog
+        trade={selectedTradeForModification}
+        isOpen={showTradeModification}
+        onClose={() => {
+          setShowTradeModification(false);
+          setSelectedTradeForModification(null);
+        }}
+        onTradeModified={() => {
+          loadOpenTrades();
+          loadPortfolio();
+        }}
+        currentPrice={instruments.find(i => i.symbol === selectedTradeForModification?.symbol)?.bid_price}
+      />
     </div>
   );
 };
