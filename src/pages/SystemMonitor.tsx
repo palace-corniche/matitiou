@@ -3,6 +3,8 @@ import NavigationBar from '@/components/NavigationBar';
 import RealtimeSystemMonitor from '@/components/RealtimeSystemMonitor';
 import { SystemHealthMonitor } from '@/components/SystemHealthMonitor';
 import { FeatureFlagToggle } from '@/components/FeatureFlagToggle';
+import { AcceptanceTestRunner } from '@/components/AcceptanceTestRunner';
+import { ProductionMonitor } from '@/components/ProductionMonitor';
 
 const SystemMonitor: React.FC = () => {
   return (
@@ -10,6 +12,8 @@ const SystemMonitor: React.FC = () => {
       <NavigationBar />
       <div className="container mx-auto p-6 space-y-6">
         <SystemHealthMonitor />
+        <ProductionMonitor />
+        <AcceptanceTestRunner />
         <FeatureFlagToggle />
         <RealtimeSystemMonitor />
       </div>
