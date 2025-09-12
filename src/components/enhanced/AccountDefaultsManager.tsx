@@ -87,20 +87,29 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
       setLoading(true);
       
       const { data, error } = await supabase
-        .from('account_defaults')
-        .select('*')
-        .eq('portfolio_id', portfolioId)
-        .maybeSingle();
+        .rpc('get_account_defaults', { p_portfolio_id: portfolioId });
 
       if (error && error.code !== 'PGRST116') {
         throw error;
       }
 
-      if (data) {
+      if (data && data.length > 0) {
+        const dbDefaults = data[0];
         setDefaults({
-          ...data,
-          allowed_symbols: data.allowed_symbols || ['EUR/USD', 'GBP/USD', 'USD/JPY'],
-          blacklist_symbols: data.blacklist_symbols || []
+          portfolio_id: portfolioId,
+          default_lot_size: dbDefaults.default_lot_size,
+          risk_per_trade_percent: dbDefaults.risk_per_trade_percent,
+          max_spread_pips: dbDefaults.max_spread_pips,
+          auto_lot_sizing: dbDefaults.auto_lot_sizing,
+          auto_sl_tp: dbDefaults.auto_sl_tp,
+          default_sl_pips: dbDefaults.default_sl_pips,
+          default_tp_pips: dbDefaults.default_tp_pips,
+          max_open_trades: dbDefaults.max_open_trades,
+          trading_hours_enabled: dbDefaults.trading_hours_enabled,
+          trading_start_hour: dbDefaults.trading_start_hour,
+          trading_end_hour: dbDefaults.trading_end_hour,
+          allowed_symbols: dbDefaults.allowed_symbols || ['EUR/USD', 'GBP/USD', 'USD/JPY'],
+          blacklist_symbols: dbDefaults.blacklist_symbols || []
         });
       }
     } catch (error) {
@@ -119,36 +128,26 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
     try {
       setSaving(true);
 
-      const defaultsData = {
-        portfolio_id: portfolioId,
-        default_lot_size: defaults.default_lot_size,
-        risk_per_trade_percent: defaults.risk_per_trade_percent,
-        max_spread_pips: defaults.max_spread_pips,
-        auto_lot_sizing: defaults.auto_lot_sizing,
-        auto_sl_tp: defaults.auto_sl_tp,
-        default_sl_pips: defaults.default_sl_pips,
-        default_tp_pips: defaults.default_tp_pips,
-        max_open_trades: defaults.max_open_trades,
-        trading_hours_enabled: defaults.trading_hours_enabled,
-        trading_start_hour: defaults.trading_start_hour,
-        trading_end_hour: defaults.trading_end_hour,
-        allowed_symbols: defaults.allowed_symbols,
-        blacklist_symbols: defaults.blacklist_symbols,
-        updated_at: new Date().toISOString()
-      };
-
+      // Use raw SQL to insert/update account defaults
       const { data, error } = await supabase
-        .from('account_defaults')
-        .upsert(defaultsData, { 
-          onConflict: 'portfolio_id',
-          ignoreDuplicates: false 
-        })
-        .select()
-        .single();
+        .rpc('upsert_account_defaults', {
+          p_portfolio_id: portfolioId,
+          p_default_lot_size: defaults.default_lot_size,
+          p_risk_per_trade_percent: defaults.risk_per_trade_percent,
+          p_max_spread_pips: defaults.max_spread_pips,
+          p_auto_lot_sizing: defaults.auto_lot_sizing,
+          p_auto_sl_tp: defaults.auto_sl_tp,
+          p_default_sl_pips: defaults.default_sl_pips,
+          p_default_tp_pips: defaults.default_tp_pips,
+          p_max_open_trades: defaults.max_open_trades,
+          p_trading_hours_enabled: defaults.trading_hours_enabled,
+          p_trading_start_hour: defaults.trading_start_hour,
+          p_trading_end_hour: defaults.trading_end_hour,
+          p_allowed_symbols: defaults.allowed_symbols,
+          p_blacklist_symbols: defaults.blacklist_symbols
+        });
 
       if (error) throw error;
-
-      setDefaults({ ...defaults, ...data });
 
       toast({
         title: "Settings Saved",

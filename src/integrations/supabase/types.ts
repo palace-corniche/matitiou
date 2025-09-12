@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_defaults: {
+        Row: {
+          allowed_symbols: string[]
+          auto_lot_sizing: boolean
+          auto_sl_tp: boolean
+          blacklist_symbols: string[]
+          created_at: string
+          default_lot_size: number
+          default_sl_pips: number
+          default_tp_pips: number
+          id: string
+          max_open_trades: number
+          max_spread_pips: number
+          portfolio_id: string
+          risk_per_trade_percent: number
+          trading_end_hour: number
+          trading_hours_enabled: boolean
+          trading_start_hour: number
+          updated_at: string
+        }
+        Insert: {
+          allowed_symbols?: string[]
+          auto_lot_sizing?: boolean
+          auto_sl_tp?: boolean
+          blacklist_symbols?: string[]
+          created_at?: string
+          default_lot_size?: number
+          default_sl_pips?: number
+          default_tp_pips?: number
+          id?: string
+          max_open_trades?: number
+          max_spread_pips?: number
+          portfolio_id: string
+          risk_per_trade_percent?: number
+          trading_end_hour?: number
+          trading_hours_enabled?: boolean
+          trading_start_hour?: number
+          updated_at?: string
+        }
+        Update: {
+          allowed_symbols?: string[]
+          auto_lot_sizing?: boolean
+          auto_sl_tp?: boolean
+          blacklist_symbols?: string[]
+          created_at?: string
+          default_lot_size?: number
+          default_sl_pips?: number
+          default_tp_pips?: number
+          id?: string
+          max_open_trades?: number
+          max_spread_pips?: number
+          portfolio_id?: string
+          risk_per_trade_percent?: number
+          trading_end_hour?: number
+          trading_hours_enabled?: boolean
+          trading_start_hour?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       account_history: {
         Row: {
           action_type: string
@@ -2174,6 +2234,24 @@ export type Database = {
       execute_advanced_order: {
         Args: { p_order_data: Json; p_portfolio_id: string }
         Returns: Json
+      }
+      get_account_defaults: {
+        Args: { p_portfolio_id: string }
+        Returns: {
+          allowed_symbols: string[]
+          auto_lot_sizing: boolean
+          auto_sl_tp: boolean
+          blacklist_symbols: string[]
+          default_lot_size: number
+          default_sl_pips: number
+          default_tp_pips: number
+          max_open_trades: number
+          max_spread_pips: number
+          risk_per_trade_percent: number
+          trading_end_hour: number
+          trading_hours_enabled: boolean
+          trading_start_hour: number
+        }[]
       }
       manage_break_even: {
         Args: Record<PropertyKey, never>
