@@ -85,7 +85,7 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
       setLoading(true);
       
       // Try to get defaults using RPC function
-      const { data: defaultsData, error: rpcError } = await supa.rpc('get_account_defaults', { p_portfolio_id: portfolioId });
+      const { data: defaultsData, error: rpcError } = await supa.rpc('get_account_defaults' as any, { p_portfolio_id: portfolioId });
 
       if (!rpcError && defaultsData && defaultsData.length > 0) {
         const dbDefaults = defaultsData[0];
@@ -123,7 +123,7 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
       setSaving(true);
 
       // Use RPC function to save defaults
-      const { error } = await supa.rpc('upsert_account_defaults', {
+      const { error } = await supa.rpc('upsert_account_defaults' as any, {
         p_portfolio_id: portfolioId,
         p_default_lot_size: defaults.default_lot_size,
         p_risk_per_trade_percent: defaults.risk_per_trade_percent,
