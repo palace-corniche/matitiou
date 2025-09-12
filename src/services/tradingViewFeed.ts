@@ -26,7 +26,8 @@ class TradingViewFeedService {
   private reconnectDelay = 5000;
   private lastTick: TradingViewTick | null = null;
   private pingInterval: NodeJS.Timeout | null = null;
-  private sessionId: string | null = null;
+  private sessionId: string = `qs_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  private hasReceivedFirstTick = false;
 
   constructor() {
     this.connect();
@@ -34,6 +35,8 @@ class TradingViewFeedService {
 
   private connect() {
     try {
+      console.log('🚀 Connecting to TradingView WebSocket...');
+      this.hasReceivedFirstTick = false;
       // TradingView uses Engine.IO v3 protocol
       this.ws = new WebSocket('wss://data.tradingview.com/socket.io/?EIO=3&transport=websocket');
       
@@ -48,12 +51,10 @@ class TradingViewFeedService {
           // Engine.IO v3 protocol handling
           if (data === '40') {
             // Socket.IO connection established
-            console.log('📡 Socket.IO connected');
-            this.isConnected = true;
+            console.log('📡 Socket.IO connected - setting up quotes session');
             this.reconnectAttempts = 0;
-            this.notifyConnectionChange(true);
             this.startHeartbeat();
-            this.subscribeToSymbol('FX_IDC:EURUSD');
+            this.subscribeToSymbol('FOREXCOM:EURUSD');
             return;
           }
           
@@ -72,7 +73,7 @@ class TradingViewFeedService {
               // Quote data message
               const quote = parsed[1];
               
-              if (quote.n === 'FX_IDC:EURUSD' && quote.v) {
+              if (quote.n === 'FOREXCOM:EURUSD' && quote.v) {
                 const price = quote.v.lp; // Last price
                 const bid = quote.v.bid;
                 const ask = quote.v.ask;
@@ -88,15 +89,24 @@ class TradingViewFeedService {
                   };
                   
                   this.lastTick = tick;
+                  
+                  // Only mark as connected after first valid tick
+                  if (!this.hasReceivedFirstTick) {
+                    this.hasReceivedFirstTick = true;
+                    this.isConnected = true;
+                    this.notifyConnectionChange(true);
+                    console.log('📡 TradingView connection established with first tick');
+                  }
+                  
                   this.notifyTick(tick);
-                  console.log('📊 TradingView tick:', { price, bid, ask });
+                  console.log('📊 FOREXCOM:EURUSD tick:', { price, bid, ask });
                 }
               }
             } else if (parsed[0] === 'quote_update' && parsed[1]) {
               // Quote update message
               const update = parsed[1];
               
-              if (update.n === 'FX_IDC:EURUSD' && update.v) {
+              if (update.n === 'FOREXCOM:EURUSD' && update.v) {
                 const price = update.v.lp;
                 const bid = update.v.bid;
                 const ask = update.v.ask;
@@ -113,7 +123,7 @@ class TradingViewFeedService {
                   
                   this.lastTick = tick;
                   this.notifyTick(tick);
-                  console.log('📊 TradingView update:', { price, bid, ask });
+                  console.log('📊 FOREXCOM:EURUSD update:', { price, bid, ask });
                 }
               }
             }
@@ -160,15 +170,20 @@ class TradingViewFeedService {
   private subscribeToSymbol(symbol: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
-        // Create session and subscribe to quotes
-        const createSession = `42["create_session","qs_${Date.now()}"]`;
-        const subscribeQuotes = `42["quote_add_symbols","qs_${Date.now()}",["${symbol}"]]`;
-        
+        // Step 1: Create session
+        const createSession = `42["quote_create_session","${this.sessionId}"]`;
         this.ws.send(createSession);
+        console.log(`📊 Creating TradingView session: ${this.sessionId}`);
+        
+        // Step 2: Set fields and subscribe
         setTimeout(() => {
           if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(subscribeQuotes);
-            console.log(`📊 Subscribed to ${symbol} on TradingView`);
+            const setFields = `42["quote_set_fields","${this.sessionId}",["lp","bid","ask","volume"]]`;
+            const subscribeSymbol = `42["quote_add_symbols","${this.sessionId}",["${symbol}"]]`;
+            
+            this.ws.send(setFields);
+            this.ws.send(subscribeSymbol);
+            console.log(`📊 Subscribed to ${symbol} with fields [lp,bid,ask,volume]`);
           }
         }, 100);
       } catch (error) {

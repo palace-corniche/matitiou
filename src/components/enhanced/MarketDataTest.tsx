@@ -100,7 +100,7 @@ export const MarketDataTest: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Globe className="h-5 w-5" />
-              <span>TradingView Live Feed</span>
+              <span>FOREX.com TradingView Feed</span>
             </div>
             <Badge variant={tvConnected ? 'default' : 'secondary'}>
               {tvConnected ? 'LIVE' : 'MOCK'}
@@ -111,7 +111,7 @@ export const MarketDataTest: React.FC = () => {
           <div className="space-y-4">
             <Button onClick={testTradingViewFeed} disabled={testing} className="w-full">
               <RefreshCw className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
-              Test TradingView WebSocket
+              Test FOREX.com WebSocket
             </Button>
             
             <div className="space-y-2">
