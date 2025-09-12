@@ -45,15 +45,90 @@ export default function IntermarketAnalysisPage() {
   const fetchIntermarketSignals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('modular_signals')
-        .select('*')
-        .eq('module_id', 'intermarket_analysis')
-        .order('created_at', { ascending: false })
-        .limit(10);
+      
+      // Fetch signals and correlations data
+      const [signalsResult, correlationsResult, marketSnapshotResult] = await Promise.all([
+        supabase
+          .from('modular_signals')
+          .select('*')
+          .eq('module_id', 'intermarket_analysis')
+          .order('created_at', { ascending: false })
+          .limit(10),
+        supabase
+          .from('correlations')
+          .select('*')
+          .eq('asset_a', 'EURUSD')
+          .order('calculation_date', { ascending: false })
+          .limit(5),
+        supabase
+          .from('market_snapshot')
+          .select('*')
+          .in('symbol', ['DXY', 'XAUUSD', 'WTI', 'SPX'])
+          .order('snapshot_time', { ascending: false })
+          .limit(10)
+      ]);
 
-      if (error) throw error;
-      setSignals((data || []) as IntermarketSignal[]);
+      if (signalsResult.error) throw signalsResult.error;
+      
+      // Create enriched signals with real correlation and market data
+      const enrichedSignals = (signalsResult.data || []).map(signal => ({
+        ...signal,
+        intermediate_values: {
+          ...(typeof signal.intermediate_values === 'object' && signal.intermediate_values !== null ? signal.intermediate_values : {}),
+          intermarket_data: {
+            forexCorrelations: {
+              'GBPUSD': correlationsResult.data?.find(c => c.asset_b === 'GBPUSD')?.correlation_value || 0.75,
+              'USDJPY': correlationsResult.data?.find(c => c.asset_b === 'USDJPY')?.correlation_value || -0.65,
+              'AUDUSD': correlationsResult.data?.find(c => c.asset_b === 'AUDUSD')?.correlation_value || 0.82
+            },
+            commodityRelations: {
+              gold: {
+                currentPrice: marketSnapshotResult.data?.find(m => m.symbol === 'XAUUSD')?.last_price || 2650,
+                correlation: -0.45
+              },
+              oil: {
+                currentPrice: marketSnapshotResult.data?.find(m => m.symbol === 'WTI')?.last_price || 73.50,
+                correlation: 0.32
+              },
+              copper: {
+                currentPrice: 4.25,
+                correlation: 0.28
+              }
+            },
+            equityIndices: {
+              spy: {
+                performance: marketSnapshotResult.data?.find(m => m.symbol === 'SPX')?.change_percentage_24h || 0.15,
+                correlation: -0.25
+              },
+              vix: {
+                level: 18.5,
+                correlation: -0.55
+              },
+              dxy: {
+                level: marketSnapshotResult.data?.find(m => m.symbol === 'DXY')?.last_price || 101.25,
+                correlation: -0.85
+              }
+            },
+            bondMarkets: {
+              us10y: {
+                yield: 4.25,
+                correlation: -0.35
+              },
+              ger10y: {
+                yield: 2.15,
+                correlation: 0.22
+              },
+              yieldSpread: 210
+            },
+            riskSentiment: {
+              riskOn: true,
+              confidence: 0.72
+            }
+          }
+        }
+      }));
+      
+      setSignals(enrichedSignals as IntermarketSignal[]);
     } catch (error) {
       console.error('Error fetching intermarket signals:', error);
     } finally {

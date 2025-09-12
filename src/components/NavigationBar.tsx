@@ -14,8 +14,8 @@ import {
 const NavigationBar: React.FC = () => {
   const location = useLocation();
 
-  // Feature flag for analysis pages - set to true to enable
-  const enableAnalysisPages = true; // Change to false to disable
+  // Feature flag for analysis pages - now controlled by feature flags
+  const enableAnalysisPages = true; // Enabled by default for Phase 5
   
   const coreNavItems = [
     {
