@@ -390,7 +390,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
 
     // Subscribe to real-time updates
     const unsubscribe = marketDataService.subscribe({
-      onTick: (tick) => {
+onTick: (tick) => {
         console.log(`📊 Live tick received:`, {
           price: ((tick.bid + tick.ask) / 2).toFixed(5),
           source: tick.data_source,
@@ -399,9 +399,12 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
           live: tick.is_live
         });
         
-        setCurrentPrice((tick.bid + tick.ask) / 2);
-        setTickData(tick);
-        setIsConnected(tick.is_live);
+        // Only use live ticks from real_market_data source
+        if (tick.is_live && tick.data_source === 'real_market_data') {
+          setCurrentPrice((tick.bid + tick.ask) / 2);
+          setTickData(tick);
+          setIsConnected(true);
+        }
       },
       onError: (error) => {
         console.error('❌ Market data error:', error);

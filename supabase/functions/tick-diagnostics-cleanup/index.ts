@@ -5,7 +5,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
-type CleanupAction = 'diagnose' | 'purge_non_real' | 'purge_all_simulated';
+type CleanupAction = 'diagnose' | 'purge_non_real' | 'purge_all_simulated' | 'purge_legacy_live';
 
 interface CleanupRequestBody {
   symbol?: string;
@@ -92,6 +92,22 @@ Deno.serve(async (req) => {
         acc[row.data_source] = (acc[row.data_source] || 0) + 1
         return acc
       }, {}) || {}
+    } else if (action === 'purge_legacy_live') {
+      console.log('🧹 Purging legacy "live" non-real ticks for', symbol);
+      
+      // Delete ticks marked as is_live=true but are NOT from real_market_data
+      const { data: deletedRows, error: delErr } = await supabase
+        .from('tick_data')
+        .delete()
+        .eq('symbol', symbol)
+        .eq('is_live', true)
+        .neq('data_source', 'real_market_data')
+        .select('id, data_source');
+      
+      if (delErr) throw delErr;
+      
+      deleted = deletedRows?.length || 0;
+      details = { 'legacy_live': deleted };
     }
 
     return new Response(
