@@ -118,21 +118,37 @@ interface MarketDataAPI {
 
 const MARKET_DATA_APIS: MarketDataAPI[] = [
   {
+    name: 'YahooFinance',
+    url: 'https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1m&range=1d',
+    priority: 1,
+    parseResponse: (data) => {
+      try {
+        const result = data?.chart?.result?.[0];
+        const metaPrice = result?.meta?.regularMarketPrice;
+        const closes = result?.indicators?.quote?.[0]?.close || [];
+        const lastClose = closes.findLast((v: number | null) => typeof v === 'number' && v > 0);
+        return (typeof metaPrice === 'number' && metaPrice > 0) ? metaPrice : (lastClose || null);
+      } catch {
+        return null;
+      }
+    }
+  },
+  {
     name: 'Frankfurter',
     url: 'https://api.frankfurter.dev/latest?from=EUR&to=USD',
-    priority: 1,
+    priority: 2,
     parseResponse: (data) => data?.rates?.USD || null
   },
   {
     name: 'ExchangeRate-API',
     url: 'https://api.exchangerate-api.com/v4/latest/EUR',
-    priority: 2,
+    priority: 3,
     parseResponse: (data) => data?.rates?.USD || null
   },
   {
     name: 'CurrencyAPI',
     url: 'https://api.currencyapi.com/v3/latest?apikey=free&currencies=USD&base_currency=EUR',
-    priority: 3,
+    priority: 4,
     parseResponse: (data) => data?.data?.USD?.value || null
   }
 ];
@@ -140,7 +156,7 @@ const MARKET_DATA_APIS: MarketDataAPI[] = [
 // ============= PHASE 3: SMART CACHING =============
 let lastRealPrice: number | null = null;
 let lastFetchTime: number = 0;
-const CACHE_DURATION = 30000; // 30 seconds cache
+const CACHE_DURATION = 2000; // 2 seconds cache for near-real-time updates
 
 async function fetchRealEURUSDPrice(): Promise<number | null> {
   const now = Date.now();
@@ -220,10 +236,9 @@ async function generateRealisticEURUSDTick(): Promise<TickData> {
     // Try to get real market price
     const realPrice = await fetchRealEURUSDPrice();
     
-    if (realPrice) {
-      // Use real price with small tick-to-tick variance (0.1-0.3 pips)
-      const tickVariance = (Math.random() - 0.5) * 0.00003;
-      midPrice = realPrice + tickVariance;
+if (realPrice) {
+      // Use the real price as-is (no artificial variance)
+      midPrice = realPrice;
       dataSource = 'real_market_data';
       console.log(`📊 Using real market price: ${realPrice} → ${midPrice}`);
     } else {

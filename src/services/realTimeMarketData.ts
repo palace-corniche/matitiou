@@ -60,14 +60,17 @@ class RealTimeMarketDataService {
         },
         (payload) => {
           console.log('📊 New tick received:', payload.new);
-          const tick = payload.new as TickData;
-          this.callbacks.forEach(callback => {
-            try {
-              callback.onTick(tick);
-            } catch (error) {
-              callback.onError(error as Error);
-            }
-          });
+const tick = payload.new as TickData;
+          // Only propagate truly live ticks from the real data source
+          if (tick?.is_live && tick?.data_source === 'real_market_data') {
+            this.callbacks.forEach(callback => {
+              try {
+                callback.onTick(tick);
+              } catch (error) {
+                callback.onError(error as Error);
+              }
+            });
+          }
         }
       )
       .subscribe((status) => {
@@ -90,13 +93,14 @@ class RealTimeMarketDataService {
 
   async getLatestTick(symbol: string = 'EUR/USD'): Promise<TickData | null> {
     try {
-      const { data, error } = await supabase
+const { data, error } = await supabase
         .from('tick_data')
         .select('*')
         .eq('symbol', symbol)
+        .eq('data_source', 'real_market_data')
         .order('timestamp', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return data as TickData;
