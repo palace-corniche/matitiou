@@ -35,6 +35,7 @@ import { RealTimePriceTicker } from './RealTimePriceTicker';
 import { TradeModificationDialog } from './TradeModificationDialog';
 import { PerformanceCharts } from './PerformanceCharts';
 import { LotSizeManager } from './LotSizeManager';
+import { AccountDefaultsManager } from './AccountDefaultsManager';
 import { PreflightMonitor } from './PreflightMonitor';
 import AccountSettingsDialog from '../AccountSettingsDialog';
 import DepositWithdrawDialog from '../DepositWithdrawDialog';
@@ -644,6 +645,14 @@ const TradingTerminal: React.FC = () => {
                         onTransactionComplete={loadPortfolio}
                       />
                     </div>
+                    
+                    <AccountDefaultsManager
+                      portfolioId={portfolio.id}
+                      portfolioBalance={portfolio.balance}
+                      portfolioLeverage={portfolio.leverage}
+                      accountCurrency={portfolio.account_currency}
+                      onDefaultsUpdate={loadPortfolio}
+                    />
                     
                     <LotSizeManager
                       portfolio={{

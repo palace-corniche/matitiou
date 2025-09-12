@@ -2274,6 +2274,25 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      upsert_account_defaults: {
+        Args: {
+          p_allowed_symbols: string[]
+          p_auto_lot_sizing: boolean
+          p_auto_sl_tp: boolean
+          p_blacklist_symbols: string[]
+          p_default_lot_size: number
+          p_default_sl_pips: number
+          p_default_tp_pips: number
+          p_max_open_trades: number
+          p_max_spread_pips: number
+          p_portfolio_id: string
+          p_risk_per_trade_percent: number
+          p_trading_end_hour: number
+          p_trading_hours_enabled: boolean
+          p_trading_start_hour: number
+        }
+        Returns: undefined
+      }
       validate_signal_reproducibility: {
         Args: { p_analysis_id: string; p_signal_table?: string }
         Returns: Json

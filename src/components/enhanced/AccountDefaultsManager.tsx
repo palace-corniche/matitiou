@@ -23,7 +23,6 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AccountDefaults {
-  id?: string;
   portfolio_id: string;
   default_lot_size: number;
   risk_per_trade_percent: number;
@@ -38,8 +37,6 @@ interface AccountDefaults {
   trading_end_hour: number;
   allowed_symbols: string[];
   blacklist_symbols: string[];
-  created_at?: string;
-  updated_at?: string;
 }
 
 interface AccountDefaultsManagerProps {
@@ -86,28 +83,25 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
     try {
       setLoading(true);
       
-      const { data, error } = await supabase
-        .rpc('get_account_defaults', { p_portfolio_id: portfolioId });
+      // Try to get defaults using RPC function
+      const { data: defaultsData, error: rpcError } = await supabase
+        .rpc('get_account_defaults' as any, { p_portfolio_id: portfolioId });
 
-      if (error && error.code !== 'PGRST116') {
-        throw error;
-      }
-
-      if (data && data.length > 0) {
-        const dbDefaults = data[0];
+      if (!rpcError && defaultsData && defaultsData.length > 0) {
+        const dbDefaults = defaultsData[0];
         setDefaults({
           portfolio_id: portfolioId,
-          default_lot_size: dbDefaults.default_lot_size,
-          risk_per_trade_percent: dbDefaults.risk_per_trade_percent,
-          max_spread_pips: dbDefaults.max_spread_pips,
-          auto_lot_sizing: dbDefaults.auto_lot_sizing,
-          auto_sl_tp: dbDefaults.auto_sl_tp,
-          default_sl_pips: dbDefaults.default_sl_pips,
-          default_tp_pips: dbDefaults.default_tp_pips,
-          max_open_trades: dbDefaults.max_open_trades,
-          trading_hours_enabled: dbDefaults.trading_hours_enabled,
-          trading_start_hour: dbDefaults.trading_start_hour,
-          trading_end_hour: dbDefaults.trading_end_hour,
+          default_lot_size: dbDefaults.default_lot_size || 0.01,
+          risk_per_trade_percent: dbDefaults.risk_per_trade_percent || 2.0,
+          max_spread_pips: dbDefaults.max_spread_pips || 3.0,
+          auto_lot_sizing: dbDefaults.auto_lot_sizing || false,
+          auto_sl_tp: dbDefaults.auto_sl_tp || false,
+          default_sl_pips: dbDefaults.default_sl_pips || 50,
+          default_tp_pips: dbDefaults.default_tp_pips || 100,
+          max_open_trades: dbDefaults.max_open_trades || 10,
+          trading_hours_enabled: dbDefaults.trading_hours_enabled || false,
+          trading_start_hour: dbDefaults.trading_start_hour || 8,
+          trading_end_hour: dbDefaults.trading_end_hour || 17,
           allowed_symbols: dbDefaults.allowed_symbols || ['EUR/USD', 'GBP/USD', 'USD/JPY'],
           blacklist_symbols: dbDefaults.blacklist_symbols || []
         });
@@ -128,24 +122,23 @@ export const AccountDefaultsManager: React.FC<AccountDefaultsManagerProps> = ({
     try {
       setSaving(true);
 
-      // Use raw SQL to insert/update account defaults
-      const { data, error } = await supabase
-        .rpc('upsert_account_defaults', {
-          p_portfolio_id: portfolioId,
-          p_default_lot_size: defaults.default_lot_size,
-          p_risk_per_trade_percent: defaults.risk_per_trade_percent,
-          p_max_spread_pips: defaults.max_spread_pips,
-          p_auto_lot_sizing: defaults.auto_lot_sizing,
-          p_auto_sl_tp: defaults.auto_sl_tp,
-          p_default_sl_pips: defaults.default_sl_pips,
-          p_default_tp_pips: defaults.default_tp_pips,
-          p_max_open_trades: defaults.max_open_trades,
-          p_trading_hours_enabled: defaults.trading_hours_enabled,
-          p_trading_start_hour: defaults.trading_start_hour,
-          p_trading_end_hour: defaults.trading_end_hour,
-          p_allowed_symbols: defaults.allowed_symbols,
-          p_blacklist_symbols: defaults.blacklist_symbols
-        });
+      // Use RPC function to save defaults
+      const { error } = await supabase.rpc('upsert_account_defaults' as any, {
+        p_portfolio_id: portfolioId,
+        p_default_lot_size: defaults.default_lot_size,
+        p_risk_per_trade_percent: defaults.risk_per_trade_percent,
+        p_max_spread_pips: defaults.max_spread_pips,
+        p_auto_lot_sizing: defaults.auto_lot_sizing,
+        p_auto_sl_tp: defaults.auto_sl_tp,
+        p_default_sl_pips: defaults.default_sl_pips,
+        p_default_tp_pips: defaults.default_tp_pips,
+        p_max_open_trades: defaults.max_open_trades,
+        p_trading_hours_enabled: defaults.trading_hours_enabled,
+        p_trading_start_hour: defaults.trading_start_hour,
+        p_trading_end_hour: defaults.trading_end_hour,
+        p_allowed_symbols: defaults.allowed_symbols,
+        p_blacklist_symbols: defaults.blacklist_symbols
+      });
 
       if (error) throw error;
 
