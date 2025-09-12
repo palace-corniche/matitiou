@@ -63,7 +63,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   const [performanceMetrics, setPerformanceMetrics] = useState<UnifiedPerformanceMetrics>({} as UnifiedPerformanceMetrics);
   
   // Market data state
-  const [currentPrice, setCurrentPrice] = useState<number>(1.17000);
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [tickData, setTickData] = useState<any>(null);
   const [isConnected, setIsConnected] = useState(false);
   
@@ -380,7 +380,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     (async () => {
       try {
         const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
-          body: { action: 'purge_non_real', symbol: 'EUR/USD' }
+          body: { action: 'purge_all_simulated', symbol: 'EUR/USD' }
         });
         console.log('🧹 Immediate tick cleanup result:', data || error);
       } catch (err) {
@@ -417,7 +417,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
           cleanupTriggered = true;
           try {
             const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
-              body: { action: 'purge_non_real', symbol: 'EUR/USD' }
+              body: { action: 'purge_all_simulated', symbol: 'EUR/USD' }
             });
             console.log('🧹 Tick cleanup result:', data || error);
           } catch (err) {

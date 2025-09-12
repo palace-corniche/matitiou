@@ -86,9 +86,10 @@ class RealTimeTickEngine {
         .from('tick_data')
         .select('*')
         .eq('symbol', 'EUR/USD')
+        .eq('data_source', 'real_market_data')
         .order('timestamp', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error('❌ Error getting latest tick:', error);

@@ -265,7 +265,7 @@ async function generateRealisticEURUSDTick(): Promise<TickData> {
     tick_volume,
     data_source: dataSource,
     session_type: getSessionType(now),
-    is_live: marketOpen
+    is_live: dataSource === 'real_market_data'
   };
 }
 
