@@ -372,22 +372,10 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       onConnectionChange: (connected) => {
         console.log(`📡 TradingView connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
         setIsConnected(connected);
-        
-        // If disconnected, try to use mock data for testing
-        if (!connected) {
-          const mockTick = tradingViewFeed.generateMockTick();
-          setCurrentPrice(mockTick.price);
-          setTickData(mockTick);
-        }
       },
       onError: (error) => {
         console.error('❌ TradingView error:', error);
         setIsConnected(false);
-        
-        // Fallback to mock data
-        const mockTick = tradingViewFeed.generateMockTick();
-        setCurrentPrice(mockTick.price);
-        setTickData(mockTick);
       }
     });
 

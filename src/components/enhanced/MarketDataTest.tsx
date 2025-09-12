@@ -65,12 +65,6 @@ export const MarketDataTest: React.FC = () => {
     setTesting(false);
   };
 
-  const generateMockTick = () => {
-    const mockTick = tradingViewFeed.generateMockTick();
-    setLatestTickData(mockTick);
-    console.log('🎭 Generated mock tick:', mockTick);
-  };
-
   const fetchLatestTick = () => {
     const lastTick = tradingViewFeed.getLastTick();
     if (lastTick) {
@@ -165,15 +159,10 @@ export const MarketDataTest: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex space-x-2">
-              <Button onClick={generateMockTick} variant="outline">
-                Generate Mock Tick
-              </Button>
-              <Button onClick={fetchLatestTick} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Get Latest Tick
-              </Button>
-            </div>
+            <Button onClick={fetchLatestTick} variant="outline">
+              <Clock className="mr-2 h-4 w-4" />
+              Fetch Latest Tick
+            </Button>
 
             {latestTickData && (
               <div className="p-4 bg-muted rounded-lg">

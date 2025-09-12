@@ -24,8 +24,9 @@ class TradingViewFeedService {
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 5;
   private reconnectDelay = 5000;
-  private lastPrice = 0;
   private lastTick: TradingViewTick | null = null;
+  private pingInterval: NodeJS.Timeout | null = null;
+  private sessionId: string | null = null;
 
   constructor() {
     this.connect();
@@ -33,59 +34,86 @@ class TradingViewFeedService {
 
   private connect() {
     try {
-      // TradingView WebSocket endpoint (unofficial)
-      this.ws = new WebSocket('wss://data.tradingview.com/socket.io/websocket');
+      // TradingView uses Engine.IO v3 protocol
+      this.ws = new WebSocket('wss://data.tradingview.com/socket.io/?EIO=3&transport=websocket');
       
       this.ws.onopen = () => {
         console.log('📡 TradingView WebSocket connected');
-        this.isConnected = true;
-        this.reconnectAttempts = 0;
-        this.notifyConnectionChange(true);
-        
-        // Send initial subscription message for EUR/USD
-        this.subscribeToSymbol('EURUSD');
       };
 
       this.ws.onmessage = (event) => {
         try {
           const data = event.data;
           
-          // Handle TradingView's protocol messages
-          if (data.startsWith('40')) {
-            // Initial connection acknowledgment
+          // Engine.IO v3 protocol handling
+          if (data === '40') {
+            // Socket.IO connection established
+            console.log('📡 Socket.IO connected');
+            this.isConnected = true;
+            this.reconnectAttempts = 0;
+            this.notifyConnectionChange(true);
+            this.startHeartbeat();
+            this.subscribeToSymbol('FX_IDC:EURUSD');
+            return;
+          }
+          
+          if (data === '2') {
+            // Ping from server
+            this.ws?.send('3'); // Respond with pong
             return;
           }
           
           if (data.startsWith('42')) {
-            // Parse JSON data
+            // Socket.IO event message
             const jsonStr = data.substring(2);
             const parsed = JSON.parse(jsonStr);
             
-            if (parsed[0] === 'quote_completed' && parsed[1]) {
+            if (parsed[0] === 'qsd' && parsed[1]) {
+              // Quote data message
               const quote = parsed[1];
               
-              if (quote.n === 'EURUSD') {
-                const price = quote.v?.lp || quote.v?.close_price || this.lastPrice;
+              if (quote.n === 'FX_IDC:EURUSD' && quote.v) {
+                const price = quote.v.lp; // Last price
+                const bid = quote.v.bid;
+                const ask = quote.v.ask;
                 
-                if (price && price !== this.lastPrice) {
-                  this.lastPrice = price;
-                  
-                  // Generate realistic bid/ask spread (typically 1-2 pips for EUR/USD)
-                  const spread = 0.00015; // 1.5 pips
-                  const bid = price - (spread / 2);
-                  const ask = price + (spread / 2);
-                  
+                if (price && bid && ask) {
                   const tick: TradingViewTick = {
                     symbol: 'EUR/USD',
                     price,
                     bid,
                     ask,
                     timestamp: Date.now(),
-                    volume: quote.v?.volume
+                    volume: quote.v.volume
                   };
                   
                   this.lastTick = tick;
                   this.notifyTick(tick);
+                  console.log('📊 TradingView tick:', { price, bid, ask });
+                }
+              }
+            } else if (parsed[0] === 'quote_update' && parsed[1]) {
+              // Quote update message
+              const update = parsed[1];
+              
+              if (update.n === 'FX_IDC:EURUSD' && update.v) {
+                const price = update.v.lp;
+                const bid = update.v.bid;
+                const ask = update.v.ask;
+                
+                if (price && bid && ask) {
+                  const tick: TradingViewTick = {
+                    symbol: 'EUR/USD',
+                    price,
+                    bid,
+                    ask,
+                    timestamp: Date.now(),
+                    volume: update.v.volume
+                  };
+                  
+                  this.lastTick = tick;
+                  this.notifyTick(tick);
+                  console.log('📊 TradingView update:', { price, bid, ask });
                 }
               }
             }
@@ -99,6 +127,7 @@ class TradingViewFeedService {
         console.log('📡 TradingView WebSocket disconnected');
         this.isConnected = false;
         this.notifyConnectionChange(false);
+        this.stopHeartbeat();
         this.handleReconnect();
       };
 
@@ -113,13 +142,35 @@ class TradingViewFeedService {
     }
   }
 
+  private startHeartbeat() {
+    this.pingInterval = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.ws.send('2'); // Send ping
+      }
+    }, 25000); // Every 25 seconds
+  }
+
+  private stopHeartbeat() {
+    if (this.pingInterval) {
+      clearInterval(this.pingInterval);
+      this.pingInterval = null;
+    }
+  }
+
   private subscribeToSymbol(symbol: string) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
-        // Send TradingView subscription message
-        const subscribeMsg = `42["quote_add_symbols",["${symbol}"]]`;
-        this.ws.send(subscribeMsg);
-        console.log(`📊 Subscribed to ${symbol} on TradingView`);
+        // Create session and subscribe to quotes
+        const createSession = `42["create_session","qs_${Date.now()}"]`;
+        const subscribeQuotes = `42["quote_add_symbols","qs_${Date.now()}",["${symbol}"]]`;
+        
+        this.ws.send(createSession);
+        setTimeout(() => {
+          if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(subscribeQuotes);
+            console.log(`📊 Subscribed to ${symbol} on TradingView`);
+          }
+        }, 100);
       } catch (error) {
         console.error('❌ Failed to subscribe to symbol:', error);
       }
@@ -204,29 +255,9 @@ class TradingViewFeedService {
       this.ws.close();
       this.ws = null;
     }
+    this.stopHeartbeat();
     this.callbacks = [];
     this.isConnected = false;
-  }
-
-  // Generate mock tick for testing when TradingView is unavailable
-  generateMockTick(): TradingViewTick {
-    const basePrice = 1.0850; // Realistic EUR/USD price
-    const volatility = 0.0005; // 5 pips volatility
-    const randomChange = (Math.random() - 0.5) * volatility;
-    const price = basePrice + randomChange;
-    
-    const spread = 0.00015; // 1.5 pips
-    const bid = price - (spread / 2);
-    const ask = price + (spread / 2);
-    
-    return {
-      symbol: 'EUR/USD',
-      price,
-      bid,
-      ask,
-      timestamp: Date.now(),
-      volume: Math.floor(Math.random() * 1000) + 100
-    };
   }
 }
 
