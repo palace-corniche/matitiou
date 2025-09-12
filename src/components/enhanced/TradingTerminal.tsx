@@ -35,6 +35,7 @@ import { RealTimePriceTicker } from './RealTimePriceTicker';
 import { TradeModificationDialog } from './TradeModificationDialog';
 import { PerformanceCharts } from './PerformanceCharts';
 import { LotSizeManager } from './LotSizeManager';
+import { PreflightMonitor } from './PreflightMonitor';
 import AccountSettingsDialog from '../AccountSettingsDialog';
 import DepositWithdrawDialog from '../DepositWithdrawDialog';
 
@@ -497,13 +498,18 @@ const TradingTerminal: React.FC = () => {
         {/* Right Sidebar - Enhanced Panels */}
         <div className="col-span-3 space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-5">
+              <TabsTrigger value="preflight">Preflight</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
               <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
+            <TabsContent value="preflight" className="mt-4">
+              <PreflightMonitor />
+            </TabsContent>
+
             <TabsContent value="overview" className="mt-4">
               <div className="space-y-4">
                 <EnhancedTickDisplay 
