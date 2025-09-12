@@ -536,6 +536,129 @@ export type Database = {
         }
         Relationships: []
       }
+      master_signals: {
+        Row: {
+          actual_outcome: string | null
+          actual_pips: number | null
+          actual_pnl: number | null
+          analysis_id: string
+          confluence_score: number
+          contributing_modules: string[]
+          created_at: string
+          edge_probability: number | null
+          execution_price: number | null
+          execution_slippage: number | null
+          execution_timestamp: string | null
+          expires_at: string | null
+          final_confidence: number
+          final_strength: number
+          fusion_algorithm: string
+          fusion_parameters: Json
+          holding_duration: unknown | null
+          id: string
+          market_data_snapshot: Json
+          market_regime: string | null
+          modular_signal_ids: string[]
+          notes: string | null
+          recommended_entry: number
+          recommended_lot_size: number
+          recommended_stop_loss: number
+          recommended_take_profit: number
+          risk_reward_ratio: number | null
+          signal_hash: string
+          signal_quality_score: number | null
+          signal_type: string
+          status: string
+          symbol: string
+          tags: string[] | null
+          timeframe: string
+          timestamp: string
+          uncertainty_measure: number | null
+          updated_at: string
+          volatility_percentile: number | null
+        }
+        Insert: {
+          actual_outcome?: string | null
+          actual_pips?: number | null
+          actual_pnl?: number | null
+          analysis_id: string
+          confluence_score?: number
+          contributing_modules: string[]
+          created_at?: string
+          edge_probability?: number | null
+          execution_price?: number | null
+          execution_slippage?: number | null
+          execution_timestamp?: string | null
+          expires_at?: string | null
+          final_confidence: number
+          final_strength: number
+          fusion_algorithm: string
+          fusion_parameters: Json
+          holding_duration?: unknown | null
+          id?: string
+          market_data_snapshot: Json
+          market_regime?: string | null
+          modular_signal_ids: string[]
+          notes?: string | null
+          recommended_entry: number
+          recommended_lot_size?: number
+          recommended_stop_loss: number
+          recommended_take_profit: number
+          risk_reward_ratio?: number | null
+          signal_hash: string
+          signal_quality_score?: number | null
+          signal_type: string
+          status?: string
+          symbol?: string
+          tags?: string[] | null
+          timeframe: string
+          timestamp?: string
+          uncertainty_measure?: number | null
+          updated_at?: string
+          volatility_percentile?: number | null
+        }
+        Update: {
+          actual_outcome?: string | null
+          actual_pips?: number | null
+          actual_pnl?: number | null
+          analysis_id?: string
+          confluence_score?: number
+          contributing_modules?: string[]
+          created_at?: string
+          edge_probability?: number | null
+          execution_price?: number | null
+          execution_slippage?: number | null
+          execution_timestamp?: string | null
+          expires_at?: string | null
+          final_confidence?: number
+          final_strength?: number
+          fusion_algorithm?: string
+          fusion_parameters?: Json
+          holding_duration?: unknown | null
+          id?: string
+          market_data_snapshot?: Json
+          market_regime?: string | null
+          modular_signal_ids?: string[]
+          notes?: string | null
+          recommended_entry?: number
+          recommended_lot_size?: number
+          recommended_stop_loss?: number
+          recommended_take_profit?: number
+          risk_reward_ratio?: number | null
+          signal_hash?: string
+          signal_quality_score?: number | null
+          signal_type?: string
+          status?: string
+          symbol?: string
+          tags?: string[] | null
+          timeframe?: string
+          timestamp?: string
+          uncertainty_measure?: number | null
+          updated_at?: string
+          volatility_percentile?: number | null
+        }
+        Relationships: []
+      }
       models: {
         Row: {
           analysis_job_id: string
@@ -591,6 +714,87 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      modular_signals: {
+        Row: {
+          analysis_id: string
+          calculation_parameters: Json
+          confidence: number
+          created_at: string
+          expires_at: string | null
+          id: string
+          intermediate_values: Json | null
+          is_active: boolean
+          market_data_snapshot: Json
+          market_session: string | null
+          module_id: string
+          module_version: string
+          signal_type: string
+          strength: number
+          suggested_entry: number | null
+          suggested_stop_loss: number | null
+          suggested_take_profit: number | null
+          symbol: string
+          timeframe: string
+          timestamp: string
+          trend_context: string | null
+          trigger_price: number
+          volatility_regime: string | null
+          weight: number
+        }
+        Insert: {
+          analysis_id: string
+          calculation_parameters: Json
+          confidence: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          intermediate_values?: Json | null
+          is_active?: boolean
+          market_data_snapshot: Json
+          market_session?: string | null
+          module_id: string
+          module_version?: string
+          signal_type: string
+          strength: number
+          suggested_entry?: number | null
+          suggested_stop_loss?: number | null
+          suggested_take_profit?: number | null
+          symbol?: string
+          timeframe: string
+          timestamp?: string
+          trend_context?: string | null
+          trigger_price: number
+          volatility_regime?: string | null
+          weight?: number
+        }
+        Update: {
+          analysis_id?: string
+          calculation_parameters?: Json
+          confidence?: number
+          created_at?: string
+          expires_at?: string | null
+          id?: string
+          intermediate_values?: Json | null
+          is_active?: boolean
+          market_data_snapshot?: Json
+          market_session?: string | null
+          module_id?: string
+          module_version?: string
+          signal_type?: string
+          strength?: number
+          suggested_entry?: number | null
+          suggested_stop_loss?: number | null
+          suggested_take_profit?: number | null
+          symbol?: string
+          timeframe?: string
+          timestamp?: string
+          trend_context?: string | null
+          trigger_price?: number
+          volatility_regime?: string | null
+          weight?: number
+        }
+        Relationships: []
       }
       module_correlations: {
         Row: {
@@ -1291,6 +1495,69 @@ export type Database = {
           },
         ]
       }
+      signal_audit: {
+        Row: {
+          action_reason: string | null
+          action_type: string
+          analysis_id: string
+          changed_fields: string[] | null
+          compliance_notes: string | null
+          created_at: string
+          id: string
+          market_conditions: Json | null
+          new_values: Json | null
+          old_values: Json | null
+          regulatory_flags: string[] | null
+          risk_assessment: Json | null
+          signal_id: string | null
+          signal_table: string
+          system_component: string | null
+          system_state: Json | null
+          timestamp: string
+          user_id: string | null
+        }
+        Insert: {
+          action_reason?: string | null
+          action_type: string
+          analysis_id: string
+          changed_fields?: string[] | null
+          compliance_notes?: string | null
+          created_at?: string
+          id?: string
+          market_conditions?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          regulatory_flags?: string[] | null
+          risk_assessment?: Json | null
+          signal_id?: string | null
+          signal_table: string
+          system_component?: string | null
+          system_state?: Json | null
+          timestamp?: string
+          user_id?: string | null
+        }
+        Update: {
+          action_reason?: string | null
+          action_type?: string
+          analysis_id?: string
+          changed_fields?: string[] | null
+          compliance_notes?: string | null
+          created_at?: string
+          id?: string
+          market_conditions?: Json | null
+          new_values?: Json | null
+          old_values?: Json | null
+          regulatory_flags?: string[] | null
+          risk_assessment?: Json | null
+          signal_id?: string | null
+          signal_table?: string
+          system_component?: string | null
+          system_state?: Json | null
+          timestamp?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       signal_rejection_logs: {
         Row: {
           confluence_score: number | null
@@ -1928,6 +2195,10 @@ export type Database = {
       update_trailing_stops: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      validate_signal_reproducibility: {
+        Args: { p_analysis_id: string; p_signal_table?: string }
+        Returns: Json
       }
     }
     Enums: {
