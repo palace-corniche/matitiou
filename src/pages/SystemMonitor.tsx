@@ -7,6 +7,8 @@ import { AcceptanceTestRunner } from '@/components/AcceptanceTestRunner';
 import { ProductionMonitor } from '@/components/ProductionMonitor';
 import { CalibrationDashboard } from '@/components/CalibrationDashboard';
 import { FusionDashboard } from '@/components/FusionDashboard';
+import { ReplayValidationDashboard } from '@/components/ReplayValidationDashboard';
+import { FusionActiveDashboard } from '@/components/FusionActiveDashboard';
 
 const SystemMonitor: React.FC = () => {
   return (
@@ -16,6 +18,8 @@ const SystemMonitor: React.FC = () => {
         <SystemHealthMonitor />
         <CalibrationDashboard />
         <FusionDashboard />
+        <ReplayValidationDashboard />
+        <FusionActiveDashboard />
         <ProductionMonitor />
         <AcceptanceTestRunner />
         <FeatureFlagToggle />
