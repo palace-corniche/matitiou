@@ -43,16 +43,53 @@ export default function TechnicalAnalysisPage() {
   const fetchTechnicalSignals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch modular signals for technical analysis
+      const { data: modularData, error: modularError } = await supabase
         .from('modular_signals')
         .select('*')
         .eq('module_id', 'technical_analysis')
         .eq('timeframe', selectedTimeframe)
         .order('created_at', { ascending: false })
-        .limit(20);
+        .limit(10);
 
-      if (error) throw error;
-      setSignals((data || []) as TechnicalSignal[]);
+      // Fetch pattern signals for additional technical data
+      const { data: patternData, error: patternError } = await supabase
+        .from('pattern_signals')
+        .select('*')
+        .eq('symbol', 'EUR/USD')
+        .eq('timeframe', selectedTimeframe)
+        .order('detected_at', { ascending: false })
+        .limit(5);
+
+      // Fetch support/resistance levels
+      const { data: levelsData, error: levelsError } = await supabase
+        .from('support_resistance')
+        .select('*')
+        .eq('symbol', 'EUR/USD')
+        .eq('timeframe', selectedTimeframe)
+        .order('detected_at', { ascending: false })
+        .limit(5);
+
+      if (modularError) throw modularError;
+      
+      // Transform and combine data
+      const modularSignals = (modularData || []).map(signal => {
+        const baseValues = signal.intermediate_values && typeof signal.intermediate_values === 'object' 
+          ? signal.intermediate_values as Record<string, any>
+          : {};
+        
+        return {
+          ...signal,
+          intermediate_values: {
+            ...baseValues,
+            patterns: patternData || [],
+            supportResistance: levelsData || []
+          }
+        };
+      });
+
+      setSignals(modularSignals as TechnicalSignal[]);
     } catch (error) {
       console.error('Error fetching technical signals:', error);
     } finally {
@@ -194,6 +231,46 @@ export default function TechnicalAnalysisPage() {
         </div>
 
         {renderIndicatorValues(signal.intermediate_values)}
+        
+        {/* Display Pattern Signals */}
+        {signal.intermediate_values?.patterns && signal.intermediate_values.patterns.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Chart Patterns</h4>
+            <div className="space-y-2">
+              {signal.intermediate_values.patterns.slice(0, 3).map((pattern: any, index: number) => (
+                <div key={index} className="p-2 bg-muted rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-sm">{pattern.pattern_type}</span>
+                    <Badge variant="outline">
+                      {pattern.confidence ? (pattern.confidence * 100).toFixed(0) + '%' : 'N/A'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    Entry: {pattern.entry_price?.toFixed(5)} | SL: {pattern.stop_loss?.toFixed(5)} | TP: {pattern.take_profit?.toFixed(5)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Display Support/Resistance Levels */}
+        {signal.intermediate_values?.supportResistance && signal.intermediate_values.supportResistance.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Key Levels</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {signal.intermediate_values.supportResistance.map((level: any, index: number) => (
+                <div key={index} className={`p-2 rounded-lg text-sm ${
+                  level.level_type === 'support' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'
+                }`}>
+                  <div className="font-medium">{level.level_type.toUpperCase()}</div>
+                  <div className="font-mono">{level.level_price?.toFixed(5)}</div>
+                  <div className="text-xs opacity-70">Strength: {level.strength}/10</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

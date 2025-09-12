@@ -46,15 +46,59 @@ export default function SentimentAnalysisPage() {
   const fetchSentimentSignals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch modular signals for sentiment analysis
+      const { data: modularData, error: modularError } = await supabase
         .from('modular_signals')
         .select('*')
         .eq('module_id', 'sentiment_analysis')
         .order('created_at', { ascending: false })
-        .limit(15);
+        .limit(10);
 
-      if (error) throw error;
-      setSignals((data || []) as SentimentSignal[]);
+      // Fetch COT data for sentiment context
+      const { data: cotData, error: cotError } = await supabase
+        .from('cot_reports')
+        .select('*')
+        .eq('pair', 'EUR/USD')
+        .order('report_date', { ascending: false })
+        .limit(3);
+
+      // Fetch retail positioning data
+      const { data: retailData, error: retailError } = await supabase
+        .from('retail_positions')
+        .select('*')
+        .eq('symbol', 'EUR/USD')
+        .order('as_of', { ascending: false })
+        .limit(5);
+
+      // Fetch news events for sentiment
+      const { data: newsData, error: newsError } = await supabase
+        .from('news_events')
+        .select('*')
+        .eq('symbol', 'EUR/USD')
+        .order('published_at', { ascending: false })
+        .limit(5);
+
+      if (modularError) throw modularError;
+      
+      // Transform and combine data
+      const sentimentSignals = (modularData || []).map(signal => {
+        const baseValues = signal.intermediate_values && typeof signal.intermediate_values === 'object' 
+          ? signal.intermediate_values as Record<string, any>
+          : {};
+        
+        return {
+          ...signal,
+          intermediate_values: {
+            ...baseValues,
+            cot_data: cotData || [],
+            retail_positioning: retailData || [],
+            recent_news: newsData || []
+          }
+        };
+      });
+
+      setSignals(sentimentSignals as SentimentSignal[]);
     } catch (error) {
       console.error('Error fetching sentiment signals:', error);
     } finally {
@@ -249,6 +293,98 @@ export default function SentimentAnalysisPage() {
             {renderNewsSentiment(signal.intermediate_values.sentiment_data.newsSentiment)}
             {renderMarketSentiment(signal.intermediate_values.sentiment_data.marketSentiment)}
           </>
+        )}
+
+        {/* Display Real COT Data */}
+        {signal.intermediate_values?.cot_data && signal.intermediate_values.cot_data.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Live COT Data</h4>
+            <div className="space-y-2">
+              {signal.intermediate_values.cot_data.slice(0, 2).map((cot: any, index: number) => (
+                <div key={index} className="p-3 bg-muted rounded-lg">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="font-medium">Report Date: {new Date(cot.report_date).toLocaleDateString()}</span>
+                    <Badge variant="outline">
+                      Net: {cot.net_long > 0 ? '+' : ''}{(cot.net_long / 1000).toFixed(0)}K
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-xs">
+                    <div>
+                      <div className="text-muted-foreground">Commercial</div>
+                      <div className="font-mono">
+                        L: {(cot.commercial_long / 1000).toFixed(0)}K | S: {(cot.commercial_short / 1000).toFixed(0)}K
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Large Traders</div>
+                      <div className="font-mono">
+                        L: {(cot.large_traders_long / 1000).toFixed(0)}K | S: {(cot.large_traders_short / 1000).toFixed(0)}K
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-muted-foreground">Retail</div>
+                      <div className="font-mono">
+                        L: {(cot.retail_long / 1000).toFixed(0)}K | S: {(cot.retail_short / 1000).toFixed(0)}K
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Display Real Retail Positioning */}
+        {signal.intermediate_values?.retail_positioning && signal.intermediate_values.retail_positioning.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Live Retail Positioning</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {signal.intermediate_values.retail_positioning.slice(0, 4).map((pos: any, index: number) => (
+                <div key={index} className="p-2 bg-muted rounded-lg">
+                  <div className="flex justify-between items-center">
+                    <span className="font-medium text-sm">{pos.broker}</span>
+                    <Badge variant="outline">{new Date(pos.as_of).toLocaleTimeString()}</Badge>
+                  </div>
+                  <div className="mt-1">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-green-600">Long: {pos.long_percentage?.toFixed(1)}%</span>
+                      <span className="text-red-600">Short: {pos.short_percentage?.toFixed(1)}%</span>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      Traders: {(pos.long_traders_count + pos.short_traders_count).toLocaleString()}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Display Recent News */}
+        {signal.intermediate_values?.recent_news && signal.intermediate_values.recent_news.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Live Market News</h4>
+            <div className="space-y-2">
+              {signal.intermediate_values.recent_news.slice(0, 3).map((news: any, index: number) => (
+                <div key={index} className="p-2 bg-muted rounded-lg">
+                  <div className="font-medium text-sm line-clamp-2">{news.title}</div>
+                  <div className="flex justify-between items-center mt-1">
+                    <span className="text-xs text-muted-foreground">{news.source}</span>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="outline" className={`text-xs ${
+                        news.sentiment_score > 0 ? 'text-green-600' : news.sentiment_score < 0 ? 'text-red-600' : 'text-gray-600'
+                      }`}>
+                        {news.sentiment_score > 0 ? '+' : ''}{news.sentiment_score?.toFixed(0) || '0'}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">
+                        {new Date(news.published_at).toLocaleTimeString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         )}
 
         {signal.calculation_parameters && (

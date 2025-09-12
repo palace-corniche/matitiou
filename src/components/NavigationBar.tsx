@@ -14,7 +14,10 @@ import {
 const NavigationBar: React.FC = () => {
   const location = useLocation();
 
-  const navItems = [
+  // Feature flag for analysis pages - set to true to enable
+  const enableAnalysisPages = true; // Change to false to disable
+  
+  const coreNavItems = [
     {
       path: '/',
       label: 'Dashboard',
@@ -54,6 +57,54 @@ const NavigationBar: React.FC = () => {
       description: 'Real-time system status'
     }
   ];
+
+  // Analysis pages (controlled by feature flag)
+  const analysisNavItems = [
+    {
+      path: '/technical-analysis',
+      label: 'Technical',
+      icon: <BarChart3 className="h-4 w-4" />,
+      description: 'Technical indicators & patterns',
+      badge: 'ANALYSIS'
+    },
+    {
+      path: '/fundamental-analysis',
+      label: 'Fundamental', 
+      icon: <Activity className="h-4 w-4" />,
+      description: 'Economic events & news',
+      badge: 'ANALYSIS'
+    },
+    {
+      path: '/sentiment-analysis',
+      label: 'Sentiment',
+      icon: <TrendingUp className="h-4 w-4" />,
+      description: 'Market sentiment & positioning',
+      badge: 'ANALYSIS'
+    },
+    {
+      path: '/quantitative-analysis',
+      label: 'Quantitative',
+      icon: <Target className="h-4 w-4" />,
+      description: 'Statistical analysis & models',
+      badge: 'ANALYSIS'
+    },
+    {
+      path: '/intermarket-analysis',
+      label: 'Intermarket',
+      icon: <Activity className="h-4 w-4" />,
+      description: 'Cross-asset correlations',
+      badge: 'ANALYSIS'
+    },
+    {
+      path: '/specialized-analysis',
+      label: 'Specialized',
+      icon: <Target className="h-4 w-4" />,
+      description: 'Elliott waves & harmonics',
+      badge: 'ANALYSIS'
+    }
+  ];
+
+  const navItems = enableAnalysisPages ? [...coreNavItems, ...analysisNavItems] : coreNavItems;
 
   return (
     <nav className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

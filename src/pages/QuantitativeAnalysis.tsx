@@ -46,15 +46,50 @@ export default function QuantitativeAnalysisPage() {
   const fetchQuantitativeSignals = async () => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      
+      // Fetch modular signals for quantitative analysis
+      const { data: modularData, error: modularError } = await supabase
         .from('modular_signals')
         .select('*')
         .eq('module_id', 'quantitative_analysis')
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (error) throw error;
-      setSignals((data || []) as QuantitativeSignal[]);
+      // Fetch correlation data
+      const { data: corrData, error: corrError } = await supabase
+        .from('correlations')
+        .select('*')
+        .eq('asset_a', 'EUR/USD')
+        .order('calculation_date', { ascending: false })
+        .limit(10);
+
+      // Fetch volatility metrics
+      const { data: volData, error: volError } = await supabase
+        .from('volatility_metrics')
+        .select('*')
+        .eq('symbol', 'EUR/USD')
+        .order('calculation_date', { ascending: false })
+        .limit(5);
+
+      if (modularError) throw modularError;
+      
+      // Transform and combine data
+      const quantSignals = (modularData || []).map(signal => {
+        const baseValues = signal.intermediate_values && typeof signal.intermediate_values === 'object' 
+          ? signal.intermediate_values as Record<string, any>
+          : {};
+        
+        return {
+          ...signal,
+          intermediate_values: {
+            ...baseValues,
+            correlations: corrData || [],
+            volatility_metrics: volData || []
+          }
+        };
+      });
+
+      setSignals(quantSignals as QuantitativeSignal[]);
     } catch (error) {
       console.error('Error fetching quantitative signals:', error);
     } finally {
@@ -282,6 +317,38 @@ export default function QuantitativeAnalysisPage() {
             {renderCorrelationMatrix(signal.intermediate_values.quant_data.correlationMatrix)}
             {renderRiskMetrics(signal.intermediate_values.quant_data.riskMetrics)}
           </>
+        )}
+
+        {/* Display Real Data */}
+        {signal.intermediate_values?.correlations && signal.intermediate_values.correlations.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Live Correlations</h4>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+              {signal.intermediate_values.correlations.slice(0, 6).map((corr: any, index: number) => (
+                <div key={index} className="p-2 bg-muted rounded-lg text-center">
+                  <div className="text-sm font-medium">{corr.asset_b}</div>
+                  <div className={`text-lg font-bold ${corr.correlation_value > 0 ? 'text-green-600' : 'text-red-600'}`}>
+                    {corr.correlation_value?.toFixed(3)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {signal.intermediate_values?.volatility_metrics && signal.intermediate_values.volatility_metrics.length > 0 && (
+          <div className="mt-4">
+            <h4 className="text-sm font-medium mb-2">Live Volatility</h4>
+            {signal.intermediate_values.volatility_metrics.slice(0, 2).map((vol: any, index: number) => (
+              <div key={index} className="p-2 bg-muted rounded-lg mb-2">
+                <div className="flex justify-between text-sm">
+                  <span>{vol.timeframe}</span>
+                  <span>ATR: {vol.atr?.toFixed(5)}</span>
+                  <span>RV: {vol.realized_volatility?.toFixed(1)}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
 
         {signal.calculation_parameters && (
