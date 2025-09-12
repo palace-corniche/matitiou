@@ -30,11 +30,20 @@ class RealTimeMarketDataService {
 
   private async startTickEngine() {
     try {
-      // Start the tick data engine
-      await supabase.functions.invoke('market-data-tick-engine');
-      console.log('🎯 Tick data engine started');
+      // Start the new real-time tick engine for high frequency ticks
+      await supabase.functions.invoke('real-time-tick-engine');
+      console.log('🚀 Real-time tick engine started');
+      
+      // Set up recurring tick generation every 2 seconds
+      setInterval(async () => {
+        try {
+          await supabase.functions.invoke('real-time-tick-engine');
+        } catch (error) {
+          console.error('❌ Tick generation error:', error);
+        }
+      }, 2000);
     } catch (error) {
-      console.error('❌ Failed to start tick engine:', error);
+      console.error('❌ Failed to start real-time tick engine:', error);
     }
   }
 
