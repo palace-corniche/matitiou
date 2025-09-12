@@ -277,6 +277,93 @@ export type Database = {
           },
         ]
       }
+      correlations: {
+        Row: {
+          asset_a: string
+          asset_b: string
+          calculation_date: string
+          correlation_value: number
+          created_at: string | null
+          id: string
+          sample_size: number | null
+          timeframe: string | null
+          updated_at: string | null
+          window_period: string | null
+        }
+        Insert: {
+          asset_a: string
+          asset_b: string
+          calculation_date?: string
+          correlation_value: number
+          created_at?: string | null
+          id?: string
+          sample_size?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
+          window_period?: string | null
+        }
+        Update: {
+          asset_a?: string
+          asset_b?: string
+          calculation_date?: string
+          correlation_value?: number
+          created_at?: string | null
+          id?: string
+          sample_size?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
+          window_period?: string | null
+        }
+        Relationships: []
+      }
+      cot_reports: {
+        Row: {
+          commercial_long: number | null
+          commercial_short: number | null
+          created_at: string | null
+          id: string
+          large_traders_long: number | null
+          large_traders_short: number | null
+          net_long: number | null
+          net_short: number | null
+          pair: string
+          report_date: string
+          retail_long: number | null
+          retail_short: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          commercial_long?: number | null
+          commercial_short?: number | null
+          created_at?: string | null
+          id?: string
+          large_traders_long?: number | null
+          large_traders_short?: number | null
+          net_long?: number | null
+          net_short?: number | null
+          pair?: string
+          report_date: string
+          retail_long?: number | null
+          retail_short?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          commercial_long?: number | null
+          commercial_short?: number | null
+          created_at?: string | null
+          id?: string
+          large_traders_long?: number | null
+          large_traders_short?: number | null
+          net_long?: number | null
+          net_short?: number | null
+          pair?: string
+          report_date?: string
+          retail_long?: number | null
+          retail_short?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       datasets: {
         Row: {
           created_at: string
@@ -408,6 +495,144 @@ export type Database = {
           impact_level?: string
           is_active?: boolean | null
           previous_value?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      economic_events: {
+        Row: {
+          actual_value: string | null
+          country: string
+          created_at: string | null
+          currency: string
+          event_name: string
+          event_time: string
+          forecast_value: string | null
+          id: string
+          impact_level: string | null
+          previous_value: string | null
+          symbol_impact: string[] | null
+          updated_at: string | null
+          volatility_impact: number | null
+        }
+        Insert: {
+          actual_value?: string | null
+          country: string
+          created_at?: string | null
+          currency: string
+          event_name: string
+          event_time: string
+          forecast_value?: string | null
+          id?: string
+          impact_level?: string | null
+          previous_value?: string | null
+          symbol_impact?: string[] | null
+          updated_at?: string | null
+          volatility_impact?: number | null
+        }
+        Update: {
+          actual_value?: string | null
+          country?: string
+          created_at?: string | null
+          currency?: string
+          event_name?: string
+          event_time?: string
+          forecast_value?: string | null
+          id?: string
+          impact_level?: string | null
+          previous_value?: string | null
+          symbol_impact?: string[] | null
+          updated_at?: string | null
+          volatility_impact?: number | null
+        }
+        Relationships: []
+      }
+      elliott_waves: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          end_price: number
+          end_time: string
+          id: string
+          pattern_type: string | null
+          start_price: number
+          start_time: string
+          symbol: string
+          timeframe: string
+          updated_at: string | null
+          wave_degree: string
+          wave_label: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          end_price: number
+          end_time: string
+          id?: string
+          pattern_type?: string | null
+          start_price: number
+          start_time: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string | null
+          wave_degree: string
+          wave_label: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          end_price?: number
+          end_time?: string
+          id?: string
+          pattern_type?: string | null
+          start_price?: number
+          start_time?: string
+          symbol?: string
+          timeframe?: string
+          updated_at?: string | null
+          wave_degree?: string
+          wave_label?: string
+        }
+        Relationships: []
+      }
+      harmonic_prz: {
+        Row: {
+          completion_level: number | null
+          confidence: number | null
+          created_at: string | null
+          detected_at: string
+          id: string
+          pattern: string
+          prz_high: number
+          prz_low: number
+          symbol: string
+          timeframe: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          completion_level?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          detected_at?: string
+          id?: string
+          pattern: string
+          prz_high: number
+          prz_low: number
+          symbol?: string
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          completion_level?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          detected_at?: string
+          id?: string
+          pattern?: string
+          prz_high?: number
+          prz_low?: number
+          symbol?: string
+          timeframe?: string | null
           updated_at?: string | null
         }
         Relationships: []
@@ -593,6 +818,45 @@ export type Database = {
           timeframe?: string
           timestamp?: string
           volume?: number | null
+        }
+        Relationships: []
+      }
+      market_snapshot: {
+        Row: {
+          change_24h: number | null
+          change_percentage_24h: number | null
+          created_at: string | null
+          id: string
+          last_price: number
+          market_cap: number | null
+          snapshot_time: string
+          symbol: string
+          updated_at: string | null
+          volume_24h: number | null
+        }
+        Insert: {
+          change_24h?: number | null
+          change_percentage_24h?: number | null
+          created_at?: string | null
+          id?: string
+          last_price: number
+          market_cap?: number | null
+          snapshot_time?: string
+          symbol: string
+          updated_at?: string | null
+          volume_24h?: number | null
+        }
+        Update: {
+          change_24h?: number | null
+          change_percentage_24h?: number | null
+          created_at?: string | null
+          id?: string
+          last_price?: number
+          market_cap?: number | null
+          snapshot_time?: string
+          symbol?: string
+          updated_at?: string | null
+          volume_24h?: number | null
         }
         Relationships: []
       }
@@ -892,6 +1156,45 @@ export type Database = {
         }
         Relationships: []
       }
+      module_health: {
+        Row: {
+          created_at: string | null
+          error_count: number | null
+          last_error: string | null
+          last_output_id: string | null
+          last_run: string | null
+          module_name: string
+          performance_score: number | null
+          signals_generated_today: number | null
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_count?: number | null
+          last_error?: string | null
+          last_output_id?: string | null
+          last_run?: string | null
+          module_name: string
+          performance_score?: number | null
+          signals_generated_today?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_count?: number | null
+          last_error?: string | null
+          last_output_id?: string | null
+          last_run?: string | null
+          module_name?: string
+          performance_score?: number | null
+          signals_generated_today?: number | null
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       module_performance: {
         Row: {
           average_confidence: number | null
@@ -955,6 +1258,51 @@ export type Database = {
         }
         Relationships: []
       }
+      news_events: {
+        Row: {
+          category: string | null
+          content: string | null
+          created_at: string | null
+          id: string
+          impact_score: number | null
+          published_at: string
+          relevance_score: number | null
+          sentiment_score: number | null
+          source: string
+          symbol: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          impact_score?: number | null
+          published_at: string
+          relevance_score?: number | null
+          sentiment_score?: number | null
+          source: string
+          symbol?: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          content?: string | null
+          created_at?: string | null
+          id?: string
+          impact_score?: number | null
+          published_at?: string
+          relevance_score?: number | null
+          sentiment_score?: number | null
+          source?: string
+          symbol?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       order_types: {
         Row: {
           created_at: string | null
@@ -973,6 +1321,51 @@ export type Database = {
           description?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      pattern_signals: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          detected_at: string
+          entry_price: number | null
+          id: string
+          pattern_type: string
+          stop_loss: number | null
+          strength: number | null
+          symbol: string
+          take_profit: number | null
+          timeframe: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          detected_at?: string
+          entry_price?: number | null
+          id?: string
+          pattern_type: string
+          stop_loss?: number | null
+          strength?: number | null
+          symbol?: string
+          take_profit?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          detected_at?: string
+          entry_price?: number | null
+          id?: string
+          pattern_type?: string
+          stop_loss?: number | null
+          strength?: number | null
+          symbol?: string
+          take_profit?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1154,6 +1547,45 @@ export type Database = {
           id?: string
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      retail_positions: {
+        Row: {
+          as_of: string
+          broker: string
+          created_at: string | null
+          id: string
+          long_percentage: number | null
+          long_traders_count: number | null
+          short_percentage: number | null
+          short_traders_count: number | null
+          symbol: string
+          updated_at: string | null
+        }
+        Insert: {
+          as_of?: string
+          broker: string
+          created_at?: string | null
+          id?: string
+          long_percentage?: number | null
+          long_traders_count?: number | null
+          short_percentage?: number | null
+          short_traders_count?: number | null
+          symbol?: string
+          updated_at?: string | null
+        }
+        Update: {
+          as_of?: string
+          broker?: string
+          created_at?: string | null
+          id?: string
+          long_percentage?: number | null
+          long_traders_count?: number | null
+          short_percentage?: number | null
+          short_traders_count?: number | null
+          symbol?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -1666,6 +2098,45 @@ export type Database = {
         }
         Relationships: []
       }
+      support_resistance: {
+        Row: {
+          created_at: string | null
+          detected_at: string
+          id: string
+          level_price: number
+          level_type: string
+          strength: number | null
+          symbol: string
+          timeframe: string | null
+          touches_count: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          detected_at?: string
+          id?: string
+          level_price: number
+          level_type: string
+          strength?: number | null
+          symbol?: string
+          timeframe?: string | null
+          touches_count?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          detected_at?: string
+          id?: string
+          level_price?: number
+          level_type?: string
+          strength?: number | null
+          symbol?: string
+          timeframe?: string | null
+          touches_count?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       system_config: {
         Row: {
           config_key: string
@@ -2166,6 +2637,45 @@ export type Database = {
           updated_at?: string
           user_id?: string | null
           was_executed?: boolean
+        }
+        Relationships: []
+      }
+      volatility_metrics: {
+        Row: {
+          atr: number | null
+          calculation_date: string
+          created_at: string | null
+          id: string
+          implied_volatility: number | null
+          realized_volatility: number | null
+          symbol: string
+          timeframe: string
+          updated_at: string | null
+          volatility_percentile: number | null
+        }
+        Insert: {
+          atr?: number | null
+          calculation_date?: string
+          created_at?: string | null
+          id?: string
+          implied_volatility?: number | null
+          realized_volatility?: number | null
+          symbol?: string
+          timeframe?: string
+          updated_at?: string | null
+          volatility_percentile?: number | null
+        }
+        Update: {
+          atr?: number | null
+          calculation_date?: string
+          created_at?: string | null
+          id?: string
+          implied_volatility?: number | null
+          realized_volatility?: number | null
+          symbol?: string
+          timeframe?: string
+          updated_at?: string | null
+          volatility_percentile?: number | null
         }
         Relationships: []
       }
