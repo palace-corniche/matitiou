@@ -98,6 +98,7 @@ const { data, error } = await supabase
         .select('*')
         .eq('symbol', symbol)
         .eq('data_source', 'real_market_data')
+        .eq('is_live', true)
         .order('timestamp', { ascending: false })
         .limit(1)
         .maybeSingle();

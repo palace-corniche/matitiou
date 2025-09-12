@@ -119,15 +119,13 @@ interface MarketDataAPI {
 const MARKET_DATA_APIS: MarketDataAPI[] = [
   {
     name: 'YahooFinance',
-    url: 'https://query1.finance.yahoo.com/v8/finance/chart/EURUSD=X?interval=1m&range=1d',
+    url: 'https://query1.finance.yahoo.com/v7/finance/quote?symbols=EURUSD=X',
     priority: 1,
     parseResponse: (data) => {
       try {
-        const result = data?.chart?.result?.[0];
-        const metaPrice = result?.meta?.regularMarketPrice;
-        const closes = result?.indicators?.quote?.[0]?.close || [];
-        const lastClose = closes.findLast((v: number | null) => typeof v === 'number' && v > 0);
-        return (typeof metaPrice === 'number' && metaPrice > 0) ? metaPrice : (lastClose || null);
+        const result = data?.quoteResponse?.result?.[0];
+        const price = result?.regularMarketPrice;
+        return (typeof price === 'number' && price > 0) ? price : null;
       } catch {
         return null;
       }
