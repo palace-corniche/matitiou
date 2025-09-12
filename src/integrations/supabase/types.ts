@@ -277,6 +277,84 @@ export type Database = {
           },
         ]
       }
+      calibration_audit: {
+        Row: {
+          action: string
+          best_sharpe_ratio: number | null
+          best_win_rate: number | null
+          calibration_duration_ms: number | null
+          created_at: string
+          id: string
+          metadata: Json | null
+          module_id: string
+          parameters_tested: number | null
+          timeframe: string
+        }
+        Insert: {
+          action: string
+          best_sharpe_ratio?: number | null
+          best_win_rate?: number | null
+          calibration_duration_ms?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          module_id: string
+          parameters_tested?: number | null
+          timeframe: string
+        }
+        Update: {
+          action?: string
+          best_sharpe_ratio?: number | null
+          best_win_rate?: number | null
+          calibration_duration_ms?: number | null
+          created_at?: string
+          id?: string
+          metadata?: Json | null
+          module_id?: string
+          parameters_tested?: number | null
+          timeframe?: string
+        }
+        Relationships: []
+      }
+      calibration_results: {
+        Row: {
+          calibration_period: Json
+          created_at: string
+          id: string
+          module_id: string
+          parameters: Json
+          performance_metrics: Json
+          symbol: string
+          timeframe: string
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          calibration_period: Json
+          created_at?: string
+          id?: string
+          module_id: string
+          parameters: Json
+          performance_metrics: Json
+          symbol?: string
+          timeframe: string
+          updated_at?: string
+          version?: string
+        }
+        Update: {
+          calibration_period?: Json
+          created_at?: string
+          id?: string
+          module_id?: string
+          parameters?: Json
+          performance_metrics?: Json
+          symbol?: string
+          timeframe?: string
+          updated_at?: string
+          version?: string
+        }
+        Relationships: []
+      }
       correlations: {
         Row: {
           asset_a: string
@@ -980,6 +1058,78 @@ export type Database = {
           uncertainty_measure?: number | null
           updated_at?: string
           volatility_percentile?: number | null
+        }
+        Relationships: []
+      }
+      master_signals_fusion: {
+        Row: {
+          analysis_id: string
+          confidence_score: number
+          contributing_signals: Json
+          created_at: string
+          executed_at: string | null
+          expires_at: string | null
+          fusion_decision: string
+          fusion_reasoning: string | null
+          id: string
+          market_conditions: Json | null
+          override_reason: string | null
+          recommended_entry: number | null
+          recommended_lot_size: number | null
+          recommended_stop_loss: number | null
+          recommended_take_profit: number | null
+          risk_assessment: Json | null
+          signal_weights: Json
+          status: string | null
+          symbol: string
+          timeframe: string
+          weighted_score: number
+        }
+        Insert: {
+          analysis_id: string
+          confidence_score: number
+          contributing_signals: Json
+          created_at?: string
+          executed_at?: string | null
+          expires_at?: string | null
+          fusion_decision: string
+          fusion_reasoning?: string | null
+          id?: string
+          market_conditions?: Json | null
+          override_reason?: string | null
+          recommended_entry?: number | null
+          recommended_lot_size?: number | null
+          recommended_stop_loss?: number | null
+          recommended_take_profit?: number | null
+          risk_assessment?: Json | null
+          signal_weights: Json
+          status?: string | null
+          symbol?: string
+          timeframe: string
+          weighted_score: number
+        }
+        Update: {
+          analysis_id?: string
+          confidence_score?: number
+          contributing_signals?: Json
+          created_at?: string
+          executed_at?: string | null
+          expires_at?: string | null
+          fusion_decision?: string
+          fusion_reasoning?: string | null
+          id?: string
+          market_conditions?: Json | null
+          override_reason?: string | null
+          recommended_entry?: number | null
+          recommended_lot_size?: number | null
+          recommended_stop_loss?: number | null
+          recommended_take_profit?: number | null
+          risk_assessment?: Json | null
+          signal_weights?: Json
+          status?: string | null
+          symbol?: string
+          timeframe?: string
+          weighted_score?: number
         }
         Relationships: []
       }

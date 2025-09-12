@@ -6,6 +6,7 @@ import { FeatureFlagToggle } from '@/components/FeatureFlagToggle';
 import { AcceptanceTestRunner } from '@/components/AcceptanceTestRunner';
 import { ProductionMonitor } from '@/components/ProductionMonitor';
 import { CalibrationDashboard } from '@/components/CalibrationDashboard';
+import { FusionDashboard } from '@/components/FusionDashboard';
 
 const SystemMonitor: React.FC = () => {
   return (
@@ -14,6 +15,7 @@ const SystemMonitor: React.FC = () => {
       <div className="container mx-auto p-6 space-y-6">
         <SystemHealthMonitor />
         <CalibrationDashboard />
+        <FusionDashboard />
         <ProductionMonitor />
         <AcceptanceTestRunner />
         <FeatureFlagToggle />
