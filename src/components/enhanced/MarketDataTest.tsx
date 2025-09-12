@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { supabase } from '@/integrations/supabase/client';
+import { tradingViewFeed } from '@/services/tradingViewFeed';
 import { Globe, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 
 interface APITestResult {
@@ -17,123 +17,107 @@ export const MarketDataTest: React.FC = () => {
   const [results, setResults] = useState<APITestResult[]>([]);
   const [testing, setTesting] = useState(false);
   const [latestTickData, setLatestTickData] = useState<any>(null);
+  const [tvConnected, setTvConnected] = useState(false);
 
-  const testAPIs = async () => {
+  const testTradingViewFeed = async () => {
     setTesting(true);
-    setResults([]);
-
-    const apis = [
-      {
-        name: 'Frankfurter',
-        url: 'https://api.frankfurter.dev/latest?from=EUR&to=USD',
-        parse: (data: any) => data?.rates?.USD
-      },
-      {
-        name: 'ExchangeRate-API',
-        url: 'https://api.exchangerate-api.com/v4/latest/EUR',
-        parse: (data: any) => data?.rates?.USD
+    
+    try {
+      setResults([{ name: 'TradingView WebSocket', status: 'testing' }]);
+      
+      const startTime = Date.now();
+      const lastTick = tradingViewFeed.getLastTick();
+      const isConnected = tradingViewFeed.getConnectionStatus();
+      const responseTime = Date.now() - startTime;
+      
+      if (lastTick && isConnected) {
+        setResults([{
+          name: 'TradingView WebSocket',
+          status: 'success',
+          price: lastTick.price,
+          responseTime
+        }]);
+        setLatestTickData(lastTick);
+      } else if (lastTick) {
+        // Has data but not connected - might be mock data
+        setResults([{
+          name: 'TradingView WebSocket (Mock)',
+          status: 'success',
+          price: lastTick.price,
+          responseTime
+        }]);
+        setLatestTickData(lastTick);
+      } else {
+        setResults([{
+          name: 'TradingView WebSocket',
+          status: 'error',
+          error: 'No tick data available'
+        }]);
       }
-    ];
-
-    for (const api of apis) {
-      try {
-        setResults(prev => [...prev, { name: api.name, status: 'testing' }]);
-        
-        const startTime = Date.now();
-        const response = await fetch(api.url);
-        const data = await response.json();
-        const responseTime = Date.now() - startTime;
-        
-        if (response.ok) {
-          const price = api.parse(data);
-          if (price) {
-            setResults(prev => prev.map(r => 
-              r.name === api.name 
-                ? { ...r, status: 'success', price, responseTime }
-                : r
-            ));
-          } else {
-            setResults(prev => prev.map(r => 
-              r.name === api.name 
-                ? { ...r, status: 'error', error: 'Invalid response format' }
-                : r
-            ));
-          }
-        } else {
-          setResults(prev => prev.map(r => 
-            r.name === api.name 
-              ? { ...r, status: 'error', error: `HTTP ${response.status}` }
-              : r
-          ));
-        }
-      } catch (error) {
-        setResults(prev => prev.map(r => 
-          r.name === api.name 
-            ? { ...r, status: 'error', error: error.message }
-            : r
-        ));
-      }
+    } catch (error) {
+      setResults([{
+        name: 'TradingView WebSocket',
+        status: 'error',
+        error: error.message
+      }]);
     }
     
     setTesting(false);
   };
 
-  const testTickEngine = async () => {
-    try {
-      console.log('🧪 Testing real-time tick engine...');
-      const { data, error } = await supabase.functions.invoke('real-time-tick-engine');
-      
-      if (error) {
-        console.error('Tick engine error:', error);
-      } else {
-        console.log('Tick engine response:', data);
-        if (data?.tick) {
-          setLatestTickData(data.tick);
-        }
-      }
-    } catch (error) {
-      console.error('Failed to test tick engine:', error);
-    }
+  const generateMockTick = () => {
+    const mockTick = tradingViewFeed.generateMockTick();
+    setLatestTickData(mockTick);
+    console.log('🎭 Generated mock tick:', mockTick);
   };
 
-  const fetchLatestTick = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('tick_data')
-        .select('*')
-        .eq('symbol', 'EUR/USD')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (error) {
-        console.error('Error fetching latest tick:', error);
-      } else {
-        setLatestTickData(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch latest tick:', error);
+  const fetchLatestTick = () => {
+    const lastTick = tradingViewFeed.getLastTick();
+    if (lastTick) {
+      setLatestTickData(lastTick);
+    } else {
+      console.warn('No TradingView tick data available');
     }
   };
 
   useEffect(() => {
     fetchLatestTick();
+    
+    // Subscribe to TradingView connection status
+    const unsubscribe = tradingViewFeed.subscribe({
+      onTick: (tick) => {
+        setLatestTickData(tick);
+      },
+      onConnectionChange: (connected) => {
+        setTvConnected(connected);
+      },
+      onError: (error) => {
+        console.error('TradingView feed error:', error);
+      }
+    });
+
+    return unsubscribe;
   }, []);
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Globe className="h-5 w-5" />
-            <span>Market Data API Tests</span>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <Globe className="h-5 w-5" />
+              <span>TradingView Live Feed</span>
+            </div>
+            <Badge variant={tvConnected ? 'default' : 'secondary'}>
+              {tvConnected ? 'LIVE' : 'MOCK'}
+            </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button onClick={testAPIs} disabled={testing} className="w-full">
+            <Button onClick={testTradingViewFeed} disabled={testing} className="w-full">
               <RefreshCw className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
-              Test Free Market Data APIs
+              Test TradingView WebSocket
             </Button>
             
             <div className="space-y-2">
@@ -176,14 +160,14 @@ export const MarketDataTest: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <TrendingUp className="h-5 w-5" />
-            <span>Tick Engine Test</span>
+            <span>TradingView Tick Data</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
             <div className="flex space-x-2">
-              <Button onClick={testTickEngine} variant="outline">
-                Generate New Tick
+              <Button onClick={generateMockTick} variant="outline">
+                Generate Mock Tick
               </Button>
               <Button onClick={fetchLatestTick} variant="outline">
                 <RefreshCw className="h-4 w-4 mr-2" />
@@ -195,22 +179,22 @@ export const MarketDataTest: React.FC = () => {
               <div className="p-4 bg-muted rounded-lg">
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="font-medium">Price:</span> {((latestTickData.bid + latestTickData.ask) / 2).toFixed(5)}
+                    <span className="font-medium">Price:</span> {latestTickData.price?.toFixed(5)}
                   </div>
                   <div>
-                    <span className="font-medium">Data Source:</span> {latestTickData.data_source}
+                    <span className="font-medium">Data Source:</span> TradingView
                   </div>
                   <div>
-                    <span className="font-medium">Bid/Ask:</span> {latestTickData.bid}/{latestTickData.ask}
+                    <span className="font-medium">Bid/Ask:</span> {latestTickData.bid?.toFixed(5)}/{latestTickData.ask?.toFixed(5)}
                   </div>
                   <div>
-                    <span className="font-medium">Session:</span> {latestTickData.session_type}
+                    <span className="font-medium">Symbol:</span> {latestTickData.symbol}
                   </div>
                   <div>
-                    <span className="font-medium">Spread:</span> {((latestTickData.spread || 0) * 10000).toFixed(1)} pips
+                    <span className="font-medium">Spread:</span> {(((latestTickData.ask - latestTickData.bid) || 0) * 10000).toFixed(1)} pips
                   </div>
                   <div>
-                    <span className="font-medium">Live:</span> {latestTickData.is_live ? 'Yes' : 'No'}
+                    <span className="font-medium">Connection:</span> {tvConnected ? 'Live' : 'Mock'}
                   </div>
                   <div className="col-span-2">
                     <span className="font-medium">Timestamp:</span> {new Date(latestTickData.timestamp).toLocaleString()}

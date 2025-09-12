@@ -9,8 +9,7 @@ import {
   UnifiedPerformanceMetrics,
   TradeExecutionRequest
 } from '@/services/shadowTradingEngineUnified';
-import { marketDataService } from '@/services/realTimeMarketData';
-import { realTimeTickEngine } from '@/services/realTimeTickEngine';
+import { tradingViewFeed, TradingViewTick } from '@/services/tradingViewFeed';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -24,8 +23,9 @@ export interface UseShadowTradingUnified {
   
   // Market data
   currentPrice: number;
-  tickData: any;
+  tickData: TradingViewTick | null;
   isConnected: boolean;
+  dataSource: string;
   
   // Loading states
   isLoading: boolean;
@@ -64,8 +64,9 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   
   // Market data state
   const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [tickData, setTickData] = useState<any>(null);
+  const [tickData, setTickData] = useState<TradingViewTick | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [dataSource] = useState<string>('TradingView');
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -341,112 +342,57 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     initializeEngine();
   }, [refreshData]);
 
-  // ============= ENHANCED REAL-TIME MARKET DATA =============
+  // ============= TRADINGVIEW REAL-TIME MARKET DATA =============
   useEffect(() => {
-    let cleanupTriggered = false;
-    const initializeMarketData = async () => {
-      try {
-        // Get initial tick data to establish connection
-        const latestTick = await marketDataService.getLatestTick('EUR/USD');
-        
-        if (latestTick) {
-          console.log('📊 Initial tick data loaded:', latestTick);
-          setCurrentPrice((latestTick.bid + latestTick.ask) / 2);
-          setTickData(latestTick);
-          
-          // Check if data is recent (within last 2 minutes)
-          const lastUpdate = new Date(latestTick.timestamp);
-          const now = new Date();
-          const timeDiff = now.getTime() - lastUpdate.getTime();
-          const isRecent = timeDiff < 120000; // 2 minutes
-          
-          setIsConnected(isRecent);
-          
-          console.log(`📡 Connection status: ${isRecent ? 'LIVE' : 'STALE'} (${timeDiff}ms ago)`);
-        } else {
-          console.warn('⚠️ No initial tick data available');
-          setIsConnected(false);
-        }
-      } catch (error) {
-        console.error('❌ Failed to load initial market data:', error);
-        setIsConnected(false);
-      }
-    };
+    console.log('🚀 Initializing TradingView WebSocket feed...');
+    
+    // Get initial tick if available
+    const initialTick = tradingViewFeed.getLastTick();
+    if (initialTick) {
+      console.log('📊 Initial TradingView tick loaded:', initialTick);
+      setCurrentPrice(initialTick.price);
+      setTickData(initialTick);
+      setIsConnected(tradingViewFeed.getConnectionStatus());
+    }
 
-    // Initialize with latest data
-    initializeMarketData();
-
-    // One-time immediate cleanup of non-real ticks
-    (async () => {
-      try {
-        const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
-          body: { action: 'purge_all_simulated', symbol: 'EUR/USD' }
-        });
-        console.log('🧹 Immediate tick cleanup result:', data || error);
-      } catch (err) {
-        console.warn('⚠️ Immediate tick cleanup failed:', err);
-      }
-    })();
-
-    // Subscribe to real-time updates
-    const unsubscribe = marketDataService.subscribe({
-onTick: (tick) => {
-        console.log(`📊 Live tick received:`, {
-          price: ((tick.bid + tick.ask) / 2).toFixed(5),
-          source: tick.data_source,
-          spread: ((tick.spread || 0) * 10000).toFixed(1) + ' pips',
-          session: tick.session_type,
-          live: tick.is_live
+    // Subscribe to TradingView feed
+    const unsubscribe = tradingViewFeed.subscribe({
+      onTick: (tick) => {
+        console.log(`📊 TradingView tick received:`, {
+          price: tick.price.toFixed(5),
+          bid: tick.bid.toFixed(5),
+          ask: tick.ask.toFixed(5),
+          spread: ((tick.ask - tick.bid) * 10000).toFixed(1) + ' pips',
+          source: 'TradingView'
         });
         
-        // Only use live ticks from real_market_data source
-        if (tick.is_live && tick.data_source === 'real_market_data') {
-          setCurrentPrice((tick.bid + tick.ask) / 2);
-          setTickData(tick);
-          setIsConnected(true);
+        setCurrentPrice(tick.price);
+        setTickData(tick);
+      },
+      onConnectionChange: (connected) => {
+        console.log(`📡 TradingView connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
+        setIsConnected(connected);
+        
+        // If disconnected, try to use mock data for testing
+        if (!connected) {
+          const mockTick = tradingViewFeed.generateMockTick();
+          setCurrentPrice(mockTick.price);
+          setTickData(mockTick);
         }
       },
       onError: (error) => {
-        console.error('❌ Market data error:', error);
+        console.error('❌ TradingView error:', error);
         setIsConnected(false);
+        
+        // Fallback to mock data
+        const mockTick = tradingViewFeed.generateMockTick();
+        setCurrentPrice(mockTick.price);
+        setTickData(mockTick);
       }
     });
 
-    // Enhanced connection monitoring
-    const connectionCheck = setInterval(async () => {
-      try {
-        // Run one-time cleanup of non-real ticks
-        if (!cleanupTriggered) {
-          cleanupTriggered = true;
-          try {
-            const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
-              body: { action: 'purge_all_simulated', symbol: 'EUR/USD' }
-            });
-            console.log('🧹 Tick cleanup result:', data || error);
-          } catch (err) {
-            console.warn('⚠️ Tick cleanup failed:', err);
-          }
-        }
-
-        const status = await realTimeTickEngine.getDataSourceStatus();
-        console.log('🔄 Enhanced status check:', status);
-        
-        setIsConnected(status.isLive);
-        
-        // If we have stale data, try to refresh
-        if (!status.isLive) {
-          console.log('🔄 Attempting to refresh market data...');
-          await initializeMarketData();
-        }
-      } catch (error) {
-        console.error('❌ Status check failed:', error);
-        setIsConnected(false);
-      }
-    }, 10000); // Check every 10 seconds
-
     return () => {
       unsubscribe();
-      clearInterval(connectionCheck);
     };
   }, []);
 
@@ -470,6 +416,7 @@ onTick: (tick) => {
     currentPrice,
     tickData,
     isConnected,
+    dataSource,
     
     // Loading states
     isLoading,

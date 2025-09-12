@@ -46,7 +46,9 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     tradeHistory,
     performanceMetrics,
     currentPrice,
+    tickData,
     isConnected,
+    dataSource,
     isLoading,
     isExecuting,
     error,
@@ -160,7 +162,10 @@ const ShadowTradingDashboardUnified: React.FC = () => {
               <WifiOff className="h-4 w-4 text-red-500" />
             )}
             <Badge variant={isConnected ? "default" : "destructive"}>
-              {isConnected ? 'Live Data' : 'Disconnected'}
+              {isConnected ? 'Live Data' : 'Mock Data'}
+            </Badge>
+            <Badge variant="outline" className="text-xs">
+              {dataSource}
             </Badge>
           </div>
           
