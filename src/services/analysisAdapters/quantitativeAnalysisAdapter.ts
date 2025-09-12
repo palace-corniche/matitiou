@@ -25,7 +25,7 @@ export interface QuantData {
 }
 
 export interface QuantitativeSignal {
-  moduleId: 'quantitative_analysis';
+  moduleId: string;
   symbol: string;
   timeframe: string;
   signalType: 'buy' | 'sell';
@@ -393,7 +393,7 @@ export class QuantitativeAnalysisAdapter {
   private async saveSignal(signal: QuantitativeSignal): Promise<void> {
     const analysisId = crypto.randomUUID();
     
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('modular_signals')
       .insert({
         analysis_id: analysisId,

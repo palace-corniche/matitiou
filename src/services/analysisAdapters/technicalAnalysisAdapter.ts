@@ -195,9 +195,10 @@ export class TechnicalAnalysisAdapter {
   private async saveSignal(signal: TechnicalSignal): Promise<void> {
     const analysisId = crypto.randomUUID();
     
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('modular_signals')
       .insert({
+        analysis_id: analysisId,
         module_id: signal.moduleId,
         symbol: signal.symbol,
         timeframe: signal.timeframe,

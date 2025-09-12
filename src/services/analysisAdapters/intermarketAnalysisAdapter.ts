@@ -26,7 +26,7 @@ export interface IntermarketData {
 }
 
 export interface IntermarketSignal {
-  moduleId: 'intermarket_analysis';
+  moduleId: string;
   symbol: string;
   timeframe: string;
   signalType: 'buy' | 'sell';
@@ -390,7 +390,7 @@ export class IntermarketAnalysisAdapter {
   private async saveSignal(signal: IntermarketSignal): Promise<void> {
     const analysisId = crypto.randomUUID();
     
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('modular_signals')
       .insert({
         analysis_id: analysisId,
