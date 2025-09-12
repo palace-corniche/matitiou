@@ -341,8 +341,33 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
 
   // ============= REAL-TIME MARKET DATA =============
   useEffect(() => {
+    const initializeMarketData = async () => {
+      try {
+        // Get initial tick data to establish connection
+        const latestTick = await marketDataService.getLatestTick('EUR/USD');
+        
+        if (latestTick) {
+          console.log('📊 Initial tick data loaded:', latestTick);
+          setCurrentPrice((latestTick.bid + latestTick.ask) / 2);
+          setTickData(latestTick);
+          setIsConnected(true);
+        } else {
+          console.warn('⚠️ No initial tick data available');
+          setIsConnected(false);
+        }
+      } catch (error) {
+        console.error('❌ Failed to load initial market data:', error);
+        setIsConnected(false);
+      }
+    };
+
+    // Initialize with latest data
+    initializeMarketData();
+
+    // Subscribe to real-time updates
     const unsubscribe = marketDataService.subscribe({
       onTick: (tick) => {
+        console.log('📊 Live tick received:', tick);
         setCurrentPrice((tick.bid + tick.ask) / 2);
         setTickData(tick);
         setIsConnected(true);
@@ -353,7 +378,19 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       }
     });
 
-    return unsubscribe;
+    // Check connection status periodically
+    const connectionCheck = setInterval(() => {
+      const connectionStatus = marketDataService.getConnectionStatus();
+      console.log('🔄 Connection status check:', connectionStatus);
+      if (!connectionStatus) {
+        setIsConnected(false);
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => {
+      unsubscribe();
+      clearInterval(connectionCheck);
+    };
   }, []);
 
   // ============= AUTO REFRESH DATA =============
