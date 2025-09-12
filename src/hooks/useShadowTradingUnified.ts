@@ -10,6 +10,7 @@ import {
   TradeExecutionRequest
 } from '@/services/shadowTradingEngineUnified';
 import { marketDataService } from '@/services/realTimeMarketData';
+import { realTimeTickEngine } from '@/services/realTimeTickEngine';
 import { useToast } from '@/hooks/use-toast';
 
 // ============= HOOK INTERFACE =============
@@ -339,7 +340,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     initializeEngine();
   }, [refreshData]);
 
-  // ============= REAL-TIME MARKET DATA =============
+  // ============= ENHANCED REAL-TIME MARKET DATA =============
   useEffect(() => {
     const initializeMarketData = async () => {
       try {
@@ -350,7 +351,16 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
           console.log('📊 Initial tick data loaded:', latestTick);
           setCurrentPrice((latestTick.bid + latestTick.ask) / 2);
           setTickData(latestTick);
-          setIsConnected(true);
+          
+          // Check if data is recent (within last 2 minutes)
+          const lastUpdate = new Date(latestTick.timestamp);
+          const now = new Date();
+          const timeDiff = now.getTime() - lastUpdate.getTime();
+          const isRecent = timeDiff < 120000; // 2 minutes
+          
+          setIsConnected(isRecent);
+          
+          console.log(`📡 Connection status: ${isRecent ? 'LIVE' : 'STALE'} (${timeDiff}ms ago)`);
         } else {
           console.warn('⚠️ No initial tick data available');
           setIsConnected(false);
@@ -367,10 +377,17 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     // Subscribe to real-time updates
     const unsubscribe = marketDataService.subscribe({
       onTick: (tick) => {
-        console.log('📊 Live tick received:', tick);
+        console.log(`📊 Live tick received:`, {
+          price: ((tick.bid + tick.ask) / 2).toFixed(5),
+          source: tick.data_source,
+          spread: ((tick.spread || 0) * 10000).toFixed(1) + ' pips',
+          session: tick.session_type,
+          live: tick.is_live
+        });
+        
         setCurrentPrice((tick.bid + tick.ask) / 2);
         setTickData(tick);
-        setIsConnected(true);
+        setIsConnected(tick.is_live);
       },
       onError: (error) => {
         console.error('❌ Market data error:', error);
@@ -378,14 +395,24 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       }
     });
 
-    // Check connection status periodically
-    const connectionCheck = setInterval(() => {
-      const connectionStatus = marketDataService.getConnectionStatus();
-      console.log('🔄 Connection status check:', connectionStatus);
-      if (!connectionStatus) {
+    // Enhanced connection monitoring
+    const connectionCheck = setInterval(async () => {
+      try {
+        const status = await realTimeTickEngine.getDataSourceStatus();
+        console.log('🔄 Enhanced status check:', status);
+        
+        setIsConnected(status.isLive);
+        
+        // If we have stale data, try to refresh
+        if (!status.isLive) {
+          console.log('🔄 Attempting to refresh market data...');
+          await initializeMarketData();
+        }
+      } catch (error) {
+        console.error('❌ Status check failed:', error);
         setIsConnected(false);
       }
-    }, 5000); // Check every 5 seconds
+    }, 10000); // Check every 10 seconds
 
     return () => {
       unsubscribe();

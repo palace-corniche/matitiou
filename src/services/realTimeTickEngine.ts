@@ -102,6 +102,58 @@ class RealTimeTickEngine {
     }
   }
 
+  async getDataSourceStatus(): Promise<{
+    isLive: boolean;
+    dataSource: string;
+    lastUpdate: string;
+    marketOpen: boolean;
+  }> {
+    try {
+      const latestTick = await this.getLatestTick();
+      
+      if (!latestTick) {
+        return {
+          isLive: false,
+          dataSource: 'none',
+          lastUpdate: 'never',
+          marketOpen: false
+        };
+      }
+
+      const lastUpdate = new Date(latestTick.timestamp);
+      const now = new Date();
+      const timeDiff = now.getTime() - lastUpdate.getTime();
+      const isRecent = timeDiff < 60000; // Data is fresh if less than 1 minute old
+
+      return {
+        isLive: isRecent && latestTick.is_live,
+        dataSource: latestTick.data_source,
+        lastUpdate: latestTick.timestamp,
+        marketOpen: this.isMarketOpen()
+      };
+    } catch (error) {
+      console.error('❌ Error getting data source status:', error);
+      return {
+        isLive: false,
+        dataSource: 'error',
+        lastUpdate: 'error',
+        marketOpen: false
+      };
+    }
+  }
+
+  private isMarketOpen(): boolean {
+    const now = new Date();
+    const utcHour = now.getUTCHours();
+    const dayOfWeek = now.getUTCDay();
+    
+    // Market closed on weekends
+    if (dayOfWeek === 0 || dayOfWeek === 6) return false;
+    
+    // Market open 24/5 during weekdays
+    return true;
+  }
+
   isActive(): boolean {
     return this.isRunning;
   }
