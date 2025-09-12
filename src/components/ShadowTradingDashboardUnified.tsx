@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
+import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import {
   Activity,
   TrendingUp,
@@ -790,31 +791,48 @@ const ShadowTradingDashboardUnified: React.FC = () => {
                       <Label>Auto Trading</Label>
                       <Switch checked={isAutoTrading} onCheckedChange={toggleAutoTrading} />
                     </div>
-                    <div className="space-y-2">
-                      <Label>Max Open Positions</Label>
-                      <Input type="number" value={portfolio?.max_open_positions || 5} readOnly />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Account Leverage</Label>
-                      <Input value={`1:${portfolio?.leverage || 100}`} readOnly />
+                    <div className="flex flex-col space-y-2">
+                      <Label>Account Configuration</Label>
+                      <AccountSettingsDialog
+                        portfolioId={portfolio?.id || ''}
+                        currentSettings={{
+                          account_currency: portfolio?.account_currency || 'USD',
+                          leverage: portfolio?.leverage || 100,
+                          account_type: 'demo', // Default to demo account
+                          balance: portfolio?.balance || 100000,
+                          daily_loss_limit: portfolio?.daily_loss_limit || 1000,
+                          max_drawdown_limit: portfolio?.max_drawdown || 20,
+                          margin_call_level: portfolio?.margin_call_level || 100,
+                          stop_out_level: portfolio?.stop_out_level || 50
+                        }}
+                        onSettingsUpdate={refreshData}
+                      />
                     </div>
                   </div>
                 </div>
 
                 <div className="space-y-4">
-                  <h4 className="font-medium">Risk Management</h4>
+                  <h4 className="font-medium">Current Configuration</h4>
                   <div className="space-y-3">
-                    <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Label>Leverage</Label>
+                      <Badge variant="outline">1:{portfolio?.leverage || 100}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label>Currency</Label>
+                      <Badge variant="outline">{portfolio?.account_currency || 'USD'}</Badge>
+                    </div>
+                    <div className="flex items-center justify-between">
                       <Label>Daily Loss Limit</Label>
-                      <Input value={`$${portfolio?.daily_loss_limit.toFixed(2) || 0}`} readOnly />
+                      <Badge variant="outline">${portfolio?.daily_loss_limit?.toFixed(2) || 0}</Badge>
                     </div>
-                    <div className="space-y-2">
+                    <div className="flex items-center justify-between">
                       <Label>Margin Call Level</Label>
-                      <Input value={`${portfolio?.margin_call_level || 0}%`} readOnly />
+                      <Badge variant="outline">{portfolio?.margin_call_level || 0}%</Badge>
                     </div>
-                    <div className="space-y-2">
+                    <div className="flex items-center justify-between">
                       <Label>Stop Out Level</Label>
-                      <Input value={`${portfolio?.stop_out_level || 0}%`} readOnly />
+                      <Badge variant="outline">{portfolio?.stop_out_level || 0}%</Badge>
                     </div>
                   </div>
                 </div>
