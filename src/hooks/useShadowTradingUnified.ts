@@ -11,6 +11,7 @@ import {
 } from '@/services/shadowTradingEngineUnified';
 import { marketDataService } from '@/services/realTimeMarketData';
 import { realTimeTickEngine } from '@/services/realTimeTickEngine';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 // ============= HOOK INTERFACE =============
@@ -342,6 +343,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
 
   // ============= ENHANCED REAL-TIME MARKET DATA =============
   useEffect(() => {
+    let cleanupTriggered = false;
     const initializeMarketData = async () => {
       try {
         // Get initial tick data to establish connection
@@ -374,6 +376,18 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     // Initialize with latest data
     initializeMarketData();
 
+    // One-time immediate cleanup of non-real ticks
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
+          body: { action: 'purge_non_real', symbol: 'EUR/USD' }
+        });
+        console.log('🧹 Immediate tick cleanup result:', data || error);
+      } catch (err) {
+        console.warn('⚠️ Immediate tick cleanup failed:', err);
+      }
+    })();
+
     // Subscribe to real-time updates
     const unsubscribe = marketDataService.subscribe({
       onTick: (tick) => {
@@ -398,6 +412,19 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     // Enhanced connection monitoring
     const connectionCheck = setInterval(async () => {
       try {
+        // Run one-time cleanup of non-real ticks
+        if (!cleanupTriggered) {
+          cleanupTriggered = true;
+          try {
+            const { data, error } = await supabase.functions.invoke('tick-diagnostics-cleanup', {
+              body: { action: 'purge_non_real', symbol: 'EUR/USD' }
+            });
+            console.log('🧹 Tick cleanup result:', data || error);
+          } catch (err) {
+            console.warn('⚠️ Tick cleanup failed:', err);
+          }
+        }
+
         const status = await realTimeTickEngine.getDataSourceStatus();
         console.log('🔄 Enhanced status check:', status);
         

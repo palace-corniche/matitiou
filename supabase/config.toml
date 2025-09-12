@@ -11,3 +11,9 @@ verify_jwt = false
 
 [functions.manage-shadow-trades]
 verify_jwt = false
+
+[functions.real-time-tick-engine]
+verify_jwt = false
+
+[functions.tick-diagnostics-cleanup]
+verify_jwt = false
