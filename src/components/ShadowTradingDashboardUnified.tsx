@@ -14,7 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
-import {
+import { PnLValidationTest } from '@/components/PnLValidationTest';
   Activity,
   TrendingUp,
   TrendingDown,

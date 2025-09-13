@@ -137,16 +137,53 @@ const MetaTrader4Dashboard: React.FC = () => {
     };
   }, []);
 
-  // Real-time P&L updates
-  useEffect(() => {
-    if (openTrades.length > 0) {
-      const pnlInterval = setInterval(() => {
-        updateTradesPnL();
-      }, 1000); // Update every second
+  // Real-time PnL calculation using unified market data
+  const updateTradesPnL = useCallback(async () => {
+    if (openTrades.length === 0 || !tickData) return;
 
-      return () => clearInterval(pnlInterval);
+    try {
+      // Update trades with real-time PnL calculation
+      const updatedTrades = openTrades.map(trade => {
+        // Use bid for buy trades (selling price) and ask for sell trades (buying price)
+        const currentPrice = trade.trade_type === 'buy' ? tickData.bid : tickData.ask;
+        
+        // Calculate pips: (currentPrice - entryPrice) * 10000 for EUR/USD
+        let profitPips: number;
+        if (trade.trade_type === 'buy') {
+          profitPips = (currentPrice - trade.entry_price) * 10000;
+        } else {
+          profitPips = (trade.entry_price - currentPrice) * 10000;
+        }
+        
+        // Calculate PnL: Pips * lotSize * 0.10 (for EUR/USD, where 0.01 lot = $0.10 per pip)
+        const pipValue = trade.lot_size * 10; // $10 per pip for 1 lot
+        const unrealizedPnL = (profitPips * pipValue) / 100; // Convert to proper scale
+
+        return {
+          ...trade,
+          current_price: currentPrice,
+          profit_pips: parseFloat(profitPips.toFixed(1)),
+          unrealized_pnl: parseFloat(unrealizedPnL.toFixed(2))
+        };
+      });
+
+      setOpenTrades(updatedTrades);
+
+      // Refresh portfolio to get updated equity
+      await loadPortfolio();
+      
+      console.log(`📊 MetaTrader4 PnL updated for ${updatedTrades.length} trades`);
+    } catch (error) {
+      console.error('Error updating P&L:', error);
     }
-  }, [openTrades, currentPrice]);
+  }, [openTrades, tickData]);
+
+  // Real-time P&L updates using unified market data
+  useEffect(() => {
+    if (openTrades.length > 0 && tickData) {
+      updateTradesPnL();
+    }
+  }, [openTrades.length, tickData, updateTradesPnL]);
 
   // Helper function to generate unique session ID
   const generateSessionId = () => {
@@ -397,45 +434,7 @@ const MetaTrader4Dashboard: React.FC = () => {
 
   // Remove the old updateRealTimePrice function - now handled by unified market data
 
-  const updateTradesPnL = useCallback(async () => {
-    if (openTrades.length === 0) return;
-
-    try {
-      const tradeIds = openTrades.map(t => t.id);
-      
-      const response = await supabase.functions.invoke('manage-trades', {
-        body: {
-          action: 'update_pnl',
-          tradeIds,
-          currentPrice
-        }
-      });
-
-      if (response.data?.success) {
-        // Update local state with new P&L data
-        const updates = response.data.data.updates;
-        setOpenTrades(prevTrades => 
-          prevTrades.map(trade => {
-            const update = updates.find((u: any) => u.tradeId === trade.id);
-            if (update) {
-              return {
-                ...trade,
-                current_price: currentPrice,
-                unrealized_pnl: update.unrealizedPnl,
-                profit_pips: update.profitPips
-              };
-            }
-            return trade;
-          })
-        );
-
-        // Refresh portfolio to get updated equity
-        await loadPortfolio();
-      }
-    } catch (error) {
-      console.error('Error updating P&L:', error);
-    }
-  }, [openTrades, currentPrice]);
+  // Remove the old updateRealTimePrice function - now handled by unified market data
 
   const closeTrade = async () => {
     if (!selectedTrade) return;

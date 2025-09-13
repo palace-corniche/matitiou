@@ -188,6 +188,51 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     }
   }, [toast]);
 
+  // ============= REAL-TIME PnL UPDATE FUNCTION =============
+  const updateTradesPnLRealTime = useCallback((tick: UnifiedTick) => {
+    if (openTrades.length === 0) return;
+
+    setOpenTrades(prevTrades => 
+      prevTrades.map(trade => {
+        // Only update open trades, never closed ones
+        if (trade.status !== 'open') return trade;
+
+        // Calculate real-time PnL using correct EUR/USD calculation
+        const currentPrice = trade.trade_type === 'buy' ? tick.bid : tick.ask;
+        
+        // Calculate pips: (currentPrice - entryPrice) * 10000 for EUR/USD
+        let profitPips: number;
+        if (trade.trade_type === 'buy') {
+          profitPips = (currentPrice - trade.entry_price) * 10000;
+        } else {
+          profitPips = (trade.entry_price - currentPrice) * 10000;
+        }
+        
+        // Calculate PnL: Pips * lotSize * 0.10 (for EUR/USD, where 0.01 lot = $0.10 per pip)
+        const pipValue = trade.lot_size * 10; // $10 per pip for 1 lot, so 0.01 lot = $0.10 per pip
+        const unrealizedPnL = (profitPips * pipValue) / 100; // Convert to proper scale
+        
+        console.log(`📊 Real-time PnL update for ${trade.id}:`, {
+          symbol: trade.symbol,
+          tradeType: trade.trade_type,
+          entryPrice: trade.entry_price.toFixed(5),
+          currentPrice: currentPrice.toFixed(5),
+          lotSize: trade.lot_size,
+          profitPips: profitPips.toFixed(1),
+          unrealizedPnL: unrealizedPnL.toFixed(2)
+        });
+
+        return {
+          ...trade,
+          current_price: currentPrice,
+          profit_pips: parseFloat(profitPips.toFixed(1)),
+          unrealized_pnl: parseFloat(unrealizedPnL.toFixed(2)),
+          updated_at: new Date().toISOString()
+        };
+      })
+    );
+  }, [openTrades]);
+
   const refreshData = useCallback(async (): Promise<void> => {
     try {
       const [
@@ -211,11 +256,19 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       if (portfolioData) {
         setIsAutoTrading(portfolioData.auto_trading_enabled);
       }
+
+      // Apply real-time PnL calculation to newly loaded open trades
+      if (openTradesData.length > 0 && currentPrice > 0) {
+        const currentTick = unifiedMarketData.getLastTick();
+        if (currentTick) {
+          updateTradesPnLRealTime(currentTick);
+        }
+      }
     } catch (error: any) {
       setError(error.message);
       console.error('❌ Error refreshing data:', error);
     }
-  }, []);
+  }, [updateTradesPnLRealTime, currentPrice]);
 
   // ============= AUTO TRADING MANAGEMENT =============
   const toggleAutoTrading = useCallback(async (): Promise<void> => {
@@ -368,6 +421,10 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
         
         setCurrentPrice(tick.price);
         setTickData(tick);
+        
+        // ============= REAL-TIME PnL CALCULATION =============
+        // Update PnL for all open trades in real-time
+        updateTradesPnLRealTime(tick);
       },
       onConnectionChange: (connected) => {
         console.log(`📡 Unified Market Data connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
@@ -384,13 +441,21 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     };
   }, []);
 
-  // ============= AUTO REFRESH DATA =============
+  // ============= AUTO REFRESH DATA & REAL-TIME PnL =============
   useEffect(() => {
     if (!portfolio) return;
 
     const interval = setInterval(refreshData, 30000); // Refresh every 30 seconds
     return () => clearInterval(interval);
   }, [portfolio, refreshData]);
+
+  // ============= REAL-TIME PnL ON PRICE CHANGE =============
+  useEffect(() => {
+    if (openTrades.length > 0 && currentPrice > 0 && tickData) {
+      // Update PnL immediately when price changes
+      updateTradesPnLRealTime(tickData);
+    }
+  }, [currentPrice, tickData, openTrades, updateTradesPnLRealTime]);
 
   // ============= RETURN UNIFIED INTERFACE =============
   return {
