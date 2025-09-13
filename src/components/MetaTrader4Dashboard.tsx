@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 
 interface Trade {
   id: string;
@@ -74,6 +75,8 @@ const MetaTrader4Dashboard: React.FC = () => {
   const [closedTrades, setClosedTrades] = useState<any[]>([]);
   const [lotSizePresets, setLotSizePresets] = useState<LotSizePreset[]>([]);
   const [currentPrice, setCurrentPrice] = useState<number>(1.17000);
+  const [tickData, setTickData] = useState<UnifiedTick | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
   const [isClosing, setIsClosing] = useState(false);
   const [isModifying, setIsModifying] = useState(false);
@@ -90,8 +93,30 @@ const MetaTrader4Dashboard: React.FC = () => {
   useEffect(() => {
     loadDashboardData();
     
-    // Set up real-time price updates
-    const priceInterval = setInterval(updateRealTimePrice, 2000);
+    // Set up unified market data subscription
+    const marketDataUnsubscribe = unifiedMarketData.subscribe({
+      onTick: (tick) => {
+        setCurrentPrice(tick.price);
+        setTickData(tick);
+        console.log(`📊 MetaTrader4 price update: ${tick.price.toFixed(5)} from ${tick.source}`);
+      },
+      onConnectionChange: (connected) => {
+        setIsConnected(connected);
+        console.log(`📡 MetaTrader4 market data: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
+      },
+      onError: (error) => {
+        console.error('❌ MetaTrader4 market data error:', error);
+        setIsConnected(false);
+      }
+    });
+
+    // Get initial price
+    const initialTick = unifiedMarketData.getLastTick();
+    if (initialTick) {
+      setCurrentPrice(initialTick.price);
+      setTickData(initialTick);
+      setIsConnected(unifiedMarketData.getConnectionStatus());
+    }
     
     // Set up real-time subscriptions
     const tradesChannel = supabase
@@ -107,7 +132,7 @@ const MetaTrader4Dashboard: React.FC = () => {
       .subscribe();
 
     return () => {
-      clearInterval(priceInterval);
+      marketDataUnsubscribe();
       supabase.removeChannel(tradesChannel);
     };
   }, []);
@@ -370,24 +395,7 @@ const MetaTrader4Dashboard: React.FC = () => {
     }
   };
 
-  const updateRealTimePrice = useCallback(async () => {
-    try {
-      const { data } = await supabase
-        .from('market_data_feed')
-        .select('price')
-        .eq('symbol', 'EUR/USD')
-        .eq('timeframe', '15m')
-        .order('timestamp', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data?.price) {
-        setCurrentPrice(Number(data.price));
-      }
-    } catch (error) {
-      console.error('Error updating price:', error);
-    }
-  }, []);
+  // Remove the old updateRealTimePrice function - now handled by unified market data
 
   const updateTradesPnL = useCallback(async () => {
     if (openTrades.length === 0) return;

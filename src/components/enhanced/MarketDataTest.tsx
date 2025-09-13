@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { tradingViewFeed } from '@/services/tradingViewFeed';
+import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 import { Globe, Clock, TrendingUp, RefreshCw } from 'lucide-react';
 
 interface APITestResult {
@@ -16,32 +16,32 @@ interface APITestResult {
 export const MarketDataTest: React.FC = () => {
   const [results, setResults] = useState<APITestResult[]>([]);
   const [testing, setTesting] = useState(false);
-  const [latestTickData, setLatestTickData] = useState<any>(null);
-  const [tvConnected, setTvConnected] = useState(false);
+  const [latestTickData, setLatestTickData] = useState<UnifiedTick | null>(null);
+  const [isConnected, setIsConnected] = useState(false);
 
-  const testTradingViewFeed = async () => {
+  const testUnifiedMarketData = async () => {
     setTesting(true);
     
     try {
-      setResults([{ name: 'TradingView WebSocket', status: 'testing' }]);
+      setResults([{ name: 'Unified Market Data', status: 'testing' }]);
       
       const startTime = Date.now();
-      const lastTick = tradingViewFeed.getLastTick();
-      const isConnected = tradingViewFeed.getConnectionStatus();
+      const lastTick = unifiedMarketData.getLastTick();
+      const connected = unifiedMarketData.getConnectionStatus();
       const responseTime = Date.now() - startTime;
       
-      if (lastTick && isConnected) {
+      if (lastTick && connected) {
         setResults([{
-          name: 'TradingView WebSocket',
+          name: 'Unified Market Data (Live)',
           status: 'success',
           price: lastTick.price,
           responseTime
         }]);
         setLatestTickData(lastTick);
       } else if (lastTick) {
-        // Has data but not connected - might be mock data
+        // Has data but not connected - might be fallback data
         setResults([{
-          name: 'TradingView WebSocket (Mock)',
+          name: 'Unified Market Data (Fallback)',
           status: 'success',
           price: lastTick.price,
           responseTime
@@ -49,14 +49,14 @@ export const MarketDataTest: React.FC = () => {
         setLatestTickData(lastTick);
       } else {
         setResults([{
-          name: 'TradingView WebSocket',
+          name: 'Unified Market Data',
           status: 'error',
           error: 'No tick data available'
         }]);
       }
-    } catch (error) {
+    } catch (error: any) {
       setResults([{
-        name: 'TradingView WebSocket',
+        name: 'Unified Market Data',
         status: 'error',
         error: error.message
       }]);
@@ -66,27 +66,27 @@ export const MarketDataTest: React.FC = () => {
   };
 
   const fetchLatestTick = () => {
-    const lastTick = tradingViewFeed.getLastTick();
+    const lastTick = unifiedMarketData.getLastTick();
     if (lastTick) {
       setLatestTickData(lastTick);
     } else {
-      console.warn('No TradingView tick data available');
+      console.warn('No unified market data tick available');
     }
   };
 
   useEffect(() => {
     fetchLatestTick();
     
-    // Subscribe to TradingView connection status
-    const unsubscribe = tradingViewFeed.subscribe({
+    // Subscribe to unified market data
+    const unsubscribe = unifiedMarketData.subscribe({
       onTick: (tick) => {
         setLatestTickData(tick);
       },
       onConnectionChange: (connected) => {
-        setTvConnected(connected);
+        setIsConnected(connected);
       },
       onError: (error) => {
-        console.error('TradingView feed error:', error);
+        console.error('Unified market data error:', error);
       }
     });
 
@@ -100,18 +100,18 @@ export const MarketDataTest: React.FC = () => {
           <CardTitle className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
               <Globe className="h-5 w-5" />
-              <span>FOREX.com TradingView Feed</span>
+              <span>Unified Market Data (TwelveData API)</span>
             </div>
-            <Badge variant={tvConnected ? 'default' : 'secondary'}>
-              {tvConnected ? 'LIVE' : 'MOCK'}
+            <Badge variant={isConnected ? 'default' : 'secondary'}>
+              {isConnected ? 'LIVE' : 'FALLBACK'}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <Button onClick={testTradingViewFeed} disabled={testing} className="w-full">
+            <Button onClick={testUnifiedMarketData} disabled={testing} className="w-full">
               <RefreshCw className={`h-4 w-4 mr-2 ${testing ? 'animate-spin' : ''}`} />
-              Test FOREX.com WebSocket
+              Test Unified Market Data
             </Button>
             
             <div className="space-y-2">
@@ -154,7 +154,7 @@ export const MarketDataTest: React.FC = () => {
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <TrendingUp className="h-5 w-5" />
-            <span>TradingView Tick Data</span>
+            <span>Live EUR/USD Tick Data</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
@@ -171,7 +171,7 @@ export const MarketDataTest: React.FC = () => {
                     <span className="font-medium">Price:</span> {latestTickData.price?.toFixed(5)}
                   </div>
                   <div>
-                    <span className="font-medium">Data Source:</span> TradingView
+                    <span className="font-medium">Data Source:</span> {latestTickData.source}
                   </div>
                   <div>
                     <span className="font-medium">Bid/Ask:</span> {latestTickData.bid?.toFixed(5)}/{latestTickData.ask?.toFixed(5)}
@@ -180,10 +180,10 @@ export const MarketDataTest: React.FC = () => {
                     <span className="font-medium">Symbol:</span> {latestTickData.symbol}
                   </div>
                   <div>
-                    <span className="font-medium">Spread:</span> {(((latestTickData.ask - latestTickData.bid) || 0) * 10000).toFixed(1)} pips
+                    <span className="font-medium">Spread:</span> {latestTickData.spread} pips
                   </div>
                   <div>
-                    <span className="font-medium">Connection:</span> {tvConnected ? 'Live' : 'Mock'}
+                    <span className="font-medium">Connection:</span> {isConnected ? 'Live API' : 'Fallback'}
                   </div>
                   <div className="col-span-2">
                     <span className="font-medium">Timestamp:</span> {new Date(latestTickData.timestamp).toLocaleString()}

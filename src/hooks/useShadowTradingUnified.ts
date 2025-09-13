@@ -9,7 +9,7 @@ import {
   UnifiedPerformanceMetrics,
   TradeExecutionRequest
 } from '@/services/shadowTradingEngineUnified';
-import { tradingViewFeed, TradingViewTick } from '@/services/tradingViewFeed';
+import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -23,7 +23,7 @@ export interface UseShadowTradingUnified {
   
   // Market data
   currentPrice: number;
-  tickData: TradingViewTick | null;
+  tickData: UnifiedTick | null;
   isConnected: boolean;
   dataSource: string;
   
@@ -63,10 +63,10 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   const [performanceMetrics, setPerformanceMetrics] = useState<UnifiedPerformanceMetrics>({} as UnifiedPerformanceMetrics);
   
   // Market data state
-  const [currentPrice, setCurrentPrice] = useState<number>(0);
-  const [tickData, setTickData] = useState<TradingViewTick | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number>(1.17000);
+  const [tickData, setTickData] = useState<UnifiedTick | null>(null);
   const [isConnected, setIsConnected] = useState(false);
-  const [dataSource] = useState<string>('TradingView');
+  const [dataSource] = useState<string>('TwelveData');
   
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -342,39 +342,39 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     initializeEngine();
   }, [refreshData]);
 
-  // ============= TRADINGVIEW REAL-TIME MARKET DATA =============
+  // ============= UNIFIED MARKET DATA FEED =============
   useEffect(() => {
-    console.log('🚀 Initializing TradingView WebSocket feed...');
+    console.log('🚀 Initializing Unified Market Data feed...');
     
     // Get initial tick if available
-    const initialTick = tradingViewFeed.getLastTick();
+    const initialTick = unifiedMarketData.getLastTick();
     if (initialTick) {
-      console.log('📊 Initial TradingView tick loaded:', initialTick);
+      console.log('📊 Initial unified tick loaded:', initialTick);
       setCurrentPrice(initialTick.price);
       setTickData(initialTick);
-      setIsConnected(tradingViewFeed.getConnectionStatus());
+      setIsConnected(unifiedMarketData.getConnectionStatus());
     }
 
-    // Subscribe to TradingView feed
-    const unsubscribe = tradingViewFeed.subscribe({
+    // Subscribe to unified feed
+    const unsubscribe = unifiedMarketData.subscribe({
       onTick: (tick) => {
-        console.log(`📊 TradingView tick received:`, {
+        console.log(`📊 Unified Market Data tick received:`, {
           price: tick.price.toFixed(5),
           bid: tick.bid.toFixed(5),
           ask: tick.ask.toFixed(5),
-          spread: ((tick.ask - tick.bid) * 10000).toFixed(1) + ' pips',
-          source: 'TradingView'
+          spread: tick.spread + ' pips',
+          source: tick.source
         });
         
         setCurrentPrice(tick.price);
         setTickData(tick);
       },
       onConnectionChange: (connected) => {
-        console.log(`📡 TradingView connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
+        console.log(`📡 Unified Market Data connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
         setIsConnected(connected);
       },
       onError: (error) => {
-        console.error('❌ TradingView error:', error);
+        console.error('❌ Unified Market Data error:', error);
         setIsConnected(false);
       }
     });
