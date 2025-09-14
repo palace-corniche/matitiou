@@ -5,6 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
+import { ApiHealthMonitor } from '@/components/ApiHealthMonitor';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -261,6 +262,11 @@ export default function FundamentalAnalysisPage() {
 
   return (
     <div className="container mx-auto p-6">
+      {/* API Health Monitor */}
+      <div className="mb-6">
+        <ApiHealthMonitor refreshInterval={30000} />
+      </div>
+      
       <div className="mb-6">
         <div className="flex items-center justify-between">
           <div>

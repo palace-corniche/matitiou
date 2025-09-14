@@ -1,4 +1,5 @@
 import { supabase } from '@/integrations/supabase/client';
+import { multiApiManager } from './multiApiManager';
 
 export interface FundamentalNewsItem {
   id: string;
@@ -96,10 +97,10 @@ class RealTimeFundamentalDataService {
         thisMonth: new Date(now.getFullYear(), now.getMonth(), 1)
       };
 
-      // Fetch real data from multiple sources in parallel
+      // Use Multi-API Manager for maximum reliability
       const [newsData, economicData] = await Promise.all([
-        this.fetchRealTimeNews(currencies, timeRanges),
-        this.fetchRealTimeEconomicEvents(currencies, timeRanges)
+        this.fetchMultiApiNews(currencies, timeRanges),
+        this.fetchMultiApiEconomicEvents(currencies, timeRanges)
       ]);
 
       const fundamentalData: FundamentalAnalysisData = {
@@ -139,15 +140,13 @@ class RealTimeFundamentalDataService {
     }
   }
 
-  private async fetchRealTimeNews(currencies: string[], timeRanges: any) {
+  private async fetchMultiApiNews(currencies: string[], timeRanges: any) {
     try {
-      // Fetch from Supabase news_events table and external APIs
-      const { data: dbNews } = await supabase
-        .from('news_events')
-        .select('*')
-        .gte('published_at', timeRanges.thisMonth.toISOString())
-        .order('published_at', { ascending: false })
-        .limit(100);
+      // Use Multi-API Manager for robust news fetching
+      const newsItems = await multiApiManager.getFinancialNews(currencies, {
+        from: timeRanges.thisMonth,
+        to: new Date()
+      });
 
       // Transform and categorize by timeframe
       const categorizedNews = {
@@ -157,24 +156,51 @@ class RealTimeFundamentalDataService {
         thisMonth: [] as FundamentalNewsItem[]
       };
 
-      // Process real news data and supplement with live financial news
-      const liveNews = await this.fetchLiveFinancialNews(currencies);
-      
-      // Combine and categorize
-      [...(dbNews || []), ...liveNews].forEach(news => {
-        const publishedAt = new Date(news.published_at || news.publishedAt);
+      // Process news from multiple APIs
+      newsItems.forEach(news => {
+        const publishedAt = new Date(news.publishedAt);
         const transformedNews: FundamentalNewsItem = {
-          id: news.id || `news_${Date.now()}_${Math.random()}`,
+          id: news.id,
           title: news.title,
-          summary: news.summary || news.description || '',
-          source: news.source || 'Financial News',
+          summary: news.summary,
+          source: news.source,
+          publishedAt: news.publishedAt,
+          url: news.url,
+          sentiment: news.sentiment,
+          impact: news.impact,
+          currencies: news.currencies,
+          relevanceScore: this.calculateRelevance(news.title, currencies),
+          tags: this.extractTags(news.title + ' ' + news.summary),
+          timeframe: this.categorizeTimeframe(publishedAt, timeRanges)
+        };
+
+        const timeframe = transformedNews.timeframe;
+        categorizedNews[timeframe].push(transformedNews);
+      });
+
+      // Also fetch from Supabase as backup
+      const { data: dbNews } = await supabase
+        .from('news_events')
+        .select('*')
+        .gte('published_at', timeRanges.thisMonth.toISOString())
+        .order('published_at', { ascending: false })
+        .limit(50);
+
+      // Add Supabase news to categorized news
+      (dbNews || []).forEach(news => {
+        const publishedAt = new Date(news.published_at);
+        const transformedNews: FundamentalNewsItem = {
+          id: news.id,
+          title: news.title,
+          summary: news.content || '',
+          source: news.source,
           publishedAt: publishedAt.toISOString(),
-          url: news.url || '',
-          sentiment: this.analyzeSentiment(news.title + ' ' + (news.summary || '')),
+          url: '',
+          sentiment: news.sentiment_score || 0,
           impact: this.classifyImpact(news.title, currencies),
           currencies: currencies,
-          relevanceScore: this.calculateRelevance(news.title, currencies),
-          tags: this.extractTags(news.title + ' ' + (news.summary || '')),
+          relevanceScore: news.relevance_score || 50,
+          tags: this.extractTags(news.title),
           timeframe: this.categorizeTimeframe(publishedAt, timeRanges)
         };
 
@@ -184,7 +210,7 @@ class RealTimeFundamentalDataService {
 
       return categorizedNews;
     } catch (error) {
-      console.error('Error fetching real-time news:', error);
+      console.error('Error fetching multi-API news:', error);
       return this.getEmptyNewsData();
     }
   }
@@ -219,18 +245,13 @@ class RealTimeFundamentalDataService {
     return currentEvents;
   }
 
-  private async fetchRealTimeEconomicEvents(currencies: string[], timeRanges: any) {
+  private async fetchMultiApiEconomicEvents(currencies: string[], timeRanges: any) {
     try {
-      // Fetch from Supabase economic_calendar table
-      const { data: dbEvents } = await supabase
-        .from('economic_calendar')
-        .select('*')
-        .gte('event_time', timeRanges.thisMonth.toISOString())
-        .order('event_time', { ascending: false })
-        .limit(50);
-
-      // Generate current economic events based on real calendar
-      const liveEvents = this.generateCurrentEconomicEvents(currencies, timeRanges);
+      // Use Multi-API Manager for robust economic data fetching
+      const economicEvents = await multiApiManager.getEconomicEvents(currencies, {
+        from: timeRanges.thisMonth,
+        to: new Date()
+      });
 
       // Transform and categorize
       const categorizedEvents = {
@@ -240,21 +261,53 @@ class RealTimeFundamentalDataService {
         thisMonth: [] as FundamentalEconomicEvent[]
       };
 
-      [...(dbEvents || []), ...liveEvents].forEach(event => {
-        const eventTime = new Date(event.event_time || event.time);
+      // Process events from multiple APIs
+      economicEvents.forEach(event => {
+        const eventTime = new Date(event.time);
         const transformedEvent: FundamentalEconomicEvent = {
-          id: event.id || `event_${Date.now()}_${Math.random()}`,
-          name: event.event || event.name,
-          country: event.country || this.getCountryFromCurrency(event.currency),
+          id: event.id,
+          name: event.name,
+          country: event.country,
           currency: event.currency,
-          importance: event.importance as 'high' | 'medium' | 'low',
+          importance: event.importance,
           actual: event.actual,
           forecast: event.forecast,
           previous: event.previous,
-          unit: event.unit || '%',
+          unit: event.unit,
+          time: event.time,
+          impact: event.impact,
+          surprise: this.calculateSurprise(event.actual, event.forecast),
+          timeframe: this.categorizeTimeframe(eventTime, timeRanges)
+        };
+
+        const timeframe = transformedEvent.timeframe;
+        categorizedEvents[timeframe].push(transformedEvent);
+      });
+
+      // Also fetch from Supabase as backup
+      const { data: dbEvents } = await supabase
+        .from('economic_calendar')
+        .select('*')
+        .gte('event_time', timeRanges.thisMonth.toISOString())
+        .order('event_time', { ascending: false })
+        .limit(30);
+
+      // Add Supabase events to categorized events
+      (dbEvents || []).forEach(event => {
+        const eventTime = new Date(event.event_time);
+        const transformedEvent: FundamentalEconomicEvent = {
+          id: event.id,
+          name: event.event_name,
+          country: this.getCountryFromCurrency(event.currency),
+          currency: event.currency,
+          importance: event.impact_level as 'high' | 'medium' | 'low',
+          actual: parseFloat(event.actual_value) || undefined,
+          forecast: parseFloat(event.forecast_value) || undefined,
+          previous: parseFloat(event.previous_value) || undefined,
+          unit: '%',
           time: eventTime.toISOString(),
           impact: this.calculateEventImpact(event),
-          surprise: this.calculateSurprise(event.actual, event.forecast),
+          surprise: this.calculateSurprise(parseFloat(event.actual_value), parseFloat(event.forecast_value)),
           timeframe: this.categorizeTimeframe(eventTime, timeRanges)
         };
 
@@ -264,7 +317,7 @@ class RealTimeFundamentalDataService {
 
       return categorizedEvents;
     } catch (error) {
-      console.error('Error fetching economic events:', error);
+      console.error('Error fetching multi-API economic events:', error);
       return this.getEmptyEventsData();
     }
   }
