@@ -37,6 +37,8 @@ import { PerformanceCharts } from './PerformanceCharts';
 import { LotSizeManager } from './LotSizeManager';
 import { AccountDefaultsManager } from './AccountDefaultsManager';
 import { PreflightMonitor } from './PreflightMonitor';
+import { IntelligenceWidgets } from './IntelligenceWidgets';
+import { IntelligencePositionSizer } from './IntelligencePositionSizer';
 import AccountSettingsDialog from '../AccountSettingsDialog';
 import DepositWithdrawDialog from '../DepositWithdrawDialog';
 
@@ -453,6 +455,19 @@ const TradingTerminal: React.FC = () => {
         {/* Left Sidebar - Market Watch & Account Info */}
         <div className="col-span-3 space-y-4">
           <AccountInfo portfolio={portfolio} />
+          
+          {/* Intelligence Position Sizer */}
+          {portfolio && (
+            <IntelligencePositionSizer 
+              symbol={selectedSymbol}
+              accountBalance={portfolio.balance}
+              baseRiskPercent={portfolio.risk_per_trade || 2}
+              onRecommendationChange={(rec) => {
+                console.log('Intelligence recommendation:', rec);
+              }}
+            />
+          )}
+          
           <RealTimePriceTicker 
             symbols={['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CHF']}
             onPriceUpdate={(tick) => {
@@ -499,8 +514,9 @@ const TradingTerminal: React.FC = () => {
         {/* Right Sidebar - Enhanced Panels */}
         <div className="col-span-3 space-y-4">
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-6">
               <TabsTrigger value="preflight">Preflight</TabsTrigger>
+              <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
               <TabsTrigger value="analytics">Analytics</TabsTrigger>
@@ -509,6 +525,14 @@ const TradingTerminal: React.FC = () => {
             
             <TabsContent value="preflight" className="mt-4">
               <PreflightMonitor />
+            </TabsContent>
+
+            <TabsContent value="intelligence" className="mt-4">
+              <IntelligenceWidgets 
+                symbol={selectedSymbol}
+                onSignalExecute={executeMarketOrder}
+                className="h-[400px] overflow-y-auto"
+              />
             </TabsContent>
 
             <TabsContent value="overview" className="mt-4">
