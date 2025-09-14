@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { KeyLevelsEngine, type KeyLevel, type ComputedLevels } from '../services/keyLevelsEngine';
+import { getForexData } from '../services/marketData';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -66,6 +68,7 @@ export default function TechnicalAnalysisPage() {
   const [signals, setSignals] = useState<TechnicalSignal[]>([]);
   const [indicatorResult, setIndicatorResult] = useState<IndicatorResult | null>(null);
   const [livePriceData, setLivePriceData] = useState<LivePriceData | null>(null);
+  const [keyLevels, setKeyLevels] = useState<ComputedLevels | null>(null);
   const [loading, setLoading] = useState(true);
   const [connected, setConnected] = useState(false);
   const [selectedTimeframe, setSelectedTimeframe] = useState('15m');
@@ -149,16 +152,12 @@ export default function TechnicalAnalysisPage() {
         .order('detected_at', { ascending: false })
         .limit(5);
 
-      // Fetch support/resistance levels
-      const { data: levelsData, error: levelsError } = await supabase
-        .from('support_resistance')
-        .select('*')
-        .eq('symbol', 'EUR/USD')
-        .eq('timeframe', selectedTimeframe)
-        .order('detected_at', { ascending: false })
-        .limit(5);
-
       if (modularError) throw modularError;
+      
+      // Compute real-time key levels from market data
+      const marketData = await getForexData(selectedTimeframe);
+      const computedLevels = KeyLevelsEngine.computeKeyLevels(marketData, selectedTimeframe);
+      setKeyLevels(computedLevels);
       
       // Transform and combine data
       const modularSignals = (modularData || []).map(signal => {
@@ -171,7 +170,7 @@ export default function TechnicalAnalysisPage() {
           intermediate_values: {
             ...baseValues,
             patterns: patternData || [],
-            supportResistance: levelsData || []
+            keyLevels: computedLevels
           }
         };
       });
@@ -716,7 +715,7 @@ export default function TechnicalAnalysisPage() {
         </div>
       )}
 
-      {/* ============= SUPPORT/RESISTANCE LEVELS ============= */}
+      {/* ============= REAL-TIME KEY LEVELS ============= */}
       <Tabs value={selectedTimeframe} onValueChange={setSelectedTimeframe}>
         <TabsList>
           <TabsTrigger value="1m">1M</TabsTrigger>
@@ -727,29 +726,159 @@ export default function TechnicalAnalysisPage() {
           <TabsTrigger value="1d">1D</TabsTrigger>
         </TabsList>
         <TabsContent value={selectedTimeframe}>
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Database Signals & Support/Resistance ({selectedTimeframe})
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {signals.length === 0 ? (
-                  <div className="p-8 text-center">
-                    <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-medium mb-2">No Technical Signals</h3>
-                    <p className="text-muted-foreground">
-                      No technical analysis signals found for {selectedTimeframe} timeframe.
-                    </p>
+          <div className="grid gap-6">
+            {/* Pivot Points */}
+            {keyLevels && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Classic Pivot Points ({selectedTimeframe})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 md:grid-cols-7 gap-4">
+                    <div className="text-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">R3</div>
+                      <div className="font-mono text-sm text-red-600">{keyLevels.r3.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">R2</div>
+                      <div className="font-mono text-sm text-red-600">{keyLevels.r2.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">R1</div>
+                      <div className="font-mono text-sm text-red-600">{keyLevels.r1.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">PP</div>
+                      <div className="font-mono text-sm font-semibold">{keyLevels.pivot_point.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">S1</div>
+                      <div className="font-mono text-sm text-green-600">{keyLevels.s1.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">S2</div>
+                      <div className="font-mono text-sm text-green-600">{keyLevels.s2.toFixed(5)}</div>
+                    </div>
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                      <div className="text-xs text-muted-foreground">S3</div>
+                      <div className="font-mono text-sm text-green-600">{keyLevels.s3.toFixed(5)}</div>
+                    </div>
                   </div>
-                ) : (
-                  signals.map(renderSignalCard)
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* Dynamic Support/Resistance Levels */}
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-600">
+                    <TrendingUp className="h-5 w-5" />
+                    Support Levels
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {keyLevels?.support.length === 0 ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No support levels detected
+                      </div>
+                    ) : (
+                      keyLevels?.support.map((level, index) => (
+                        <div key={level.id} className="flex items-center justify-between p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-mono font-semibold text-green-700 dark:text-green-400">
+                              {level.price.toFixed(5)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {level.touches} touches • {level.age_hours.toFixed(0)}h old
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-1">
+                              <div className={`w-2 h-2 rounded-full ${level.strength >= 8 ? 'bg-green-600' : level.strength >= 6 ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                              <span className="text-sm font-medium">{level.strength}/10</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {Math.abs(level.distance_from_current * 10000).toFixed(1)} pips
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-red-600">
+                    <TrendingDown className="h-5 w-5" />
+                    Resistance Levels
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {keyLevels?.resistance.length === 0 ? (
+                      <div className="p-4 text-center text-muted-foreground">
+                        No resistance levels detected
+                      </div>
+                    ) : (
+                      keyLevels?.resistance.map((level, index) => (
+                        <div key={level.id} className="flex items-center justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
+                          <div className="flex-1">
+                            <div className="font-mono font-semibold text-red-700 dark:text-red-400">
+                              {level.price.toFixed(5)}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {level.touches} touches • {level.age_hours.toFixed(0)}h old
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="flex items-center gap-1">
+                              <div className={`w-2 h-2 rounded-full ${level.strength >= 8 ? 'bg-red-600' : level.strength >= 6 ? 'bg-yellow-500' : 'bg-gray-400'}`} />
+                              <span className="text-sm font-medium">{level.strength}/10</span>
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {Math.abs(level.distance_from_current * 10000).toFixed(1)} pips
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Technical Signals */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Activity className="h-5 w-5" />
+                  Database Signals ({selectedTimeframe})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4">
+                  {signals.length === 0 ? (
+                    <div className="p-8 text-center">
+                      <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                      <h3 className="text-lg font-medium mb-2">No Technical Signals</h3>
+                      <p className="text-muted-foreground">
+                        No technical analysis signals found for {selectedTimeframe} timeframe.
+                      </p>
+                    </div>
+                  ) : (
+                    signals.map(renderSignalCard)
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
