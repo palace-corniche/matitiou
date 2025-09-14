@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Button } from '@/components/ui/button';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -11,259 +13,248 @@ import {
   Target,
   Clock,
   DollarSign,
-  Calendar
+  Calendar,
+  Activity,
+  Globe,
+  AlertTriangle,
+  Gauge
 } from 'lucide-react';
+import { realTimeFundamentalData, FundamentalAnalysisData } from '@/services/realTimeFundamentalData';
 
-interface FundamentalSignal {
-  id: string;
-  symbol: string;
-  timeframe: string;
-  signal_type: 'buy' | 'sell';
-  confidence: number;
-  strength: number;
-  trigger_price: number;
-  suggested_entry: number;
-  suggested_stop_loss: number;
-  suggested_take_profit: number;
-  trend_context: string;
-  volatility_regime: string;
-  created_at: string;
-  intermediate_values: any;
-  calculation_parameters: any;
-}
+type TimeframePeriod = 'lastHour' | 'today' | 'thisWeek' | 'thisMonth';
 
 export default function FundamentalAnalysisPage() {
-  const [signals, setSignals] = useState<FundamentalSignal[]>([]);
+  const [fundamentalData, setFundamentalData] = useState<FundamentalAnalysisData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [selectedPeriod, setSelectedPeriod] = useState('1d');
+  const [selectedPeriod, setSelectedPeriod] = useState<TimeframePeriod>('today');
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [selectedSymbol, setSelectedSymbol] = useState('EUR/USD');
 
   useEffect(() => {
-    fetchFundamentalSignals();
-  }, [selectedPeriod]);
+    fetchFundamentalData();
+  }, [selectedSymbol]);
 
-  const fetchFundamentalSignals = async () => {
+  useEffect(() => {
+    if (autoRefresh) {
+      const interval = setInterval(fetchFundamentalData, 60000); // Refresh every minute
+      return () => clearInterval(interval);
+    }
+  }, [autoRefresh, selectedSymbol]);
+
+  const fetchFundamentalData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch both modular signals and real data sources
-      const [signalsResult, newsResult, economicResult] = await Promise.all([
-        supabase
-          .from('modular_signals')
-          .select('*')
-          .eq('module_id', 'fundamental_analysis')
-          .order('created_at', { ascending: false })
-          .limit(15),
-        supabase
-          .from('news_events')
-          .select('*')
-          .order('published_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('economic_calendar')
-          .select('*')
-          .gte('event_time', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-          .order('event_time', { ascending: false })
-          .limit(10)
-      ]);
-
-      if (signalsResult.error) throw signalsResult.error;
-      
-      // Create enriched signals with real news and economic data
-      const enrichedSignals = (signalsResult.data || []).map(signal => ({
-        ...signal,
-        intermediate_values: {
-          ...(typeof signal.intermediate_values === 'object' && signal.intermediate_values !== null ? signal.intermediate_values : {}),
-          economic_events: economicResult.data?.slice(0, 3) || [],
-          news_events: newsResult.data?.slice(0, 3) || [],
-          sentiment_analysis: {
-            central_bank: 'Neutral',
-            inflation: 'Rising',
-            growth: 'Stable'
-          }
-        }
-      }));
-      
-      setSignals(enrichedSignals as FundamentalSignal[]);
+      const data = await realTimeFundamentalData.getFundamentalData(selectedSymbol);
+      setFundamentalData(data);
     } catch (error) {
-      console.error('Error fetching fundamental signals:', error);
+      console.error('Error fetching fundamental data:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const getSignalIcon = (signalType: string) => {
-    return signalType === 'buy' ? (
-      <TrendingUp className="h-4 w-4 text-green-500" />
-    ) : (
-      <TrendingDown className="h-4 w-4 text-red-500" />
-    );
+  const getSentimentColor = (sentiment: number) => {
+    if (sentiment > 25) return 'text-success';
+    if (sentiment < -25) return 'text-destructive';
+    return 'text-warning';
   };
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'bg-green-500';
-    if (confidence >= 0.6) return 'bg-yellow-500';
-    return 'bg-red-500';
+  const getSentimentBadgeVariant = (sentiment: number) => {
+    if (sentiment > 25) return 'default';
+    if (sentiment < -25) return 'destructive';
+    return 'secondary';
   };
 
-  const getSentimentColor = (sentiment: string) => {
-    if (sentiment.includes('hawkish') || sentiment.includes('bullish')) return 'text-green-600';
-    if (sentiment.includes('dovish') || sentiment.includes('bearish')) return 'text-red-600';
-    return 'text-gray-600';
+  const getImpactColor = (impact: string) => {
+    switch (impact) {
+      case 'high': return 'text-destructive';
+      case 'medium': return 'text-warning';
+      default: return 'text-muted-foreground';
+    }
   };
 
-  const renderEconomicEvents = (events: any[]) => {
-    if (!events || events.length === 0) return null;
+  const formatTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const time = new Date(timestamp);
+    const diffMinutes = Math.floor((now.getTime() - time.getTime()) / (1000 * 60));
+    
+    if (diffMinutes < 60) return `${diffMinutes}m ago`;
+    if (diffMinutes < 1440) return `${Math.floor(diffMinutes / 60)}h ago`;
+    return `${Math.floor(diffMinutes / 1440)}d ago`;
+  };
 
+  const renderPeriodData = () => {
+    if (!fundamentalData) return null;
+    
+    const currentData = fundamentalData[selectedPeriod];
+    
     return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Recent Economic Events</h4>
-        <div className="space-y-2">
-          {events.map((event, index) => (
-            <div key={index} className="p-3 bg-muted rounded-lg">
-              <div className="flex justify-between items-start mb-2">
-                <div className="font-medium text-sm">{event.event}</div>
-                <Badge 
-                  variant={event.importance === 'high' ? 'destructive' : 
-                          event.importance === 'medium' ? 'default' : 'secondary'}
-                >
-                  {event.importance}
-                </Badge>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-xs">
+      <div className="space-y-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
                 <div>
-                  <span className="text-muted-foreground">Actual:</span> {event.actual || 'N/A'}
+                  <p className="text-sm font-medium text-muted-foreground">Sentiment</p>
+                  <p className={`text-2xl font-bold ${getSentimentColor(currentData.sentiment)}`}>
+                    {currentData.sentiment > 0 ? '+' : ''}{currentData.sentiment.toFixed(0)}
+                  </p>
                 </div>
-                <div>
-                  <span className="text-muted-foreground">Forecast:</span> {event.forecast || 'N/A'}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Previous:</span> {event.previous || 'N/A'}
-                </div>
+                <Gauge className="h-8 w-8 text-muted-foreground" />
               </div>
-              <div className="text-xs text-muted-foreground mt-1">
-                {event.currency} • {new Date(event.time).toLocaleString()}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">News Items</p>
+                  <p className="text-2xl font-bold text-primary">{currentData.news.length}</p>
+                </div>
+                <Newspaper className="h-8 w-8 text-muted-foreground" />
               </div>
-            </div>
-          ))}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Economic Events</p>
+                  <p className="text-2xl font-bold text-primary">{currentData.events.length}</p>
+                </div>
+                <Calendar className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">High Impact</p>
+                  <p className="text-2xl font-bold text-destructive">
+                    {currentData.events.filter(e => e.importance === 'high').length}
+                  </p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* News and Events */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* News */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Newspaper className="h-5 w-5" />
+                Latest News
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-64">
+                <div className="space-y-3">
+                  {currentData.news.length > 0 ? (
+                    currentData.news.map((news, index) => (
+                      <div key={news.id} className="border rounded-lg p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <h4 className="font-medium text-sm line-clamp-2">{news.title}</h4>
+                          <Badge variant={news.impact === 'high' ? 'destructive' : news.impact === 'medium' ? 'default' : 'secondary'}>
+                            {news.impact}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground">
+                          <span>{news.source}</span>
+                          <span>{formatTimeAgo(news.publishedAt)}</span>
+                        </div>
+                        <div className="flex items-center gap-2 mt-2">
+                          <Badge variant={getSentimentBadgeVariant(news.sentiment)}>
+                            Sentiment: {news.sentiment > 0 ? '+' : ''}{news.sentiment.toFixed(0)}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No news for this period</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
+
+          {/* Economic Events */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Economic Events
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ScrollArea className="h-64">
+                <div className="space-y-3">
+                  {currentData.events.length > 0 ? (
+                    currentData.events.map((event, index) => (
+                      <div key={event.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <h4 className="font-medium text-sm">{event.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <Badge>{event.currency}</Badge>
+                            <Badge variant={event.importance === 'high' ? 'destructive' : event.importance === 'medium' ? 'default' : 'secondary'}>
+                              {event.importance}
+                            </Badge>
+                          </div>
+                        </div>
+                        {(event.actual !== null || event.forecast !== null || event.previous !== null) && (
+                          <div className="grid grid-cols-3 gap-2 text-xs mb-2">
+                            <div>
+                              <span className="text-muted-foreground">Actual:</span>
+                              <span className="ml-1 font-mono">{event.actual ?? 'TBD'}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Forecast:</span>
+                              <span className="ml-1 font-mono">{event.forecast ?? 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground">Previous:</span>
+                              <span className="ml-1 font-mono">{event.previous ?? 'N/A'}</span>
+                            </div>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs text-muted-foreground">{formatTimeAgo(event.time)}</span>
+                          {event.impact !== 0 && (
+                            <Badge variant={event.impact > 0 ? 'default' : 'destructive'}>
+                              Impact: {event.impact > 0 ? '+' : ''}{event.impact.toFixed(1)}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-center text-muted-foreground py-8">No events for this period</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </CardContent>
+          </Card>
         </div>
       </div>
     );
   };
 
-  const renderSentimentAnalysis = (sentimentData: any) => {
-    if (!sentimentData) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Sentiment Analysis</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Central Bank</div>
-            <div className={`text-lg font-bold ${getSentimentColor(sentimentData.central_bank || '')}`}>
-              {sentimentData.central_bank || 'Neutral'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Inflation Trend</div>
-            <div className={`text-lg font-bold ${getSentimentColor(sentimentData.inflation || '')}`}>
-              {sentimentData.inflation || 'Stable'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">GDP Growth</div>
-            <div className={`text-lg font-bold ${getSentimentColor(sentimentData.growth || '')}`}>
-              {sentimentData.growth || 'Stable'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderSignalCard = (signal: FundamentalSignal) => (
-    <Card key={signal.id} className="mb-4">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2">
-            {getSignalIcon(signal.signal_type)}
-            <CardTitle className="text-lg">
-              {signal.symbol} {signal.signal_type.toUpperCase()}
-            </CardTitle>
-            <Badge variant="outline">Fundamental</Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={getConfidenceColor(signal.confidence)}>
-              {(signal.confidence * 100).toFixed(0)}% Confidence
-            </Badge>
-            <Badge variant="secondary">
-              Strength: {signal.strength}/10
-            </Badge>
-          </div>
-        </div>
-        <CardDescription className="flex items-center gap-4 mt-2">
-          <span className="flex items-center gap-1">
-            <Target className="h-3 w-3" />
-            Entry: {signal.suggested_entry.toFixed(5)}
-          </span>
-          <span>SL: {signal.suggested_stop_loss.toFixed(5)}</span>
-          <span>TP: {signal.suggested_take_profit.toFixed(5)}</span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {new Date(signal.created_at).toLocaleTimeString()}
-          </span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <div className="text-sm text-muted-foreground">Context</div>
-            <Badge variant="outline">{signal.trend_context}</Badge>
-          </div>
-          <div>
-            <div className="text-sm text-muted-foreground">Growth Outlook</div>
-            <Badge variant="outline">{signal.volatility_regime}</Badge>
-          </div>
-        </div>
-
-        {signal.intermediate_values?.economic_events && 
-          renderEconomicEvents(signal.intermediate_values.economic_events)}
-
-        {signal.intermediate_values?.sentiment_analysis && 
-          renderSentimentAnalysis(signal.intermediate_values.sentiment_analysis)}
-
-        {signal.calculation_parameters && (
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Analysis Parameters</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">CB Sentiment:</span><br />
-                <span className={getSentimentColor(signal.calculation_parameters.central_bank_sentiment || '')}>
-                  {signal.calculation_parameters.central_bank_sentiment || 'N/A'}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Inflation:</span><br />
-                <span>{signal.calculation_parameters.inflation_trend || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">GDP:</span><br />
-                <span>{signal.calculation_parameters.gdp_growth || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Events:</span><br />
-                <span>{signal.calculation_parameters.event_count || 0}</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   if (loading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="text-center">Loading fundamental analysis...</div>
+        <div className="flex items-center justify-center min-h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          <span className="ml-2 text-muted-foreground">Loading real-time fundamental analysis...</span>
+        </div>
       </div>
     );
   }
@@ -271,39 +262,76 @@ export default function FundamentalAnalysisPage() {
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Building2 className="h-8 w-8" />
-          Fundamental Analysis
-        </h1>
-        <p className="text-muted-foreground">
-          Macroeconomic insights from economic releases, central bank policies, and fundamental data
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+              <Building2 className="h-8 w-8" />
+              Live Fundamental Analysis
+            </h1>
+            <p className="text-muted-foreground">
+              Real-time economic events, news sentiment, and market-moving fundamental data
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <select 
+              value={selectedSymbol} 
+              onChange={(e) => setSelectedSymbol(e.target.value)}
+              className="px-3 py-2 border border-input bg-background rounded-md text-sm"
+            >
+              <option value="EUR/USD">EUR/USD</option>
+              <option value="GBP/USD">GBP/USD</option>
+              <option value="USD/JPY">USD/JPY</option>
+              <option value="AUD/USD">AUD/USD</option>
+              <option value="USD/CAD">USD/CAD</option>
+            </select>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setAutoRefresh(!autoRefresh)}
+            >
+              <Activity className={`h-4 w-4 mr-2 ${autoRefresh ? 'animate-pulse' : ''}`} />
+              {autoRefresh ? 'Live' : 'Paused'}
+            </Button>
+          </div>
+        </div>
       </div>
 
-      <Tabs value={selectedPeriod} onValueChange={setSelectedPeriod} className="mb-6">
+      {fundamentalData && (
+        <div className="mb-6">
+          <Alert>
+            <Globe className="h-4 w-4" />
+            <AlertDescription>
+              <strong>Market Overview:</strong> Monitoring {selectedSymbol} fundamental factors across {
+                fundamentalData.today.news.length + fundamentalData.today.events.length
+              } data points. Overall sentiment: <span className={getSentimentColor(fundamentalData.today.sentiment)}>
+                {fundamentalData.today.sentiment > 0 ? 'Bullish' : fundamentalData.today.sentiment < 0 ? 'Bearish' : 'Neutral'}
+              </span>
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      <Tabs value={selectedPeriod} onValueChange={(value) => setSelectedPeriod(value as TimeframePeriod)} className="mb-6">
         <TabsList>
-          <TabsTrigger value="1h">Last Hour</TabsTrigger>
-          <TabsTrigger value="1d">Today</TabsTrigger>
-          <TabsTrigger value="1w">This Week</TabsTrigger>
-          <TabsTrigger value="1m">This Month</TabsTrigger>
+          <TabsTrigger value="lastHour">Last Hour</TabsTrigger>
+          <TabsTrigger value="today">Today</TabsTrigger>
+          <TabsTrigger value="thisWeek">This Week</TabsTrigger>
+          <TabsTrigger value="thisMonth">This Month</TabsTrigger>
         </TabsList>
+        
+        <TabsContent value="lastHour">
+          {renderPeriodData()}
+        </TabsContent>
+        <TabsContent value="today">
+          {renderPeriodData()}
+        </TabsContent>
+        <TabsContent value="thisWeek">
+          {renderPeriodData()}
+        </TabsContent>
+        <TabsContent value="thisMonth">
+          {renderPeriodData()}
+        </TabsContent>
       </Tabs>
-
-      <div className="grid gap-4">
-        {signals.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Newspaper className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Fundamental Signals</h3>
-              <p className="text-muted-foreground">
-                No fundamental analysis signals found for the selected period.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          signals.map(renderSignalCard)
-        )}
-      </div>
     </div>
   );
 }
