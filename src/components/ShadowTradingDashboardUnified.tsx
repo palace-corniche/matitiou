@@ -58,6 +58,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     closeTrade,
     resetPortfolio,
     refreshData,
+    resetClientSession,
     toggleAutoTrading,
     partialCloseTrade,
     setBreakEven,
@@ -134,11 +135,22 @@ const ShadowTradingDashboardUnified: React.FC = () => {
       <div className="flex items-center justify-center h-64">
         <div className="flex flex-col items-center space-y-4">
           <AlertCircle className="h-8 w-8 text-destructive" />
-          <p className="text-destructive">System Error: {error}</p>
-          <Button onClick={refreshData} variant="outline">
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Retry
-          </Button>
+          <p className="text-destructive text-center max-w-md">
+            System Error: {error}
+          </p>
+          <div className="flex space-x-2">
+            <Button onClick={refreshData} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Retry
+            </Button>
+            <Button onClick={resetClientSession} variant="destructive">
+              <AlertCircle className="h-4 w-4 mr-2" />
+              Reset Session
+            </Button>
+          </div>
+          <p className="text-muted-foreground text-sm text-center">
+            If the issue persists, try resetting your session to clear any stuck connections
+          </p>
         </div>
       </div>
     );

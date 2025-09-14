@@ -13,6 +13,10 @@ import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+// ============= TIMEOUT AND ERROR HANDLING CONSTANTS =============
+const REQUEST_TIMEOUT_MS = 15000; // 15 second timeout
+const MAX_RETRIES = 3;
+
 // ============= HOOK INTERFACE =============
 export interface UseShadowTradingUnified {
   // Core state
@@ -37,6 +41,7 @@ export interface UseShadowTradingUnified {
   closeTrade: (tradeId: string, lotSize?: number, reason?: string) => Promise<boolean>;
   resetPortfolio: () => Promise<boolean>;
   refreshData: () => Promise<void>;
+  resetClientSession: () => Promise<void>;
   
   // Auto trading
   isAutoTrading: boolean;
@@ -77,6 +82,16 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   const [isAutoTrading, setIsAutoTrading] = useState(true);
   
   const { toast } = useToast();
+
+  // ============= TIMEOUT UTILITY =============
+  const withTimeout = <T>(promise: Promise<T>, timeoutMs: number = REQUEST_TIMEOUT_MS): Promise<T> => {
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => 
+        setTimeout(() => reject(new Error(`Operation timed out after ${timeoutMs}ms`)), timeoutMs)
+      )
+    ]);
+  };
 
   // ============= CORE ACTIONS =============
   const executeTrade = useCallback(async (tradeData: TradeExecutionRequest): Promise<UnifiedShadowTrade | null> => {
@@ -234,23 +249,28 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   }, [openTrades]);
 
   const refreshData = useCallback(async (): Promise<void> => {
+    console.debug('🔄 Starting data refresh...');
+    
     try {
       const [
         portfolioData,
         openTradesData,
         historyData,
         metricsData
-      ] = await Promise.all([
+      ] = await withTimeout(Promise.all([
         unifiedShadowTradingEngine.refreshPortfolio(),
         unifiedShadowTradingEngine.getOpenTrades(),
         unifiedShadowTradingEngine.getTradeHistory(100),
         unifiedShadowTradingEngine.getPerformanceMetrics()
-      ]);
+      ]));
 
+      console.debug('✅ Data refresh completed successfully');
+      
       setPortfolio(portfolioData);
       setOpenTrades(openTradesData);
       setTradeHistory(historyData);
       setPerformanceMetrics(metricsData);
+      setError(null); // Clear any previous errors
       
       // Update auto trading state from portfolio
       if (portfolioData) {
@@ -265,10 +285,10 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
         }
       }
     } catch (error: any) {
-      setError(error.message);
       console.error('❌ Error refreshing data:', error);
+      setError(error.message || 'Failed to refresh data');
     }
-  }, [updateTradesPnLRealTime, currentPrice]);
+  }, [updateTradesPnLRealTime, currentPrice, withTimeout]);
 
   // ============= AUTO TRADING MANAGEMENT =============
   const toggleAutoTrading = useCallback(async (): Promise<void> => {
@@ -369,31 +389,92 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     return tradeHistory.filter(trade => trade.strategy_name === strategy);
   }, [tradeHistory]);
 
+  // ============= SESSION RESET FUNCTIONALITY =============
+  const resetClientSession = useCallback(async (): Promise<void> => {
+    console.debug('🔄 Resetting client session...');
+    
+    try {
+      // Reset all local state
+      setPortfolio(null);
+      setOpenTrades([]);
+      setTradeHistory([]);
+      setPerformanceMetrics({} as UnifiedPerformanceMetrics);
+      setError(null);
+      setIsLoading(true);
+      
+      // Disconnect market data
+      unifiedMarketData.disconnect();
+      
+      // Small delay to ensure cleanup
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Re-initialize everything
+      const portfolioData = await withTimeout(unifiedShadowTradingEngine.getOrCreatePortfolio());
+      
+      if (portfolioData) {
+        await refreshData();
+        console.debug('✅ Session reset completed successfully');
+        
+        toast({
+          title: "Session Reset",
+          description: "Client session has been reset and reconnected",
+        });
+      } else {
+        throw new Error('Failed to recreate portfolio after reset');
+      }
+    } catch (error: any) {
+      console.error('❌ Session reset failed:', error);
+      setError(`Session reset failed: ${error.message}`);
+      
+      toast({
+        title: "Reset Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [withTimeout, refreshData, toast]);
+
   // ============= INITIALIZATION =============
   useEffect(() => {
     const initializeEngine = async () => {
+      console.debug('🚀 Initializing Unified Shadow Trading System...');
       setIsLoading(true);
       setError(null);
       
       try {
-        // Initialize portfolio
-        const portfolioData = await unifiedShadowTradingEngine.getOrCreatePortfolio();
+        // Initialize portfolio with timeout
+        console.debug('📊 Creating/fetching portfolio...');
+        const portfolioData = await withTimeout(
+          unifiedShadowTradingEngine.getOrCreatePortfolio(),
+          REQUEST_TIMEOUT_MS
+        );
         
         if (portfolioData) {
+          console.debug('✅ Portfolio initialized, refreshing data...');
           await refreshData();
+          console.debug('✅ Unified Shadow Trading System initialized successfully');
         } else {
-          setError('Failed to initialize portfolio');
+          throw new Error('Failed to initialize portfolio - no data returned');
         }
       } catch (error: any) {
-        setError(error.message);
         console.error('❌ Failed to initialize unified shadow trading:', error);
+        setError(error.message || 'Initialization failed');
+        
+        // Don't leave user stuck - provide fallback
+        toast({
+          title: "Initialization Error",
+          description: "Click 'Reset Session' to try again",
+          variant: "destructive",
+        });
       } finally {
         setIsLoading(false);
       }
     };
 
     initializeEngine();
-  }, [refreshData]);
+  }, []); // Remove refreshData dependency to prevent loops
 
   // ============= UNIFIED MARKET DATA FEED =============
   useEffect(() => {
@@ -481,6 +562,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     closeTrade,
     resetPortfolio,
     refreshData,
+    resetClientSession,
     
     // Auto trading
     isAutoTrading,
