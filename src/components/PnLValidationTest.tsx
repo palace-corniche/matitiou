@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import { unifiedMarketData } from '@/services/unifiedMarketData';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import { Calculator, TrendingUp, TrendingDown, CheckCircle, AlertCircle } from 'lucide-react';
+import PnLCalculator from '@/services/pnlCalculator';
 
 export const PnLValidationTest: React.FC = () => {
   const {
@@ -28,19 +29,11 @@ export const PnLValidationTest: React.FC = () => {
     currentPrice: number,
     lotSize: number
   ) => {
-    let profitPips: number;
-    
-    if (tradeType === 'buy') {
-      profitPips = (currentPrice - entryPrice) * 10000;
-    } else {
-      profitPips = (entryPrice - currentPrice) * 10000;
-    }
-    
-    const pipValue = lotSize * 10; // $10 per pip for 1 lot
-    const pnl = (profitPips * pipValue) / 100;
+    const pips = PnLCalculator.calculatePips(tradeType, entryPrice, currentPrice);
+    const pnl = PnLCalculator.calculatePnL(tradeType, entryPrice, currentPrice, lotSize);
     
     return {
-      profitPips: parseFloat(profitPips.toFixed(1)),
+      profitPips: parseFloat(pips.toFixed(1)),
       pnl: parseFloat(pnl.toFixed(2))
     };
   };

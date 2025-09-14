@@ -16,6 +16,7 @@ import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import { PnLValidationTest } from '@/components/PnLValidationTest';
 import PnLValidationComponent from '@/components/PnLValidationComponent';
+import PnLCalculator from '@/services/pnlCalculator';
 import {
   Activity,
   TrendingUp,
@@ -482,12 +483,12 @@ const ShadowTradingDashboardUnified: React.FC = () => {
                           
                           <div className="text-right">
                             <div className={`text-lg font-bold ${
-                              (trade.unrealized_pnl || 0) >= 0 ? 'text-green-600' : 'text-red-600'
+                              (trade.unrealized_pnl || 0) >= 0 ? 'text-success' : 'text-destructive'
                             }`}>
-                              ${(trade.unrealized_pnl || 0).toFixed(2)}
+                              {PnLCalculator.formatPnL(trade.unrealized_pnl || 0)}
                             </div>
                             <div className="text-sm text-muted-foreground">
-                              {(trade.profit_pips || 0).toFixed(1)} pips
+                              {PnLCalculator.formatPips(trade.profit_pips || 0)} pips
                             </div>
                           </div>
                         </div>

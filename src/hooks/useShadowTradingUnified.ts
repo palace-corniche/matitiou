@@ -222,17 +222,17 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
         // SELL trades: use ask price (what you pay when buying back)
         const currentPrice = trade.trade_type === 'buy' ? tick.bid : tick.ask;
         
-        // Calculate pips correctly for EUR/USD
+        // Calculate pips correctly for EUR/USD (1 pip = 0.0001)
         let profitPips: number;
         if (trade.trade_type === 'buy') {
-          profitPips = (currentPrice - trade.entry_price) * 10000;
+          profitPips = (currentPrice - trade.entry_price) / 0.0001;
         } else {
-          profitPips = (trade.entry_price - currentPrice) * 10000;
+          profitPips = (trade.entry_price - currentPrice) / 0.0001;
         }
         
-        // Calculate PnL: For EUR/USD, 1 lot = $1000 per pip, 0.01 lot = $10 per pip
-        const pipValue = trade.lot_size * 1000; // $1000 per pip for 1 lot
-        const unrealizedPnL = (profitPips * pipValue) / 10000; // Convert pips to PnL
+        // Calculate PnL: For EUR/USD, pip value = lot_size * $10
+        // 1.0 lot = $10 per pip, 0.01 lot = $0.10 per pip
+        const unrealizedPnL = profitPips * trade.lot_size * 10;
         
         console.debug(`📊 PnL calculation for ${trade.symbol} ${trade.trade_type.toUpperCase()}:`, {
           tradeId: trade.id.substring(0, 8),
@@ -240,7 +240,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
           currentPrice: currentPrice.toFixed(5),
           lotSize: trade.lot_size,
           profitPips: profitPips.toFixed(1),
-          pipValue: pipValue,
+          pipValue: trade.lot_size * 10,
           unrealizedPnL: unrealizedPnL.toFixed(2)
         });
 

@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { CheckCircle, AlertTriangle, Calculator, RefreshCw } from 'lucide-react';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import { unifiedMarketData } from '@/services/unifiedMarketData';
+import PnLCalculator from '@/services/pnlCalculator';
 
 interface ValidationResult {
   tradeId: string;
@@ -38,24 +39,15 @@ export const PnLValidationComponent: React.FC = () => {
   const [isValidating, setIsValidating] = useState(false);
   const [lastValidation, setLastValidation] = useState<Date | null>(null);
 
-  // Manual PnL calculation for validation
+  // Manual PnL calculation for validation using centralized logic
   const calculateManualPnL = (
     tradeType: 'buy' | 'sell',
     entryPrice: number,
     currentPrice: number,
     lotSize: number
   ): { pips: number; pnl: number } => {
-    // Calculate pips correctly for EUR/USD
-    let pips: number;
-    if (tradeType === 'buy') {
-      pips = (currentPrice - entryPrice) * 10000;
-    } else {
-      pips = (entryPrice - currentPrice) * 10000;
-    }
-    
-    // Calculate PnL: For EUR/USD, 1 lot = $1000 per pip
-    const pipValue = lotSize * 1000;
-    const pnl = (pips * pipValue) / 10000;
+    const pips = PnLCalculator.calculatePips(tradeType, entryPrice, currentPrice);
+    const pnl = PnLCalculator.calculatePnL(tradeType, entryPrice, currentPrice, lotSize);
     
     return {
       pips: parseFloat(pips.toFixed(1)),
