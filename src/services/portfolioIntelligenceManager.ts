@@ -958,6 +958,24 @@ class PortfolioIntelligenceManager {
     };
     return periods[period];
   }
+
+  async optimizeAllocation(assets: { symbol: string; weight: number }[], constraints: { riskTolerance: number; expectedReturn: number }): Promise<{ symbol: string; optimizedWeight: number }[]> {
+    // Simulate portfolio optimization
+    const totalWeight = assets.reduce((sum, asset) => sum + asset.weight, 0);
+    
+    return assets.map(asset => ({
+      symbol: asset.symbol,
+      optimizedWeight: (asset.weight / totalWeight) + (Math.random() - 0.5) * 0.1
+    }));
+  }
+
+  async rebalancePortfolio(portfolioId: string, targetAllocations: { [symbol: string]: number }): Promise<void> {
+    // Simulate rebalancing
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Simulate portfolio update
+    console.log('Rebalancing portfolio:', portfolioId, targetAllocations);
+  }
 }
 
 export const portfolioIntelligenceManager = new PortfolioIntelligenceManager();
