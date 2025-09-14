@@ -47,6 +47,11 @@ All colors MUST be HSL.
     --chart-grid: 220 13% 91%;
     --volume-up: 174 62% 41%;
     --volume-down: 4 85% 63%;
+    
+    /* Intelligence dashboard colors */
+    --success: 142 76% 36%;
+    --warning: 45 93% 47%;
+    --info: 217 91% 60%;
 
     --sidebar-background: 0 0% 98%;
 
@@ -111,6 +116,11 @@ All colors MUST be HSL.
     --chart-grid: 217.2 32.6% 17.5%;
     --volume-up: 174 62% 48%;
     --volume-down: 4 85% 68%;
+    
+    /* Intelligence dashboard colors - dark mode */
+    --success: 142 84% 47%;
+    --warning: 45 93% 58%;
+    --info: 217 91% 70%;
   }
 }
 

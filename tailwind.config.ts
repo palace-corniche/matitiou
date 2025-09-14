@@ -69,7 +69,10 @@ export default {
 				'chart-bg': 'hsl(var(--chart-bg))',
 				'chart-grid': 'hsl(var(--chart-grid))',
 				'volume-up': 'hsl(var(--volume-up))',
-				'volume-down': 'hsl(var(--volume-down))'
+				'volume-down': 'hsl(var(--volume-down))',
+				success: 'hsl(var(--success))',
+				warning: 'hsl(var(--warning))',
+				info: 'hsl(var(--info))'
 			},
 			borderRadius: {
 				lg: 'var(--radius)',

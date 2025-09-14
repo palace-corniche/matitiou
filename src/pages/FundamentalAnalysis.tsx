@@ -21,11 +21,18 @@ import {
   Gauge
 } from 'lucide-react';
 import { realTimeFundamentalData, FundamentalAnalysisData } from '@/services/realTimeFundamentalData';
+import { marketIntelligenceEngine, MarketIntelligence } from '@/services/marketIntelligenceEngine';
+import { MarketRegimeIndicator } from '@/components/MarketRegimeIndicator';
+import { SentimentGauge } from '@/components/SentimentGauge';
+import { EconomicSurpriseTracker } from '@/components/EconomicSurpriseTracker';
+import { CorrelationMatrix } from '@/components/CorrelationMatrix';
+import { CentralBankTracker } from '@/components/CentralBankTracker';
 
 type TimeframePeriod = 'lastHour' | 'today' | 'thisWeek' | 'thisMonth';
 
 export default function FundamentalAnalysisPage() {
   const [fundamentalData, setFundamentalData] = useState<FundamentalAnalysisData | null>(null);
+  const [marketIntelligence, setMarketIntelligence] = useState<MarketIntelligence | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState<TimeframePeriod>('today');
   const [autoRefresh, setAutoRefresh] = useState(true);
@@ -45,10 +52,14 @@ export default function FundamentalAnalysisPage() {
   const fetchFundamentalData = async () => {
     try {
       setLoading(true);
-      const data = await realTimeFundamentalData.getFundamentalData(selectedSymbol);
-      setFundamentalData(data);
+      const [fundamentalDataResult, intelligenceResult] = await Promise.all([
+        realTimeFundamentalData.getFundamentalData(selectedSymbol),
+        marketIntelligenceEngine.getMarketIntelligence(selectedSymbol)
+      ]);
+      setFundamentalData(fundamentalDataResult);
+      setMarketIntelligence(intelligenceResult);
     } catch (error) {
-      console.error('Error fetching fundamental data:', error);
+      console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
@@ -266,6 +277,21 @@ export default function FundamentalAnalysisPage() {
       <div className="mb-6">
         <ApiHealthMonitor refreshInterval={30000} />
       </div>
+
+      {/* Market Intelligence Dashboard */}
+      {marketIntelligence && (
+        <div className="mb-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <MarketRegimeIndicator regime={marketIntelligence.regime} />
+            <SentimentGauge sentiment={marketIntelligence.sentiment} />
+            <EconomicSurpriseTracker surprises={marketIntelligence.surprises} />
+            <div className="md:col-span-2">
+              <CorrelationMatrix correlations={marketIntelligence.correlations} />
+            </div>
+            <CentralBankTracker signals={marketIntelligence.centralBankSignals} />
+          </div>
+        </div>
+      )}
       
       <div className="mb-6">
         <div className="flex items-center justify-between">
