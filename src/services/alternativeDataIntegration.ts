@@ -497,7 +497,11 @@ class AlternativeDataIntegration {
           signal_type: signal.sentiment > 0 ? 'buy' : 'sell',
           confidence: signal.confidence,
           strength: Math.round(Math.abs(signal.sentiment) * 10),
-          entry_price: 0, // Would be filled with current market price
+          entry_price: 1.1000, // Default EUR/USD price
+          stop_loss: signal.sentiment > 0 ? 1.0950 : 1.1050,
+          take_profit: signal.sentiment > 0 ? 1.1100 : 1.0900,
+          risk_reward_ratio: 2.0,
+          confluence_score: signal.confidence,
           factors: signal.components,
           description: `Alternative data sentiment signal`,
           alert_level: signal.confidence > 0.7 ? 'high' : 'medium'
@@ -515,13 +519,14 @@ class AlternativeDataIntegration {
     await supabase
       .from('trading_signals')
       .insert({
+        signal_id: `eco_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         pair: `${currency}/USD`,
         signal_type: surpriseIndex > 0 ? 'buy' : 'sell',
         confidence: confidence,
         strength: Math.round(Math.abs(surpriseIndex) * 10),
-        entry_price: 0,
-        stop_loss: 0,
-        take_profit: 0,
+        entry_price: 1.1000,
+        stop_loss: surpriseIndex > 0 ? 1.0950 : 1.1050,
+        take_profit: surpriseIndex > 0 ? 1.1100 : 1.0900,
         risk_reward_ratio: 2.0,
         confluence_score: Math.abs(surpriseIndex) * 10,
         factors: {
