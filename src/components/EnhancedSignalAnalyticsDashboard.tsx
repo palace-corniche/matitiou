@@ -265,7 +265,7 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
         });
       }
 
-      setMasterSignals(mockMasterSignals);
+      setMasterSignals(realMasterSignals);
       setModuleAnalytics(realModuleAnalytics);
       setDiagnostics(realDiagnostics);
       setRejectionAnalysis(realRejectionAnalysis);

@@ -2,7 +2,7 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { SystemStatusButton } from '@/components/SystemStatusButton';
+// SystemStatusButton removed
 import { 
   BarChart3, 
   Target, 
@@ -151,7 +151,6 @@ const NavigationBar: React.FC = () => {
 
           {/* Status Indicators */}
           <div className="flex items-center gap-2">
-            <SystemStatusButton />
             <div className="flex items-center gap-1 text-bullish">
               <div className="w-2 h-2 bg-bullish rounded-full animate-pulse"></div>
               <span className="text-xs font-medium hidden sm:inline">Live</span>

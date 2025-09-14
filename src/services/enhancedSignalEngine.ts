@@ -21,7 +21,7 @@ import {
 } from './advancedIndicators';
 import { ConfluenceEngine, type ConfluenceSignal } from './confluenceEngine';
 import { newsAnalysisEngine } from './newsAnalysis';
-import { shadowTradingEngine } from './shadowTradingEngine';
+import { unifiedShadowTradingEngine } from './shadowTradingEngineUnified';
 
 export class EnhancedSignalEngine {
   private confluenceEngine = new ConfluenceEngine();
@@ -75,7 +75,16 @@ export class EnhancedSignalEngine {
         
         // Auto-execute in shadow trading system
         try {
-          shadowTradingEngine.executeSignal(signal, currentPrice);
+          if (signal.signal !== 'neutral') {
+            unifiedShadowTradingEngine.executeTrade({
+              symbol: signal.pair || 'EUR/USD',
+              trade_type: signal.signal,
+              lot_size: 0.01,
+              entry_price: currentPrice,
+              stop_loss: signal.stopLoss || currentPrice * (signal.signal === 'buy' ? 0.99 : 1.01),
+              take_profit: signal.takeProfit || currentPrice * (signal.signal === 'buy' ? 1.01 : 0.99)
+            });
+          }
         } catch (error) {
           console.warn('Shadow trading execution failed:', error);
         }

@@ -397,7 +397,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
 
   // ============= UNIFIED MARKET DATA FEED =============
   useEffect(() => {
-    console.log('🚀 Initializing Unified Market Data feed...');
+    // Initializing Unified Market Data feed
     
     // Get initial tick if available
     const initialTick = unifiedMarketData.getLastTick();

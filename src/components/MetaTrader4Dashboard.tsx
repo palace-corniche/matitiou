@@ -98,11 +98,11 @@ const MetaTrader4Dashboard: React.FC = () => {
       onTick: (tick) => {
         setCurrentPrice(tick.price);
         setTickData(tick);
-        console.log(`📊 MetaTrader4 price update: ${tick.price.toFixed(5)} from ${tick.source}`);
+        // Price update received
       },
       onConnectionChange: (connected) => {
         setIsConnected(connected);
-        console.log(`📡 MetaTrader4 market data: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
+        // Market data connection status updated
       },
       onError: (error) => {
         console.error('❌ MetaTrader4 market data error:', error);
@@ -172,7 +172,7 @@ const MetaTrader4Dashboard: React.FC = () => {
       // Refresh portfolio to get updated equity
       await loadPortfolio();
       
-      console.log(`📊 MetaTrader4 PnL updated for ${updatedTrades.length} trades`);
+      // PnL updated for trades
     } catch (error) {
       console.error('Error updating P&L:', error);
     }
@@ -271,7 +271,7 @@ const MetaTrader4Dashboard: React.FC = () => {
 
       // If no portfolio found, create one
       if (!data) {
-        console.log('No portfolio found, creating default portfolio...');
+        // Creating default portfolio
         const newPortfolio = await createDefaultPortfolio(sessionId);
         setPortfolio(newPortfolio);
         toast.success('Welcome! A new trading portfolio has been created for you.');

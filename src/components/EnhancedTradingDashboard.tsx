@@ -93,23 +93,8 @@ const EnhancedTradingDashboard: React.FC = () => {
 
         setOpenTrades(trades || []);
 
-        // Generate edge analysis for each trade (mock data - in production this would come from the enhanced edge engine)
-        const edgeData: Record<string, EdgeComponents> = {};
-        trades?.forEach(trade => {
-          edgeData[trade.id] = {
-            baseEdge: 0.0015 + Math.random() * 0.001,
-            executionCosts: 0.0003,
-            slippageCosts: 0.0001 + Math.random() * 0.0001,
-            microstructureCosts: 0.0002,
-            opportunityCosts: 0.00005,
-            regimeAdjustment: (Math.random() - 0.5) * 0.0005,
-            volatilityAdjustment: (Math.random() - 0.5) * 0.0003,
-            liquidityAdjustment: (Math.random() - 0.5) * 0.0002,
-            timingPenalty: Math.random() * 0.0001,
-            netEdge: 0.0008 + (Math.random() - 0.5) * 0.0005
-          };
-        });
-        setEdgeAnalysis(edgeData);
+        // Edge analysis would come from enhanced edge engine - for now show placeholder
+        setEdgeAnalysis({});
       }
 
       // Mock execution quality data
@@ -125,30 +110,29 @@ const EnhancedTradingDashboard: React.FC = () => {
         ]
       });
 
-      // Mock market regime data
+      // Market regime and microstructure data would come from respective engines
       setMarketRegime({
-        type: ['trending', 'ranging', 'shock', 'news_driven'][Math.floor(Math.random() * 4)] as any,
-        strength: 0.6 + Math.random() * 0.4,
-        persistence: 0.7 + Math.random() * 0.3,
-        volatility: 0.5 + Math.random() * 0.3,
-        uncertainty: 0.3 + Math.random() * 0.4,
-        confidence: 0.75 + Math.random() * 0.2
+        type: 'trending',
+        strength: 0,
+        persistence: 0,
+        volatility: 0,
+        uncertainty: 0,
+        confidence: 0
       });
 
-      // Mock microstructure intelligence
       setMicrostructure({
-        orderFlowImbalance: (Math.random() - 0.5) * 2,
+        orderFlowImbalance: 0,
         liquidityMetrics: {
-          bidAskSpread: 0.8 + Math.random() * 0.4,
-          marketDepth: 70 + Math.random() * 30,
-          orderBookPressure: (Math.random() - 0.5) * 2
+          bidAskSpread: 0,
+          marketDepth: 0,
+          orderBookPressure: 0
         },
         sweepDetection: {
-          isSweepDetected: Math.random() > 0.7,
-          sweepDirection: Math.random() > 0.5 ? 'buy' : 'sell',
-          sweepStrength: Math.random()
+          isSweepDetected: false,
+          sweepDirection: 'buy',
+          sweepStrength: 0
         },
-        timingRecommendation: ['immediate', 'wait', 'avoid'][Math.floor(Math.random() * 3)] as any
+        timingRecommendation: 'wait'
       });
 
     } catch (error) {

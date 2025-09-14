@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { SimpleChart } from './SimpleChart';
+import { TradingChart } from './TradingChart';
 import TechnicalAnalysisPanel from './TechnicalAnalysisPanel';
 import SignalDashboard from './SignalDashboard';
 import { getForexData, getLiveTickData, getMarketStatus, CandleData, TickData } from '@/services/realMarketData';
@@ -264,14 +264,11 @@ export const LiveTradingDashboard = () => {
           <TabsContent value="charts" className="space-y-6">
             <div className="grid grid-cols-1 gap-6">
               {timeframes.map((tf) => (
-                <SimpleChart
+                <TradingChart
                   key={tf.key}
                   data={chartData[tf.key] || []}
                   timeframe={tf.key}
                   title={tf.title}
-                  isLoading={loading[tf.key] || false}
-                  currentPrice={getCurrentPrice(tf.key)}
-                  priceChange={getPriceChange(tf.key)}
                 />
               ))}
             </div>
