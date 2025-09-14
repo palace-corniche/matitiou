@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import { PnLValidationTest } from '@/components/PnLValidationTest';
+import {
   Activity,
   TrendingUp,
   TrendingDown,
