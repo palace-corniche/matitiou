@@ -435,14 +435,14 @@ export class AdvancedQuantEngine {
     }
     
     // Calculate Greeks
-    const gamma = this.normalPDF(d1) / (spot * volatility * Math.sqrt(timeToExpiry));
+    const gamma = this.normalPDF(d1, 0, 1) / (spot * volatility * Math.sqrt(timeToExpiry));
     const theta = optionType === 'call' ?
-      (-spot * this.normalPDF(d1) * volatility / (2 * Math.sqrt(timeToExpiry)) - 
+      (-spot * this.normalPDF(d1, 0, 1) * volatility / (2 * Math.sqrt(timeToExpiry)) - 
        riskFreeRate * strike * Math.exp(-riskFreeRate * timeToExpiry) * nd2) / 365 :
-      (-spot * this.normalPDF(d1) * volatility / (2 * Math.sqrt(timeToExpiry)) + 
+      (-spot * this.normalPDF(d1, 0, 1) * volatility / (2 * Math.sqrt(timeToExpiry)) + 
        riskFreeRate * strike * Math.exp(-riskFreeRate * timeToExpiry) * nMinusd2) / 365;
     
-    const vega = spot * this.normalPDF(d1) * Math.sqrt(timeToExpiry) / 100;
+    const vega = spot * this.normalPDF(d1, 0, 1) * Math.sqrt(timeToExpiry) / 100;
     const rho = optionType === 'call' ?
       strike * timeToExpiry * Math.exp(-riskFreeRate * timeToExpiry) * nd2 / 100 :
       -strike * timeToExpiry * Math.exp(-riskFreeRate * timeToExpiry) * nMinusd2 / 100;
@@ -577,13 +577,7 @@ export class AdvancedQuantEngine {
     const lows = marketData.map(d => d.low_price);
     const volumes = marketData.map(d => d.volume || 0);
     
-    // Technical indicators
-    const sma20 = new SMA(20);
-    const ema12 = new EMA(12);
-    const rsi = new RSI(14);
-    const macd = new MACD({ short: 12, long: 26, signal: 9 });
-    const atr = new ATR(14);
-    
+    // Simple technical analysis features instead of trading-signals library
     const technicalIndicators: number[] = [];
     const priceFeatures: number[] = [];
     const volumeFeatures: number[] = [];
@@ -592,31 +586,44 @@ export class AdvancedQuantEngine {
     const meanReversionFeatures: number[] = [];
     
     prices.forEach((price, i) => {
-      sma20.update(new Decimal(price));
-      ema12.update(new Decimal(price));
-      rsi.update(new Decimal(price));
-      
-      if (i > 0) {
-        const high = new Decimal(highs[i]);
-        const low = new Decimal(lows[i]);
-        const close = new Decimal(price);
-        atr.update(high, low, close);
-        macd.update(close);
+      // Calculate simple moving averages
+      if (i >= 19) {
+        const sma20 = prices.slice(i-19, i+1).reduce((a, b) => a + b, 0) / 20;
+        technicalIndicators.push(sma20);
       }
       
-      if (i >= 20) { // Wait for indicators to warm up
-        technicalIndicators.push(
-          sma20.getResult()?.toNumber() || 0,
-          ema12.getResult()?.toNumber() || 0,
-          rsi.getResult()?.toNumber() || 0,
-          atr.getResult()?.toNumber() || 0
+      if (i >= 11) {
+        const ema12 = this.calculateSimpleEMA(prices.slice(0, i+1), 12);
+        technicalIndicators.push(ema12);
+      }
+      
+      // Simple RSI calculation
+      if (i >= 14) {
+        const rsi = this.calculateSimpleRSI(prices.slice(i-13, i+1));
+        technicalIndicators.push(rsi);
+      }
+      
+      // Simple volatility features
+      if (i >= 20 && volumes && volumes[i]) {
+        volatilityFeatures.push(
+          Math.log(price / prices[i-1]), // Log returns
+          (highs[i] - lows[i]) / price,  // High-low range
+          volumes[i] / (volumes.slice(Math.max(0, i-20), i).reduce((a, b) => a + b, 0) / Math.min(i, 20)) // Volume ratio
         );
+      }
+      
+      if (i >= 20) { // Wait for enough data
+        // Use the previously calculated values
+        const lastValues = technicalIndicators.slice(-3);
+        const smaValue = lastValues[0] || price;
+        const emaValue = lastValues[1] || price;
+        const rsiValue = lastValues[2] || 50;
         
         // Price features
         const returns = prices.slice(Math.max(0, i-10), i+1)
           .map((p, j, arr) => j > 0 ? (p - arr[j-1]) / arr[j-1] : 0);
         priceFeatures.push(
-          price / (sma20.getResult()?.toNumber() || price), // Price relative to MA
+          price / smaValue, // Price relative to MA
           Math.max(...returns), // Max return in window
           Math.min(...returns)  // Min return in window
         );
@@ -630,7 +637,6 @@ export class AdvancedQuantEngine {
         momentumFeatures.push(momentum);
         
         // Mean reversion features
-        const smaValue = sma20.getResult()?.toNumber() || price;
         const deviation = (price - smaValue) / smaValue;
         meanReversionFeatures.push(deviation);
       }
@@ -716,7 +722,7 @@ export class AdvancedQuantEngine {
         weights = this.calculateRiskParityWeights(covarianceMatrix);
         break;
       case 'black_litterman':
-        weights = await this.calculateBlackLittermanWeights(expectedReturns, covarianceMatrix);
+        weights = await this.calculateBlackLittermanWeights(expectedReturns.flat(), covarianceMatrix.flat());
         break;
       default:
         weights = this.calculateMeanVarianceWeights(expectedReturns, covarianceMatrix);
@@ -969,6 +975,39 @@ export class AdvancedQuantEngine {
       .limit(200);
     
     return data || [];
+  }
+
+  private calculateSimpleEMA(prices: number[], period: number): number {
+    if (prices.length === 0) return 0;
+    const k = 2 / (period + 1);
+    let ema = prices[0];
+    for (let i = 1; i < prices.length; i++) {
+      ema = prices[i] * k + ema * (1 - k);
+    }
+    return ema;
+  }
+
+  private calculateSimpleRSI(prices: number[]): number {
+    if (prices.length < 2) return 50;
+    
+    let gains = 0;
+    let losses = 0;
+    
+    for (let i = 1; i < prices.length; i++) {
+      const change = prices[i] - prices[i - 1];
+      if (change > 0) {
+        gains += change;
+      } else {
+        losses += Math.abs(change);
+      }
+    }
+    
+    const avgGain = gains / (prices.length - 1);
+    const avgLoss = losses / (prices.length - 1);
+    
+    if (avgLoss === 0) return 100;
+    const rs = avgGain / avgLoss;
+    return 100 - (100 / (1 + rs));
   }
 
   // === SAVE ADVANCED ANALYSIS ===
