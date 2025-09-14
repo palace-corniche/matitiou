@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { KeyLevelsEngine, type KeyLevel, type ComputedLevels } from '../services/keyLevelsEngine';
-import { getForexData } from '../services/marketData';
+// Removed - using unifiedMarketData instead
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -155,7 +155,7 @@ export default function TechnicalAnalysisPage() {
       if (modularError) throw modularError;
       
       // Compute real-time key levels from market data
-      const marketData = await getForexData(selectedTimeframe);
+      const marketData = await unifiedMarketData.getForexData(selectedTimeframe);
       const computedLevels = KeyLevelsEngine.computeKeyLevels(marketData, selectedTimeframe);
       setKeyLevels(computedLevels);
       
@@ -398,35 +398,54 @@ export default function TechnicalAnalysisPage() {
           </div>
         )}
 
-        {/* Display Support/Resistance Levels - Enhanced */}
-        {signal.intermediate_values?.supportResistance && signal.intermediate_values.supportResistance.length > 0 && (
+        {/* Display Computed Key Levels */}
+        {signal.intermediate_values?.keyLevels && (
           <div className="mt-4">
-            <h4 className="text-sm font-medium mb-2">Key Levels</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
-              {signal.intermediate_values.supportResistance.map((level: any, index: number) => {
-                const currentPrice = livePriceData?.price || signal.trigger_price;
-                const distance = Math.abs(currentPrice - (level.level_price || 0));
-                const distancePips = (distance * 10000).toFixed(1);
+            <h4 className="text-sm font-medium mb-2">Live Key Levels</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+              {/* Support Levels */}
+              {signal.intermediate_values.keyLevels.support?.slice(0, 3).map((level: KeyLevel, index: number) => {
+                const distancePips = (level.distance_from_current * 10000).toFixed(1);
                 
                 return (
-                  <div key={index} className={`p-3 rounded-lg text-sm border-l-4 ${
-                    level.level_type === 'support' 
-                      ? 'bg-green-50 border-green-500 text-green-700' 
-                      : 'bg-red-50 border-red-500 text-red-700'
-                  }`}>
+                  <div key={`support-${index}`} className="p-3 rounded-lg text-sm border-l-4 bg-green-50 border-green-500 text-green-700">
                     <div className="flex justify-between items-center mb-1">
-                      <div className="font-medium">{level.level_type?.toUpperCase() || 'LEVEL'}</div>
+                      <div className="font-medium">SUPPORT</div>
                       <Badge variant="outline" className="text-xs">
-                        {level.strength || 5}/10
+                        {level.strength}/10
                       </Badge>
                     </div>
                     <div className="font-mono text-base mb-1">
-                      {level.level_price?.toFixed(5) || 'N/A'}
+                      {level.price.toFixed(5)}
                     </div>
                     <div className="text-xs opacity-80 space-y-1">
                       <div>Distance: {distancePips} pips</div>
-                      {level.touches && <div>Touches: {level.touches}</div>}
-                      {level.age && <div>Age: {level.age}</div>}
+                      <div>Touches: {level.touches}</div>
+                      <div>Age: {level.age_hours.toFixed(0)}h</div>
+                    </div>
+                  </div>
+                );
+              })}
+              
+              {/* Resistance Levels */}
+              {signal.intermediate_values.keyLevels.resistance?.slice(0, 3).map((level: KeyLevel, index: number) => {
+                const distancePips = (level.distance_from_current * 10000).toFixed(1);
+                
+                return (
+                  <div key={`resistance-${index}`} className="p-3 rounded-lg text-sm border-l-4 bg-red-50 border-red-500 text-red-700">
+                    <div className="flex justify-between items-center mb-1">
+                      <div className="font-medium">RESISTANCE</div>
+                      <Badge variant="outline" className="text-xs">
+                        {level.strength}/10
+                      </Badge>
+                    </div>
+                    <div className="font-mono text-base mb-1">
+                      {level.price.toFixed(5)}
+                    </div>
+                    <div className="text-xs opacity-80 space-y-1">
+                      <div>Distance: {distancePips} pips</div>
+                      <div>Touches: {level.touches}</div>
+                      <div>Age: {level.age_hours.toFixed(0)}h</div>
                     </div>
                   </div>
                 );

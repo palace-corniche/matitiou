@@ -1,4 +1,4 @@
-import { CandleData } from './marketData';
+import { CandleData } from './unifiedMarketData';
 
 export interface KeyLevel {
   id: string;
