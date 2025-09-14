@@ -277,6 +277,51 @@ export type Database = {
           },
         ]
       }
+      automated_trading_rules: {
+        Row: {
+          confidence_threshold: number | null
+          created_at: string | null
+          execution_parameters: Json
+          id: string
+          is_active: boolean | null
+          max_position_size: number | null
+          portfolio_id: string
+          rule_name: string
+          rule_type: string
+          stop_loss_percent: number | null
+          take_profit_percent: number | null
+          trigger_conditions: Json
+        }
+        Insert: {
+          confidence_threshold?: number | null
+          created_at?: string | null
+          execution_parameters: Json
+          id?: string
+          is_active?: boolean | null
+          max_position_size?: number | null
+          portfolio_id: string
+          rule_name: string
+          rule_type: string
+          stop_loss_percent?: number | null
+          take_profit_percent?: number | null
+          trigger_conditions: Json
+        }
+        Update: {
+          confidence_threshold?: number | null
+          created_at?: string | null
+          execution_parameters?: Json
+          id?: string
+          is_active?: boolean | null
+          max_position_size?: number | null
+          portfolio_id?: string
+          rule_name?: string
+          rule_type?: string
+          stop_loss_percent?: number | null
+          take_profit_percent?: number | null
+          trigger_conditions?: Json
+        }
+        Relationships: []
+      }
       calibration_audit: {
         Row: {
           action: string
@@ -761,6 +806,108 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      intelligence_backtests: {
+        Row: {
+          avg_trade_duration: unknown | null
+          created_at: string | null
+          detailed_results: Json | null
+          end_date: string
+          id: string
+          intelligence_config: Json
+          max_drawdown: number
+          sharpe_ratio: number
+          start_date: string
+          symbol: string
+          test_name: string
+          timeframe: string
+          total_return: number
+          total_trades: number
+          win_rate: number
+          winning_trades: number
+        }
+        Insert: {
+          avg_trade_duration?: unknown | null
+          created_at?: string | null
+          detailed_results?: Json | null
+          end_date: string
+          id?: string
+          intelligence_config: Json
+          max_drawdown: number
+          sharpe_ratio: number
+          start_date: string
+          symbol: string
+          test_name: string
+          timeframe: string
+          total_return: number
+          total_trades: number
+          win_rate: number
+          winning_trades: number
+        }
+        Update: {
+          avg_trade_duration?: unknown | null
+          created_at?: string | null
+          detailed_results?: Json | null
+          end_date?: string
+          id?: string
+          intelligence_config?: Json
+          max_drawdown?: number
+          sharpe_ratio?: number
+          start_date?: string
+          symbol?: string
+          test_name?: string
+          timeframe?: string
+          total_return?: number
+          total_trades?: number
+          win_rate?: number
+          winning_trades?: number
+        }
+        Relationships: []
+      }
+      intelligence_performance: {
+        Row: {
+          actual_move_pips: number | null
+          actual_outcome: string | null
+          confidence_score: number
+          created_at: string | null
+          id: string
+          market_regime: string | null
+          predicted_direction: string
+          prediction_accuracy: number | null
+          signal_source: string
+          signal_timestamp: string
+          symbol: string
+          timeframe: string
+        }
+        Insert: {
+          actual_move_pips?: number | null
+          actual_outcome?: string | null
+          confidence_score: number
+          created_at?: string | null
+          id?: string
+          market_regime?: string | null
+          predicted_direction: string
+          prediction_accuracy?: number | null
+          signal_source: string
+          signal_timestamp: string
+          symbol?: string
+          timeframe?: string
+        }
+        Update: {
+          actual_move_pips?: number | null
+          actual_outcome?: string | null
+          confidence_score?: number
+          created_at?: string | null
+          id?: string
+          market_regime?: string | null
+          predicted_direction?: string
+          prediction_accuracy?: number | null
+          signal_source?: string
+          signal_timestamp?: string
+          symbol?: string
+          timeframe?: string
+        }
+        Relationships: []
       }
       lot_size_presets: {
         Row: {
@@ -1408,6 +1555,51 @@ export type Database = {
         }
         Relationships: []
       }
+      multi_timeframe_signals: {
+        Row: {
+          analysis_id: string
+          cascade_strength: number
+          confluence_score: number
+          created_at: string | null
+          divergence_detected: boolean | null
+          id: string
+          primary_timeframe: string
+          signal_data: Json
+          signal_type: string
+          symbol: string
+          timeframe_agreement_count: number
+          timeframes: string[]
+        }
+        Insert: {
+          analysis_id: string
+          cascade_strength: number
+          confluence_score: number
+          created_at?: string | null
+          divergence_detected?: boolean | null
+          id?: string
+          primary_timeframe: string
+          signal_data: Json
+          signal_type: string
+          symbol?: string
+          timeframe_agreement_count: number
+          timeframes: string[]
+        }
+        Update: {
+          analysis_id?: string
+          cascade_strength?: number
+          confluence_score?: number
+          created_at?: string | null
+          divergence_detected?: boolean | null
+          id?: string
+          primary_timeframe?: string
+          signal_data?: Json
+          signal_type?: string
+          symbol?: string
+          timeframe_agreement_count?: number
+          timeframes?: string[]
+        }
+        Relationships: []
+      }
       news_events: {
         Row: {
           category: string | null
@@ -1645,6 +1837,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      portfolio_allocations: {
+        Row: {
+          correlation_adjustment: number | null
+          created_at: string | null
+          currency_pair: string
+          current_allocation_percent: number
+          id: string
+          intelligence_confidence: number
+          last_rebalance: string | null
+          portfolio_id: string
+          regime_based_scaling: number | null
+          risk_budget_allocated: number
+          target_allocation_percent: number
+        }
+        Insert: {
+          correlation_adjustment?: number | null
+          created_at?: string | null
+          currency_pair: string
+          current_allocation_percent: number
+          id?: string
+          intelligence_confidence: number
+          last_rebalance?: string | null
+          portfolio_id: string
+          regime_based_scaling?: number | null
+          risk_budget_allocated: number
+          target_allocation_percent: number
+        }
+        Update: {
+          correlation_adjustment?: number | null
+          created_at?: string | null
+          currency_pair?: string
+          current_allocation_percent?: number
+          id?: string
+          intelligence_confidence?: number
+          last_rebalance?: string | null
+          portfolio_id?: string
+          regime_based_scaling?: number | null
+          risk_budget_allocated?: number
+          target_allocation_percent?: number
+        }
+        Relationships: []
       }
       position_correlations: {
         Row: {
