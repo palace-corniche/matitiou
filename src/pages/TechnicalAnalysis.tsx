@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { 
   TrendingUp, 
@@ -10,7 +11,9 @@ import {
   Activity, 
   BarChart3, 
   Target,
-  Clock
+  Clock,
+  Zap,
+  ExternalLink
 } from 'lucide-react';
 
 interface TechnicalSignal {
@@ -35,6 +38,7 @@ export default function TechnicalAnalysisPage() {
   const [signals, setSignals] = useState<TechnicalSignal[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTimeframe, setSelectedTimeframe] = useState('15m');
+  const [showEnhancedVersion, setShowEnhancedVersion] = useState(false);
 
   useEffect(() => {
     fetchTechnicalSignals();
@@ -283,16 +287,51 @@ export default function TechnicalAnalysisPage() {
     );
   }
 
+  // Handle enhanced version redirect
+  if (showEnhancedVersion) {
+    window.location.href = '/technical-analysis-enhanced';
+    return null;
+  }
+
   return (
     <div className="container mx-auto p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <BarChart3 className="h-8 w-8" />
-          Technical Analysis
-        </h1>
-        <p className="text-muted-foreground">
-          Raw technical insights from RSI, MACD, moving averages, and support/resistance levels
-        </p>
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
+              <BarChart3 className="h-8 w-8" />
+              Technical Analysis
+            </h1>
+            <p className="text-muted-foreground">
+              Raw technical insights from RSI, MACD, moving averages, and support/resistance levels
+            </p>
+          </div>
+          
+          {/* Enhanced Version CTA */}
+          <Card className="w-80">
+            <CardContent className="p-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-primary/10 rounded-lg">
+                  <Zap className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="font-semibold text-sm mb-1">Enhanced Analysis Available</h3>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Access 120+ real-time indicators, live charts, and advanced pattern detection
+                  </p>
+                  <Button 
+                    size="sm" 
+                    onClick={() => setShowEnhancedVersion(true)}
+                    className="w-full flex items-center gap-1"
+                  >
+                    <ExternalLink className="h-3 w-3" />
+                    Open Enhanced Version
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <Tabs value={selectedTimeframe} onValueChange={setSelectedTimeframe} className="mb-6">
