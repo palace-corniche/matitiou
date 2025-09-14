@@ -12,6 +12,7 @@ import {
 import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { PnLCalculator } from '@/services/pnlCalculator';
 
 // ============= TIMEOUT AND ERROR HANDLING CONSTANTS =============
 const REQUEST_TIMEOUT_MS = 15000; // 15 second timeout
@@ -203,7 +204,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     }
   }, [toast]);
 
-  // ============= CORRECT REAL-TIME PnL CALCULATION =============
+  // ============= CENTRALIZED PnL CALCULATION USING PnLCalculator =============
   const updateTradesPnLRealTime = useCallback((tick: UnifiedTick) => {
     console.debug('🔄 Updating PnL for trades:', { 
       tradesCount: openTrades.length,
@@ -217,38 +218,25 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
         // Only update open trades, never closed ones
         if (trade.status !== 'open') return trade;
 
-        // Use correct bid/ask pricing for PnL calculation
-        // BUY trades: use bid price (what you get when selling)
-        // SELL trades: use ask price (what you pay when buying back)
-        const currentPrice = trade.trade_type === 'buy' ? tick.bid : tick.ask;
-        
-        // Calculate pips correctly for EUR/USD (1 pip = 0.0001)
-        let profitPips: number;
-        if (trade.trade_type === 'buy') {
-          profitPips = (currentPrice - trade.entry_price) / 0.0001;
-        } else {
-          profitPips = (trade.entry_price - currentPrice) / 0.0001;
-        }
-        
-        // Calculate PnL: For EUR/USD, pip value = lot_size * $10
-        // 1.0 lot = $10 per pip, 0.01 lot = $0.10 per pip
-        const unrealizedPnL = profitPips * trade.lot_size * 10;
+        // Use centralized PnLCalculator for consistent calculations
+        const pnlResult = PnLCalculator.calculateTradeResult(trade, tick);
+        const currentPrice = PnLCalculator.getCurrentPrice(trade.trade_type as 'buy' | 'sell', tick);
         
         console.debug(`📊 PnL calculation for ${trade.symbol} ${trade.trade_type.toUpperCase()}:`, {
           tradeId: trade.id.substring(0, 8),
           entryPrice: trade.entry_price.toFixed(5),
           currentPrice: currentPrice.toFixed(5),
           lotSize: trade.lot_size,
-          profitPips: profitPips.toFixed(1),
-          pipValue: trade.lot_size * 10,
-          unrealizedPnL: unrealizedPnL.toFixed(2)
+          profitPips: pnlResult.pips.toFixed(1),
+          pipValue: pnlResult.pipValue,
+          unrealizedPnL: pnlResult.pnl.toFixed(2)
         });
 
         return {
           ...trade,
           current_price: currentPrice,
-          profit_pips: parseFloat(profitPips.toFixed(1)),
-          unrealized_pnl: parseFloat(unrealizedPnL.toFixed(2)),
+          profit_pips: parseFloat(pnlResult.pips.toFixed(1)),
+          unrealized_pnl: parseFloat(pnlResult.pnl.toFixed(2)),
           updated_at: new Date().toISOString()
         };
       })
