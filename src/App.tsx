@@ -11,7 +11,6 @@ import EnhancedTrading from "./pages/EnhancedTrading";
 import SystemMonitor from "./pages/SystemMonitor";
 import NotFound from "./pages/NotFound";
 import TechnicalAnalysis from "./pages/TechnicalAnalysis";
-import TechnicalAnalysisEnhanced from "./pages/TechnicalAnalysisEnhanced";
 import FundamentalAnalysis from "./pages/FundamentalAnalysis";
 import SentimentAnalysis from "./pages/SentimentAnalysis";
 import QuantitativeAnalysis from "./pages/QuantitativeAnalysis";
@@ -37,7 +36,6 @@ const App = () => (
           <Route path="/metatrader4" element={<div className="min-h-screen bg-background"><NavigationBar /><MetaTrader4Dashboard /></div>} />
           <Route path="/system-monitor" element={<SystemMonitor />} />
           <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
-          <Route path="/technical-analysis-enhanced" element={<TechnicalAnalysisEnhanced />} />
           <Route path="/fundamental-analysis" element={<FundamentalAnalysis />} />
           <Route path="/sentiment-analysis" element={<SentimentAnalysis />} />
           <Route path="/quantitative-analysis" element={<QuantitativeAnalysis />} />
