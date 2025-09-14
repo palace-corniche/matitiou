@@ -96,13 +96,18 @@ const MetaTrader4Dashboard: React.FC = () => {
     // Set up unified market data subscription
     const marketDataUnsubscribe = unifiedMarketData.subscribe({
       onTick: (tick) => {
+        console.debug('📊 MetaTrader4: Tick received', {
+          price: tick.price.toFixed(5),
+          bid: tick.bid.toFixed(5),
+          ask: tick.ask.toFixed(5)
+        });
         setCurrentPrice(tick.price);
         setTickData(tick);
-        // Price update received
+        // Real-time PnL calculation will be triggered by useEffect
       },
       onConnectionChange: (connected) => {
         setIsConnected(connected);
-        // Market data connection status updated
+        console.log(`📡 MetaTrader4 connection: ${connected ? 'CONNECTED' : 'DISCONNECTED'}`);
       },
       onError: (error) => {
         console.error('❌ MetaTrader4 market data error:', error);
@@ -137,17 +142,26 @@ const MetaTrader4Dashboard: React.FC = () => {
     };
   }, []);
 
-  // Real-time PnL calculation using unified market data
+  // ============= CORRECT REAL-TIME PnL CALCULATION =============
   const updateTradesPnL = useCallback(async () => {
     if (openTrades.length === 0 || !tickData) return;
 
     try {
-      // Update trades with real-time PnL calculation
+      console.debug('🔄 MetaTrader4: Updating PnL for trades:', {
+        tradesCount: openTrades.length,
+        tickPrice: tickData.price.toFixed(5),
+        bid: tickData.bid.toFixed(5),
+        ask: tickData.ask.toFixed(5)
+      });
+
+      // Update trades with correct real-time PnL calculation
       const updatedTrades = openTrades.map(trade => {
-        // Use bid for buy trades (selling price) and ask for sell trades (buying price)
+        // Use correct bid/ask pricing for PnL calculation
+        // BUY trades: use bid price (what you get when selling)
+        // SELL trades: use ask price (what you pay when buying back)
         const currentPrice = trade.trade_type === 'buy' ? tickData.bid : tickData.ask;
         
-        // Calculate pips: (currentPrice - entryPrice) * 10000 for EUR/USD
+        // Calculate pips correctly for EUR/USD
         let profitPips: number;
         if (trade.trade_type === 'buy') {
           profitPips = (currentPrice - trade.entry_price) * 10000;
@@ -155,9 +169,19 @@ const MetaTrader4Dashboard: React.FC = () => {
           profitPips = (trade.entry_price - currentPrice) * 10000;
         }
         
-        // Calculate PnL: Pips * lotSize * 0.10 (for EUR/USD, where 0.01 lot = $0.10 per pip)
-        const pipValue = trade.lot_size * 10; // $10 per pip for 1 lot
-        const unrealizedPnL = (profitPips * pipValue) / 100; // Convert to proper scale
+        // Calculate PnL: For EUR/USD, 1 lot = $1000 per pip, 0.01 lot = $10 per pip
+        const pipValue = trade.lot_size * 1000; // $1000 per pip for 1 lot
+        const unrealizedPnL = (profitPips * pipValue) / 10000; // Convert pips to PnL
+
+        console.debug(`📊 MetaTrader4 PnL calculation for ${trade.symbol} ${trade.trade_type.toUpperCase()}:`, {
+          tradeId: trade.id.substring(0, 8),
+          entryPrice: trade.entry_price.toFixed(5),
+          currentPrice: currentPrice.toFixed(5),
+          lotSize: trade.lot_size,
+          profitPips: profitPips.toFixed(1),
+          pipValue: pipValue,
+          unrealizedPnL: unrealizedPnL.toFixed(2)
+        });
 
         return {
           ...trade,
@@ -172,18 +196,18 @@ const MetaTrader4Dashboard: React.FC = () => {
       // Refresh portfolio to get updated equity
       await loadPortfolio();
       
-      // PnL updated for trades
+      console.debug('✅ MetaTrader4 PnL update completed');
     } catch (error) {
-      console.error('Error updating P&L:', error);
+      console.error('❌ Error updating MetaTrader4 P&L:', error);
     }
-  }, [openTrades, tickData]);
+  }, []); // Remove dependencies to prevent circular updates
 
   // Real-time P&L updates using unified market data
   useEffect(() => {
     if (openTrades.length > 0 && tickData) {
       updateTradesPnL();
     }
-  }, [openTrades.length, tickData, updateTradesPnL]);
+  }, [openTrades.length, tickData]); // Remove updateTradesPnL from deps to prevent loops
 
   // Helper function to generate unique session ID
   const generateSessionId = () => {

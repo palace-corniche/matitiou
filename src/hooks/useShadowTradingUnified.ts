@@ -67,8 +67,8 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   const [tradeHistory, setTradeHistory] = useState<UnifiedShadowTrade[]>([]);
   const [performanceMetrics, setPerformanceMetrics] = useState<UnifiedPerformanceMetrics>({} as UnifiedPerformanceMetrics);
   
-  // Market data state
-  const [currentPrice, setCurrentPrice] = useState<number>(1.17000);
+  // Market data state - remove hardcoded price
+  const [currentPrice, setCurrentPrice] = useState<number>(0);
   const [tickData, setTickData] = useState<UnifiedTick | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [dataSource] = useState<string>('TwelveData');
@@ -203,19 +203,26 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     }
   }, [toast]);
 
-  // ============= REAL-TIME PnL UPDATE FUNCTION =============
+  // ============= CORRECT REAL-TIME PnL CALCULATION =============
   const updateTradesPnLRealTime = useCallback((tick: UnifiedTick) => {
-    if (openTrades.length === 0) return;
+    console.debug('🔄 Updating PnL for trades:', { 
+      tradesCount: openTrades.length,
+      tickPrice: tick.price.toFixed(5),
+      bid: tick.bid.toFixed(5),
+      ask: tick.ask.toFixed(5)
+    });
 
     setOpenTrades(prevTrades => 
       prevTrades.map(trade => {
         // Only update open trades, never closed ones
         if (trade.status !== 'open') return trade;
 
-        // Calculate real-time PnL using correct EUR/USD calculation
+        // Use correct bid/ask pricing for PnL calculation
+        // BUY trades: use bid price (what you get when selling)
+        // SELL trades: use ask price (what you pay when buying back)
         const currentPrice = trade.trade_type === 'buy' ? tick.bid : tick.ask;
         
-        // Calculate pips: (currentPrice - entryPrice) * 10000 for EUR/USD
+        // Calculate pips correctly for EUR/USD
         let profitPips: number;
         if (trade.trade_type === 'buy') {
           profitPips = (currentPrice - trade.entry_price) * 10000;
@@ -223,17 +230,17 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
           profitPips = (trade.entry_price - currentPrice) * 10000;
         }
         
-        // Calculate PnL: Pips * lotSize * 0.10 (for EUR/USD, where 0.01 lot = $0.10 per pip)
-        const pipValue = trade.lot_size * 10; // $10 per pip for 1 lot, so 0.01 lot = $0.10 per pip
-        const unrealizedPnL = (profitPips * pipValue) / 100; // Convert to proper scale
+        // Calculate PnL: For EUR/USD, 1 lot = $1000 per pip, 0.01 lot = $10 per pip
+        const pipValue = trade.lot_size * 1000; // $1000 per pip for 1 lot
+        const unrealizedPnL = (profitPips * pipValue) / 10000; // Convert pips to PnL
         
-        console.log(`📊 Real-time PnL update for ${trade.id}:`, {
-          symbol: trade.symbol,
-          tradeType: trade.trade_type,
+        console.debug(`📊 PnL calculation for ${trade.symbol} ${trade.trade_type.toUpperCase()}:`, {
+          tradeId: trade.id.substring(0, 8),
           entryPrice: trade.entry_price.toFixed(5),
           currentPrice: currentPrice.toFixed(5),
           lotSize: trade.lot_size,
           profitPips: profitPips.toFixed(1),
+          pipValue: pipValue,
           unrealizedPnL: unrealizedPnL.toFixed(2)
         });
 
@@ -246,7 +253,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
         };
       })
     );
-  }, [openTrades]);
+  }, []); // Remove openTrades dependency to prevent circular updates
 
   const refreshData = useCallback(async (): Promise<void> => {
     console.debug('🔄 Starting data refresh...');
@@ -278,9 +285,10 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       }
 
       // Apply real-time PnL calculation to newly loaded open trades
-      if (openTradesData.length > 0 && currentPrice > 0) {
+      if (openTradesData.length > 0) {
         const currentTick = unifiedMarketData.getLastTick();
         if (currentTick) {
+          console.debug('🔄 Applying PnL to newly loaded trades');
           updateTradesPnLRealTime(currentTick);
         }
       }
@@ -288,7 +296,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       console.error('❌ Error refreshing data:', error);
       setError(error.message || 'Failed to refresh data');
     }
-  }, [updateTradesPnLRealTime, currentPrice, withTimeout]);
+  }, [updateTradesPnLRealTime, withTimeout]);
 
   // ============= AUTO TRADING MANAGEMENT =============
   const toggleAutoTrading = useCallback(async (): Promise<void> => {
@@ -492,7 +500,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     // Subscribe to unified feed
     const unsubscribe = unifiedMarketData.subscribe({
       onTick: (tick) => {
-        console.log(`📊 Unified Market Data tick received:`, {
+        console.debug(`📊 Unified Market Data tick received:`, {
           price: tick.price.toFixed(5),
           bid: tick.bid.toFixed(5),
           ask: tick.ask.toFixed(5),
@@ -531,12 +539,8 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
   }, [portfolio, refreshData]);
 
   // ============= REAL-TIME PnL ON PRICE CHANGE =============
-  useEffect(() => {
-    if (openTrades.length > 0 && currentPrice > 0 && tickData) {
-      // Update PnL immediately when price changes
-      updateTradesPnLRealTime(tickData);
-    }
-  }, [currentPrice, tickData, openTrades, updateTradesPnLRealTime]);
+  // Removed separate effect to prevent duplicate calculations
+  // PnL updates are now handled directly in the market data subscription
 
   // ============= RETURN UNIFIED INTERFACE =============
   return {

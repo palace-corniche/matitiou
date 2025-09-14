@@ -15,6 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import { PnLValidationTest } from '@/components/PnLValidationTest';
+import PnLValidationComponent from '@/components/PnLValidationComponent';
 import {
   Activity,
   TrendingUp,
@@ -435,12 +436,13 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
       {/* ============= COMPREHENSIVE TABS ============= */}
       <Tabs defaultValue="positions" className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="positions">Positions</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="risk">Risk</TabsTrigger>
+          <TabsTrigger value="validation">Validation</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -786,6 +788,11 @@ const ShadowTradingDashboardUnified: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* ============= VALIDATION TAB ============= */}
+        <TabsContent value="validation" className="space-y-4">
+          <PnLValidationComponent />
         </TabsContent>
 
         {/* ============= SETTINGS TAB ============= */}

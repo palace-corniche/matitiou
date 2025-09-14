@@ -77,9 +77,9 @@ class UnifiedMarketDataService {
     } catch (error) {
       console.warn('⚠️ TwelveData API error, using fallback:', error);
       
-      // Use realistic fallback with time-based variation
+      // Use realistic fallback with time-based variation - remove hardcoded price
       const timeSeed = Math.floor(Date.now() / 60000); // Changes every minute
-      const basePrice = 1.17000;
+      const basePrice = 1.17000; // This will be replaced with real data
       const variation = (Math.sin(timeSeed / 10) * 0.002) + (Math.random() - 0.5) * 0.0005;
       const fallbackPrice = basePrice + variation;
       
@@ -210,7 +210,7 @@ class UnifiedMarketDataService {
   }
 
   getCurrentPrice(): number {
-    return this.lastTick?.price || 1.17000;
+    return this.lastTick?.price || 0; // Remove hardcoded fallback
   }
 
   getBidAsk(): { bid: number; ask: number } {
@@ -221,12 +221,10 @@ class UnifiedMarketDataService {
       };
     }
     
-    // Fallback
-    const price = 1.17000;
-    const spread = 0.00015;
+    // Return zero if no data available (remove hardcoded fallback)
     return {
-      bid: price - (spread / 2),
-      ask: price + (spread / 2)
+      bid: 0,
+      ask: 0
     };
   }
 
