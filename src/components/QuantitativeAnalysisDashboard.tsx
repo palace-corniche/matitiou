@@ -20,11 +20,19 @@ import {
   Layers,
   ArrowUpDown,
   CircuitBoard,
-  RefreshCw
+  RefreshCw,
+  Play,
+  Pause,
+  Database
 } from 'lucide-react';
 import { AdvancedQuantEngine, GARCHModel, MeanReversionModel, RegimeSwitchingModel, RiskMetrics } from '@/services/advancedQuantEngine';
 import { MachineLearningModels, SentimentAnalysisResult, EconomicSurpriseIndex } from '@/services/machinelearningModels';
 import { StatisticalArbitrage, PairsTradingSignal, MarketNeutralStrategy, VolatilityTradingStrategy } from '@/services/statisticalArbitrage';
+import { realTimeTickEngine } from '@/services/realTimeTickEngine';
+import { realTimeQuantAnalytics } from '@/services/realTimeQuantAnalytics';
+import { alternativeDataIntegration } from '@/services/alternativeDataIntegration';
+import { supabase } from '@/integrations/supabase/client';
+import RealTimeSignalPanel from '@/components/RealTimeSignalPanel';
 import { toast } from '@/hooks/use-toast';
 
 interface LSTMPrediction {
@@ -46,6 +54,17 @@ interface AnalysisResults {
   pairsTrading?: PairsTradingSignal[];
   marketNeutral?: MarketNeutralStrategy;
   volatilityTrading?: VolatilityTradingStrategy;
+  liveMarketData?: {
+    ticks: any[];
+    historical: any[];
+    lastUpdate: Date;
+  };
+  realTimeSignals?: any[];
+  portfolioData?: {
+    portfolio: any;
+    activeTrades: any[];
+    totalExposure: number;
+  };
 }
 
 export default function QuantitativeAnalysisDashboard() {
@@ -53,23 +72,81 @@ export default function QuantitativeAnalysisDashboard() {
   const [results, setResults] = useState<AnalysisResults>({});
   const [loading, setLoading] = useState(false);
   const [selectedSymbol, setSelectedSymbol] = useState('EUR/USD');
+  const [isRealTimeActive, setIsRealTimeActive] = useState(false);
+  const [liveDataStats, setLiveDataStats] = useState({
+    tickCount: 0,
+    signalCount: 0,
+    lastUpdate: null as Date | null
+  });
   
   const quantEngine = new AdvancedQuantEngine();
   const mlModels = new MachineLearningModels();
   const statArb = new StatisticalArbitrage();
 
   useEffect(() => {
+    initializeRealTimeData();
     loadInitialAnalysis();
   }, [selectedSymbol]);
+
+  // PHASE 1: Real-Time Market Data Integration
+  const initializeRealTimeData = async () => {
+    try {
+      console.log('🚀 Initializing real-time data systems...');
+      
+      // Start real-time tick engine
+      await realTimeTickEngine.start();
+      
+      // Subscribe to live signals
+      const unsubscribe = realTimeQuantAnalytics.onSignal((signal) => {
+        setLiveDataStats(prev => ({
+          ...prev,
+          signalCount: prev.signalCount + 1,
+          lastUpdate: new Date()
+        }));
+        
+        // Update results with new signal
+        setResults(prev => ({
+          ...prev,
+          realTimeSignals: [...(prev.realTimeSignals || []), signal].slice(-10) // Keep last 10
+        }));
+      });
+
+      // Start quantitative analytics
+      realTimeQuantAnalytics.start();
+      setIsRealTimeActive(true);
+      
+      toast({
+        title: "Real-Time Systems Active",
+        description: "Live market data and quantitative analytics are now running"
+      });
+
+      return () => {
+        unsubscribe();
+        realTimeTickEngine.stop();
+        realTimeQuantAnalytics.stop();
+      };
+    } catch (error) {
+      console.error('❌ Failed to initialize real-time data:', error);
+      toast({
+        title: "Real-Time Setup Error",
+        description: "Failed to start live data systems",
+        variant: "destructive"
+      });
+    }
+  };
 
   const loadInitialAnalysis = async () => {
     setLoading(true);
     try {
-      // Load basic analysis results
+      // Load real market data first
+      await loadRealMarketData();
+      
+      // Load analysis results with real data
       await Promise.all([
         runRiskAnalysis(),
         runSentimentAnalysis(),
-        runEconomicSurpriseAnalysis()
+        runEconomicSurpriseAnalysis(),
+        loadPortfolioData()
       ]);
     } catch (error) {
       console.error('Error loading initial analysis:', error);
@@ -80,6 +157,72 @@ export default function QuantitativeAnalysisDashboard() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // PHASE 1: Load Real Market Data
+  const loadRealMarketData = async () => {
+    try {
+      // Get latest tick data
+      const { data: tickData } = await supabase
+        .from('tick_data')
+        .select('*')
+        .eq('symbol', selectedSymbol)
+        .order('timestamp', { ascending: false })
+        .limit(100);
+
+      // Get historical market data
+      const { data: historicalData } = await supabase
+        .from('market_data_enhanced')
+        .select('*')
+        .eq('symbol', selectedSymbol)
+        .order('timestamp', { ascending: false })
+        .limit(252); // 1 year of daily data
+
+      setResults(prev => ({
+        ...prev,
+        liveMarketData: {
+          ticks: tickData || [],
+          historical: historicalData || [],
+          lastUpdate: new Date()
+        }
+      }));
+
+      console.log(`📊 Loaded ${tickData?.length || 0} ticks, ${historicalData?.length || 0} historical points`);
+    } catch (error) {
+      console.error('❌ Error loading real market data:', error);
+    }
+  };
+
+  const loadPortfolioData = async () => {
+    try {
+      const { data: portfolios } = await supabase
+        .from('shadow_portfolios')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(1);
+
+      if (portfolios && portfolios.length > 0) {
+        const portfolio = portfolios[0];
+        
+        // Get active trades
+        const { data: trades } = await supabase
+          .from('shadow_trades')
+          .select('*')
+          .eq('portfolio_id', portfolio.id)
+          .eq('status', 'open');
+
+        setResults(prev => ({
+          ...prev,
+          portfolioData: {
+            portfolio,
+            activeTrades: trades || [],
+            totalExposure: trades?.reduce((sum, t) => sum + t.lot_size, 0) || 0
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('❌ Error loading portfolio data:', error);
     }
   };
 
@@ -115,8 +258,23 @@ export default function QuantitativeAnalysisDashboard() {
 
   const runRiskAnalysis = async () => {
     try {
-      const sampleReturns = Array.from({ length: 252 }, () => (Math.random() - 0.5) * 0.02);
-      const riskMetrics = quantEngine.calculateAdvancedRiskMetrics(sampleReturns);
+      let returns: number[] = [];
+      
+      // Use real market data if available
+      if (results.liveMarketData?.historical?.length > 1) {
+        const prices = results.liveMarketData.historical.map(d => d.close_price || d.price);
+        returns = [];
+        for (let i = 1; i < prices.length; i++) {
+          returns.push(Math.log(prices[i] / prices[i-1]));
+        }
+        console.log(`📈 Using ${returns.length} real returns for risk analysis`);
+      } else {
+        // Fallback to sample data
+        returns = Array.from({ length: 252 }, () => (Math.random() - 0.5) * 0.02);
+        console.log('⚠️ Using mock data for risk analysis');
+      }
+      
+      const riskMetrics = quantEngine.calculateAdvancedRiskMetrics(returns);
       setResults(prev => ({ ...prev, riskMetrics }));
     } catch (error) {
       console.error('Error in risk analysis:', error);
@@ -542,11 +700,37 @@ export default function QuantitativeAnalysisDashboard() {
               <Calculator className="h-8 w-8" />
               Advanced Quantitative Analysis
             </h1>
-            <p className="text-muted-foreground">
-              Institutional-grade mathematical models, machine learning, and statistical arbitrage
-            </p>
+            <div className="flex items-center gap-4">
+              <p className="text-muted-foreground">
+                Institutional-grade mathematical models, machine learning, and statistical arbitrage
+              </p>
+              <div className="flex items-center gap-2">
+                <Badge variant={isRealTimeActive ? "default" : "secondary"} className="flex items-center gap-1">
+                  {isRealTimeActive ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+                  {isRealTimeActive ? 'Live Data' : 'Offline'}
+                </Badge>
+                <Badge variant="outline" className="flex items-center gap-1">
+                  <Database className="h-3 w-3" />
+                  {liveDataStats.signalCount} signals
+                </Badge>
+                {liveDataStats.lastUpdate && (
+                  <Badge variant="outline" className="text-xs">
+                    Updated: {liveDataStats.lastUpdate.toLocaleTimeString()}
+                  </Badge>
+                )}
+              </div>
+            </div>
           </div>
           <div className="flex gap-2">
+            <Button
+              onClick={loadRealMarketData}
+              variant="outline"
+              size="sm"
+              disabled={loading}
+            >
+              <Database className="h-4 w-4 mr-2" />
+              Reload Data
+            </Button>
             <Button
               onClick={() => window.location.reload()}
               variant="outline"
@@ -571,6 +755,95 @@ export default function QuantitativeAnalysisDashboard() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          {/* Real-Time Data Status */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Database className="h-4 w-4" />
+                  Market Data Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Tick Data:</span>
+                    <span className="text-sm font-bold">
+                      {results.liveMarketData?.ticks?.length || 0} points
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Historical:</span>
+                    <span className="text-sm font-bold">
+                      {results.liveMarketData?.historical?.length || 0} candles
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Status:</span>
+                    <Badge variant={isRealTimeActive ? "default" : "secondary"}>
+                      {isRealTimeActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Live Signals
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="text-2xl font-bold">
+                    {results.realTimeSignals?.length || 0}
+                  </div>
+                  <div className="text-sm text-muted-foreground">
+                    Generated today
+                  </div>
+                  {results.realTimeSignals && results.realTimeSignals.length > 0 && (
+                    <Badge variant="outline">
+                      Latest: {results.realTimeSignals[results.realTimeSignals.length - 1]?.signal_type || 'N/A'}
+                    </Badge>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Shield className="h-4 w-4" />
+                  Portfolio Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-sm">Balance:</span>
+                    <span className="text-sm font-bold">
+                      ${results.portfolioData?.portfolio?.balance?.toLocaleString() || '0'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Active Trades:</span>
+                    <span className="text-sm font-bold">
+                      {results.portfolioData?.activeTrades?.length || 0}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-sm">Exposure:</span>
+                    <span className="text-sm font-bold">
+                      {results.portfolioData?.totalExposure?.toFixed(2) || '0.00'} lots
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card className="cursor-pointer hover:shadow-md transition-shadow" 
                   onClick={runAdvancedVolatilityAnalysis}>
@@ -646,10 +919,20 @@ export default function QuantitativeAnalysisDashboard() {
           </div>
 
           <div className="grid gap-6">
-            {renderRiskMetrics()}
-            {renderSentimentAnalysis()}
-          </div>
-        </TabsContent>
+          {renderRiskMetrics()}
+          {renderSentimentAnalysis()}
+          
+          {/* Real-Time Signal Panel */}
+          <RealTimeSignalPanel 
+            onSignalExecute={(signal) => {
+              toast({
+                title: "Signal Ready for Execution",
+                description: `${signal.signal_type.toUpperCase()} ${signal.symbol} at ${signal.entry_price}`
+              });
+            }}
+          />
+        </div>
+      </TabsContent>
 
         <TabsContent value="volatility" className="space-y-6">
           <div className="flex gap-4 mb-6">
