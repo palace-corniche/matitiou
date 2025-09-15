@@ -1,485 +1,483 @@
 // ============= PHASE C: ALTERNATIVE DATA INTEGRATION =============
 import { supabase } from '@/integrations/supabase/client';
 
-interface NewsItem {
-  id: string;
-  title: string;
-  content: string;
-  source: string;
-  publishedAt: Date;
-  sentiment: number; // -1 to 1
-  impact: 'high' | 'medium' | 'low';
-  relevance: number; // 0 to 1
-  entities: string[];
+interface NewsAnalysis {
+  sentiment: number;
+  relevance: number;
+  impact: number;
   keywords: string[];
+  headline: string;
+  source: string;
+  timestamp: Date;
 }
 
-interface EconomicEvent {
-  id: string;
-  name: string;
-  country: string;
-  currency: string;
-  impact: 'high' | 'medium' | 'low';
-  previousValue: number | null;
-  forecastValue: number | null;
-  actualValue: number | null;
-  releaseTime: Date;
-  surprise: number; // (actual - forecast) / |forecast|
-  marketImpact: number;
+interface SocialSentiment {
+  platform: string;
+  sentiment: number;
+  volume: number;
+  influencer_score: number;
+  trending_topics: string[];
+  timestamp: Date;
 }
 
 interface OptionsFlow {
   symbol: string;
-  optionType: 'call' | 'put';
   strike: number;
   expiry: Date;
+  option_type: 'call' | 'put';
   volume: number;
-  openInterest: number;
-  impliedVolatility: number;
+  open_interest: number;
+  implied_volatility: number;
   delta: number;
   gamma: number;
-  theta: number;
-  vega: number;
-  timestamp: Date;
-  flowType: 'unusual' | 'sweep' | 'large_block';
+  unusual_activity: boolean;
 }
 
 interface PositioningData {
   symbol: string;
-  assetClass: string;
-  longPositions: number;
-  shortPositions: number;
-  netPositioning: number;
-  leverageRatio: number;
-  concentrationRisk: number;
+  commercial_long: number;
+  commercial_short: number;
+  speculative_long: number;
+  speculative_short: number;
+  retail_sentiment: number;
   timestamp: Date;
-  dataSource: string;
 }
 
 interface SentimentSignal {
   symbol: string;
-  sentiment: number; // -1 to 1
-  confidence: number; // 0 to 1
-  sources: string[];
-  timestamp: Date;
+  sentiment: number;
+  confidence: number;
   components: {
     news: number;
     social: number;
     options: number;
     positioning: number;
   };
+  timestamp: Date;
 }
 
 class AlternativeDataIntegration {
-  private newsCache: Map<string, NewsItem[]> = new Map();
-  private economicCache: Map<string, EconomicEvent[]> = new Map();
-  private sentimentCache: Map<string, number> = new Map();
+  private newsApiKey = 'mock_api_key';
+  private twitterApiKey = 'mock_twitter_key';
+  private optionsDataProvider = 'mock_options_provider';
 
   // ============= NEWS SENTIMENT ANALYSIS =============
-  async analyzeNewsSentiment(
-    symbols: string[] = ['EUR/USD'],
-    timeframe: number = 24, // hours
-    sources: string[] = ['reuters', 'bloomberg', 'forexlive']
-  ): Promise<SentimentSignal[]> {
-    
-    const sentimentSignals: SentimentSignal[] = [];
-    
-    for (const symbol of symbols) {
-      try {
-        // Fetch recent news
-        const newsItems = await this.fetchNewsData(symbol, timeframe, sources);
-        
-        if (newsItems.length === 0) {
-          continue;
+  async analyzeNewsSentiment(symbol: string = 'EUR/USD'): Promise<NewsAnalysis[]> {
+    try {
+      // Mock news analysis - in production, integrate with news APIs
+      const mockNews: NewsAnalysis[] = [
+        {
+          sentiment: 0.7,
+          relevance: 0.9,
+          impact: 0.8,
+          keywords: ['ECB', 'rate hike', 'inflation', 'EUR/USD'],
+          headline: 'ECB hints at aggressive rate hikes amid inflation concerns',
+          source: 'Reuters',
+          timestamp: new Date()
+        },
+        {
+          sentiment: -0.3,
+          relevance: 0.6,
+          impact: 0.5,
+          keywords: ['USD', 'employment', 'weak'],
+          headline: 'US employment data disappoints expectations',
+          source: 'Bloomberg',
+          timestamp: new Date(Date.now() - 3600000)
         }
+      ];
 
-        // Analyze sentiment
-        const sentimentScores = await Promise.all(
-          newsItems.map(item => this.analyzeSentimentScore(item))
-        );
-
-        // Calculate weighted sentiment
-        const totalWeight = newsItems.reduce((sum, item) => sum + item.relevance, 0);
-        const weightedSentiment = sentimentScores.reduce((sum, score, index) => {
-          return sum + (score * newsItems[index].relevance);
-        }, 0) / totalWeight;
-
-        // Calculate confidence based on volume and agreement
-        const sentimentVariance = this.calculateSentimentVariance(sentimentScores);
-        const confidence = Math.max(0, 1 - sentimentVariance) * Math.min(1, newsItems.length / 10);
-
-        sentimentSignals.push({
-          symbol,
-          sentiment: weightedSentiment,
-          confidence,
-          sources: [...new Set(newsItems.map(item => item.source))],
-          timestamp: new Date(),
-          components: {
-            news: weightedSentiment,
-            social: await this.getSocialSentiment(symbol),
-            options: await this.getOptionsSentiment(symbol),
-            positioning: await this.getPositioningSentiment(symbol)
-          }
-        });
-
-      } catch (error) {
-        console.error(`❌ Error analyzing sentiment for ${symbol}:`, error);
-      }
+      // In production, apply NLP sentiment analysis
+      return this.enhanceNewsWithSentiment(mockNews);
+    } catch (error) {
+      console.error('❌ Error analyzing news sentiment:', error);
+      return [];
     }
-
-    // Save sentiment signals
-    await this.saveSentimentSignals(sentimentSignals);
-
-    return sentimentSignals;
   }
 
-  private async fetchNewsData(symbol: string, timeframe: number, sources: string[]): Promise<NewsItem[]> {
-    // Check cache first
-    const cacheKey = `${symbol}_${timeframe}_${sources.join(',')}`;
-    if (this.newsCache.has(cacheKey)) {
-      const cached = this.newsCache.get(cacheKey)!;
-      const cacheAge = Date.now() - cached[0]?.publishedAt.getTime();
-      if (cacheAge < 30 * 60 * 1000) { // 30 minutes
-        return cached;
-      }
-    }
-
-    // Mock news data (in production, integrate with real news APIs)
-    const mockNews: NewsItem[] = [
-      {
-        id: `news_${Date.now()}_1`,
-        title: "ECB Signals Potential Rate Adjustment Amid Economic Uncertainty",
-        content: "The European Central Bank indicated today that monetary policy adjustments may be necessary...",
-        source: "reuters",
-        publishedAt: new Date(Date.now() - 2 * 60 * 60 * 1000), // 2 hours ago
-        sentiment: -0.3,
-        impact: 'high',
-        relevance: 0.9,
-        entities: ['ECB', 'EUR', 'monetary policy'],
-        keywords: ['rates', 'policy', 'economic uncertainty']
-      },
-      {
-        id: `news_${Date.now()}_2`,
-        title: "US Dollar Strengthens on Strong Employment Data",
-        content: "The US dollar gained against major currencies following better-than-expected jobs report...",
-        source: "bloomberg",
-        publishedAt: new Date(Date.now() - 4 * 60 * 60 * 1000), // 4 hours ago
-        sentiment: 0.5,
-        impact: 'medium',
-        relevance: 0.7,
-        entities: ['USD', 'employment', 'jobs report'],
-        keywords: ['dollar', 'employment', 'strengthens']
-      }
-    ];
-
-    // Cache the results
-    this.newsCache.set(cacheKey, mockNews);
-
-    return mockNews;
+  private enhanceNewsWithSentiment(news: NewsAnalysis[]): NewsAnalysis[] {
+    return news.map(article => ({
+      ...article,
+      sentiment: this.calculateAdvancedSentiment(article.headline, article.keywords),
+      impact: this.calculateMarketImpact(article.keywords, article.sentiment)
+    }));
   }
 
-  private async analyzeSentimentScore(newsItem: NewsItem): Promise<number> {
-    // Simple keyword-based sentiment analysis (in production, use NLP APIs)
-    const positiveKeywords = ['strengthen', 'rise', 'gain', 'bullish', 'positive', 'growth', 'improve'];
-    const negativeKeywords = ['weaken', 'fall', 'decline', 'bearish', 'negative', 'recession', 'concern'];
-    
-    const content = (newsItem.title + ' ' + newsItem.content).toLowerCase();
+  private calculateAdvancedSentiment(headline: string, keywords: string[]): number {
+    // Mock advanced sentiment calculation
+    const positiveKeywords = ['hike', 'strong', 'growth', 'bullish', 'positive'];
+    const negativeKeywords = ['weak', 'dovish', 'concerns', 'disappoints', 'bearish'];
     
     let score = 0;
+    const text = headline.toLowerCase();
+    
     positiveKeywords.forEach(word => {
-      const matches = (content.match(new RegExp(word, 'g')) || []).length;
-      score += matches * 0.1;
+      if (text.includes(word)) score += 0.2;
     });
     
     negativeKeywords.forEach(word => {
-      const matches = (content.match(new RegExp(word, 'g')) || []).length;
-      score -= matches * 0.1;
+      if (text.includes(word)) score -= 0.2;
     });
     
-    // Normalize to -1 to 1 range
     return Math.max(-1, Math.min(1, score));
   }
 
-  // ============= ECONOMIC CALENDAR & SURPRISE INDEX =============
-  async calculateEconomicSurpriseIndex(
-    currency: string = 'EUR',
-    period: number = 30 // days
-  ): Promise<{
-    surpriseIndex: number;
-    events: EconomicEvent[];
-    trendDirection: 'improving' | 'deteriorating' | 'stable';
-    confidence: number;
-  }> {
+  private calculateMarketImpact(keywords: string[], sentiment: number): number {
+    const highImpactKeywords = ['ecb', 'fed', 'rate', 'inflation', 'employment'];
+    const keywordImpact = keywords.filter(k => 
+      highImpactKeywords.includes(k.toLowerCase())
+    ).length * 0.2;
     
-    const events = await this.fetchEconomicEvents(currency, period);
-    
-    if (events.length === 0) {
-      return {
-        surpriseIndex: 0,
-        events: [],
-        trendDirection: 'stable',
-        confidence: 0
-      };
-    }
-
-    // Calculate weighted surprise index
-    const weightedSurprises = events.map(event => {
-      const impactWeight = event.impact === 'high' ? 1.0 : event.impact === 'medium' ? 0.6 : 0.3;
-      return event.surprise * impactWeight;
-    });
-
-    const surpriseIndex = weightedSurprises.reduce((sum, surprise) => sum + surprise, 0) / events.length;
-
-    // Calculate trend direction
-    const recentEvents = events.slice(0, Math.floor(events.length / 2));
-    const olderEvents = events.slice(Math.floor(events.length / 2));
-    
-    const recentAvg = recentEvents.reduce((sum, e) => sum + e.surprise, 0) / recentEvents.length;
-    const olderAvg = olderEvents.reduce((sum, e) => sum + e.surprise, 0) / olderEvents.length;
-    
-    const trendDifference = recentAvg - olderAvg;
-    let trendDirection: 'improving' | 'deteriorating' | 'stable';
-    
-    if (trendDifference > 0.1) trendDirection = 'improving';
-    else if (trendDifference < -0.1) trendDirection = 'deteriorating';
-    else trendDirection = 'stable';
-
-    const confidence = Math.min(1, events.length / 20); // More events = higher confidence
-
-    // Save to database
-    await this.saveEconomicSurpriseIndex(currency, surpriseIndex, trendDirection, confidence);
-
-    return {
-      surpriseIndex,
-      events,
-      trendDirection,
-      confidence
-    };
+    return Math.min(1, keywordImpact + Math.abs(sentiment) * 0.3);
   }
 
-  private async fetchEconomicEvents(currency: string, period: number): Promise<EconomicEvent[]> {
-    const cacheKey = `economic_${currency}_${period}`;
-    if (this.economicCache.has(cacheKey)) {
-      return this.economicCache.get(cacheKey)!;
+  // ============= SOCIAL MEDIA SENTIMENT =============
+  async analyzeSocialSentiment(symbol: string = 'EUR/USD'): Promise<SocialSentiment[]> {
+    try {
+      // Mock social sentiment data
+      const platforms = ['twitter', 'reddit', 'stocktwits', 'telegram'];
+      
+      return platforms.map(platform => ({
+        platform,
+        sentiment: (Math.random() - 0.5) * 2, // -1 to 1
+        volume: Math.floor(Math.random() * 10000),
+        influencer_score: Math.random(),
+        trending_topics: this.generateTrendingTopics(symbol),
+        timestamp: new Date()
+      }));
+    } catch (error) {
+      console.error('❌ Error analyzing social sentiment:', error);
+      return [];
     }
-
-    // Fetch from database
-    const { data } = await supabase
-      .from('economic_calendar')
-      .select('*')
-      .eq('currency', currency)
-      .gte('event_time', new Date(Date.now() - period * 24 * 60 * 60 * 1000).toISOString())
-      .order('event_time', { ascending: false });
-
-    const events: EconomicEvent[] = (data || []).map(event => ({
-      id: event.id,
-      name: event.event_name,
-      country: 'EUR', // Simplified
-      currency: event.currency,
-      impact: event.impact_level as 'high' | 'medium' | 'low',
-      previousValue: parseFloat(event.previous_value) || null,
-      forecastValue: parseFloat(event.forecast_value) || null,
-      actualValue: parseFloat(event.actual_value) || null,
-      releaseTime: new Date(event.event_time),
-      surprise: this.calculateSurprise(
-        parseFloat(event.actual_value) || 0,
-        parseFloat(event.forecast_value) || 0
-      ),
-      marketImpact: 0 // Would be calculated based on price movement
-    }));
-
-    this.economicCache.set(cacheKey, events);
-    return events;
   }
 
-  private calculateSurprise(actual: number, forecast: number): number {
-    if (forecast === 0) return 0;
-    return (actual - forecast) / Math.abs(forecast);
+  private generateTrendingTopics(symbol: string): string[] {
+    const topics = ['#forex', '#trading', '#EUR', '#USD', '#FED', '#ECB'];
+    return topics.slice(0, Math.floor(Math.random() * 4) + 2);
   }
 
   // ============= OPTIONS FLOW ANALYSIS =============
-  async analyzeOptionsFlow(
-    symbol: string = 'EUR/USD',
-    timeframe: number = 24 // hours
-  ): Promise<{
-    flowSentiment: number;
-    unusualActivity: OptionsFlow[];
-    impliedVolatilitySkew: number;
-    putCallRatio: number;
-    largestFlows: OptionsFlow[];
-  }> {
-    
-    // Mock options data (in production, integrate with options data providers)
-    const mockOptionsFlow: OptionsFlow[] = [
-      {
+  async analyzeOptionsFlow(symbol: string = 'EUR/USD'): Promise<OptionsFlow[]> {
+    try {
+      // Mock options flow data - in production, integrate with options data providers
+      const strikes = [1.08, 1.09, 1.10, 1.11, 1.12];
+      const expiries = [
+        new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+        new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      ];
+      
+      const optionsFlow: OptionsFlow[] = [];
+      
+      strikes.forEach(strike => {
+        expiries.forEach(expiry => {
+          ['call', 'put'].forEach(type => {
+            optionsFlow.push({
+              symbol,
+              strike,
+              expiry,
+              option_type: type as 'call' | 'put',
+              volume: Math.floor(Math.random() * 1000),
+              open_interest: Math.floor(Math.random() * 5000),
+              implied_volatility: 0.15 + Math.random() * 0.1,
+              delta: type === 'call' ? Math.random() * 0.5 : -Math.random() * 0.5,
+              gamma: Math.random() * 0.1,
+              unusual_activity: Math.random() > 0.8
+            });
+          });
+        });
+      });
+      
+      return this.identifyUnusualOptionsActivity(optionsFlow);
+    } catch (error) {
+      console.error('❌ Error analyzing options flow:', error);
+      return [];
+    }
+  }
+
+  private identifyUnusualOptionsActivity(optionsFlow: OptionsFlow[]): OptionsFlow[] {
+    return optionsFlow.map(option => {
+      const avgVolume = optionsFlow
+        .filter(o => o.strike === option.strike && o.option_type === option.option_type)
+        .reduce((sum, o) => sum + o.volume, 0) / optionsFlow.length;
+      
+      option.unusual_activity = option.volume > avgVolume * 3;
+      return option;
+    });
+  }
+
+  // ============= POSITIONING DATA =============
+  async analyzePositioningData(symbol: string = 'EUR/USD'): Promise<PositioningData> {
+    try {
+      // Mock COT (Commitment of Traders) style data
+      return {
         symbol,
-        optionType: 'call',
-        strike: 1.1750,
-        expiry: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-        volume: 5000,
-        openInterest: 12000,
-        impliedVolatility: 0.12,
-        delta: 0.45,
-        gamma: 0.02,
-        theta: -0.005,
-        vega: 0.03,
-        timestamp: new Date(),
-        flowType: 'unusual'
+        commercial_long: 45000 + Math.random() * 10000,
+        commercial_short: 38000 + Math.random() * 10000,
+        speculative_long: 32000 + Math.random() * 8000,
+        speculative_short: 41000 + Math.random() * 8000,
+        retail_sentiment: 0.4 + Math.random() * 0.2, // 40-60% bullish
+        timestamp: new Date()
+      };
+    } catch (error) {
+      console.error('❌ Error analyzing positioning data:', error);
+      return {
+        symbol,
+        commercial_long: 0,
+        commercial_short: 0,
+        speculative_long: 0,
+        speculative_short: 0,
+        retail_sentiment: 0.5,
+        timestamp: new Date()
+      };
+    }
+  }
+
+  // ============= ECONOMIC SURPRISE INDEX =============
+  async calculateEconomicSurpriseIndex(currency: string = 'EUR'): Promise<{
+    surpriseIndex: number;
+    trendDirection: string;
+    confidence: number;
+    recentEvents: any[];
+  }> {
+    try {
+      // Mock economic surprise calculation
+      const recentEvents = await this.getRecentEconomicEvents(currency);
+      
+      const surpriseIndex = recentEvents.reduce((acc, event) => {
+        const surprise = (event.actual - event.forecast) / Math.abs(event.forecast || 1);
+        return acc + surprise * event.impact_weight;
+      }, 0) / recentEvents.length;
+      
+      const trendDirection = surpriseIndex > 0.1 ? 'positive' : 
+                           surpriseIndex < -0.1 ? 'negative' : 'neutral';
+      
+      const confidence = Math.min(0.95, Math.abs(surpriseIndex) * 2);
+      
+      // Save to database
+      await this.saveEconomicSurpriseIndex(currency, surpriseIndex, trendDirection, confidence);
+      
+      return {
+        surpriseIndex,
+        trendDirection,
+        confidence,
+        recentEvents
+      };
+    } catch (error) {
+      console.error('❌ Error calculating economic surprise index:', error);
+      return {
+        surpriseIndex: 0,
+        trendDirection: 'neutral',
+        confidence: 0,
+        recentEvents: []
+      };
+    }
+  }
+
+  private async getRecentEconomicEvents(currency: string): Promise<any[]> {
+    // Mock economic events
+    return [
+      {
+        name: 'GDP Growth',
+        actual: 0.4,
+        forecast: 0.3,
+        impact_weight: 0.8,
+        currency,
+        date: new Date()
       },
       {
-        symbol,
-        optionType: 'put',
-        strike: 1.1650,
-        expiry: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000),
-        volume: 3000,
-        openInterest: 8000,
-        impliedVolatility: 0.15,
-        delta: -0.35,
-        gamma: 0.015,
-        theta: -0.003,
-        vega: 0.025,
-        timestamp: new Date(),
-        flowType: 'sweep'
+        name: 'Inflation Rate',
+        actual: 2.1,
+        forecast: 2.0,
+        impact_weight: 0.9,
+        currency,
+        date: new Date()
+      },
+      {
+        name: 'Employment Change',
+        actual: 180000,
+        forecast: 150000,
+        impact_weight: 0.7,
+        currency,
+        date: new Date()
       }
     ];
-
-    // Calculate flow sentiment
-    const callVolume = mockOptionsFlow.filter(f => f.optionType === 'call').reduce((sum, f) => sum + f.volume, 0);
-    const putVolume = mockOptionsFlow.filter(f => f.optionType === 'put').reduce((sum, f) => sum + f.volume, 0);
-    const putCallRatio = callVolume > 0 ? putVolume / callVolume : 0;
-    const flowSentiment = putCallRatio > 1 ? -0.5 : 0.5; // Simplified
-
-    // Calculate IV skew
-    const callIVs = mockOptionsFlow.filter(f => f.optionType === 'call').map(f => f.impliedVolatility);
-    const putIVs = mockOptionsFlow.filter(f => f.optionType === 'put').map(f => f.impliedVolatility);
-    
-    const avgCallIV = callIVs.reduce((sum, iv) => sum + iv, 0) / callIVs.length;
-    const avgPutIV = putIVs.reduce((sum, iv) => sum + iv, 0) / putIVs.length;
-    const impliedVolatilitySkew = avgPutIV - avgCallIV;
-
-    const unusualActivity = mockOptionsFlow.filter(f => f.flowType === 'unusual');
-    const largestFlows = mockOptionsFlow.sort((a, b) => b.volume - a.volume).slice(0, 5);
-
-    return {
-      flowSentiment,
-      unusualActivity,
-      impliedVolatilitySkew,
-      putCallRatio,
-      largestFlows
-    };
   }
 
-  // ============= CROSS-ASSET MOMENTUM & CORRELATION =============
-  async analyzeCrossAssetSignals(): Promise<{
-    momentum: { [asset: string]: number };
-    correlations: { [pair: string]: number };
-    divergences: string[];
-    regimeChanges: string[];
+  // ============= CROSS-ASSET ANALYSIS =============
+  async analyzeCrossAssetSignals(symbol: string = 'EUR/USD'): Promise<{
+    bondYieldSpread: number;
+    equityMomentum: number;
+    commodityCorrelation: number;
+    volatilityRegime: string;
+    overallSignal: number;
   }> {
-    
-    const assets = ['EUR/USD', 'GBP/USD', 'USD/JPY', 'DXY', 'SPX', 'VIX', 'GOLD'];
-    const momentum: { [asset: string]: number } = {};
-    const correlations: { [pair: string]: number } = {};
-    const divergences: string[] = [];
-    const regimeChanges: string[] = [];
-
-    // Calculate momentum for each asset
-    for (const asset of assets) {
-      momentum[asset] = await this.calculateAssetMomentum(asset);
+    try {
+      // Mock cross-asset analysis
+      const bondYieldSpread = await this.calculateBondYieldSpread();
+      const equityMomentum = await this.calculateEquityMomentum();
+      const commodityCorrelation = await this.calculateCommodityCorrelation(symbol);
+      const volatilityRegime = await this.determineVolatilityRegime();
+      
+      // Combine signals with weights
+      const weights = {
+        bonds: 0.3,
+        equity: 0.25,
+        commodity: 0.2,
+        volatility: 0.25
+      };
+      
+      const overallSignal = 
+        bondYieldSpread * weights.bonds +
+        equityMomentum * weights.equity +
+        commodityCorrelation * weights.commodity +
+        (volatilityRegime === 'low' ? 0.5 : volatilityRegime === 'high' ? -0.5 : 0) * weights.volatility;
+      
+      return {
+        bondYieldSpread,
+        equityMomentum,
+        commodityCorrelation,
+        volatilityRegime,
+        overallSignal
+      };
+    } catch (error) {
+      console.error('❌ Error analyzing cross-asset signals:', error);
+      return {
+        bondYieldSpread: 0,
+        equityMomentum: 0,
+        commodityCorrelation: 0,
+        volatilityRegime: 'medium',
+        overallSignal: 0
+      };
     }
-
-    // Calculate correlations between asset pairs
-    for (let i = 0; i < assets.length; i++) {
-      for (let j = i + 1; j < assets.length; j++) {
-        const pair = `${assets[i]}/${assets[j]}`;
-        correlations[pair] = await this.calculateCorrelation(assets[i], assets[j]);
-        
-        // Detect divergences
-        if (Math.abs(correlations[pair]) < 0.3 && 
-            Math.sign(momentum[assets[i]]) !== Math.sign(momentum[assets[j]])) {
-          divergences.push(pair);
-        }
-      }
-    }
-
-    // Detect regime changes
-    for (const asset of assets) {
-      const recentCorrelations = await this.getRecentCorrelations(asset);
-      if (this.detectRegimeChange(recentCorrelations)) {
-        regimeChanges.push(asset);
-      }
-    }
-
-    return {
-      momentum,
-      correlations,
-      divergences,
-      regimeChanges
-    };
   }
 
-  private async calculateAssetMomentum(asset: string, period: number = 20): Promise<number> {
-    // Mock momentum calculation (in production, use real price data)
-    const returns = [];
-    for (let i = 0; i < period; i++) {
-      returns.push((Math.random() - 0.5) * 0.02); // Random returns
-    }
-    
-    return returns.reduce((sum, ret) => sum + ret, 0) / returns.length;
+  private async calculateBondYieldSpread(): Promise<number> {
+    // Mock 10Y-2Y yield spread calculation
+    return (Math.random() - 0.5) * 2; // -1 to 1
   }
 
-  private async calculateCorrelation(asset1: string, asset2: string, period: number = 60): Promise<number> {
-    // Fetch correlation from database
-    const { data } = await supabase
-      .from('correlations')
-      .select('correlation_value')
-      .eq('asset_a', asset1)
-      .eq('asset_b', asset2)
-      .order('calculation_date', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    return data?.correlation_value || Math.random() * 2 - 1; // Fallback to random
-  }
-
-  private async getRecentCorrelations(asset: string): Promise<number[]> {
-    const { data } = await supabase
-      .from('correlations')
-      .select('correlation_value')
-      .or(`asset_a.eq.${asset},asset_b.eq.${asset}`)
-      .order('calculation_date', { ascending: false })
-      .limit(30);
-
-    return (data || []).map(d => d.correlation_value);
-  }
-
-  private detectRegimeChange(correlations: number[]): boolean {
-    if (correlations.length < 20) return false;
-    
-    const recent = correlations.slice(0, 10);
-    const older = correlations.slice(10, 20);
-    
-    const recentAvg = recent.reduce((sum, c) => sum + c, 0) / recent.length;
-    const olderAvg = older.reduce((sum, c) => sum + c, 0) / older.length;
-    
-    return Math.abs(recentAvg - olderAvg) > 0.3; // Significant change
-  }
-
-  // ============= HELPER METHODS =============
-  private calculateSentimentVariance(scores: number[]): number {
-    const mean = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-    const variance = scores.reduce((sum, score) => sum + Math.pow(score - mean, 2), 0) / scores.length;
-    return Math.sqrt(variance);
-  }
-
-  private async getSocialSentiment(symbol: string): Promise<number> {
-    // Mock social sentiment (in production, integrate with social media APIs)
+  private async calculateEquityMomentum(): Promise<number> {
+    // Mock equity momentum (S&P 500, EuroStoxx 50 relative performance)
     return (Math.random() - 0.5) * 2;
   }
 
+  private async calculateCommodityCorrelation(symbol: string): Promise<number> {
+    // Mock commodity correlation (Oil, Gold impact on currencies)
+    return (Math.random() - 0.5) * 2;
+  }
+
+  private async determineVolatilityRegime(): Promise<string> {
+    const vix = 15 + Math.random() * 20; // Mock VIX level
+    return vix < 20 ? 'low' : vix > 30 ? 'high' : 'medium';
+  }
+
+  // ============= INTERMARKET ANALYSIS =============
+  async performIntermarketAnalysis(): Promise<{
+    dollarIndex: number;
+    goldSilverRatio: number;
+    yieldCurveSlope: number;
+    cryptoCorrelation: number;
+    riskOnOffSentiment: number;
+  }> {
+    try {
+      return {
+        dollarIndex: 103.5 + (Math.random() - 0.5) * 5,
+        goldSilverRatio: 75 + (Math.random() - 0.5) * 10,
+        yieldCurveSlope: 1.2 + (Math.random() - 0.5) * 0.8,
+        cryptoCorrelation: (Math.random() - 0.5) * 2,
+        riskOnOffSentiment: (Math.random() - 0.5) * 2
+      };
+    } catch (error) {
+      console.error('❌ Error performing intermarket analysis:', error);
+      return {
+        dollarIndex: 103.5,
+        goldSilverRatio: 75,
+        yieldCurveSlope: 1.2,
+        cryptoCorrelation: 0,
+        riskOnOffSentiment: 0
+      };
+    }
+  }
+
+  // ============= CONSOLIDATED SENTIMENT ANALYSIS =============
+  async generateConsolidatedSentiment(symbol: string = 'EUR/USD'): Promise<SentimentSignal[]> {
+    try {
+      const [news, social, positioning] = await Promise.all([
+        this.analyzeNewsSentiment(symbol),
+        this.analyzeSocialSentiment(symbol),
+        this.analyzePositioningData(symbol)
+      ]);
+
+      const newsScore = this.aggregateNewsSentiment(news);
+      const socialScore = this.aggregateSocialSentiment(social);
+      const optionsScore = await this.getOptionsSentiment(symbol);
+      const positioningScore = await this.getPositioningSentiment(symbol);
+
+      const signals: SentimentSignal[] = [
+        {
+          symbol,
+          sentiment: (newsScore + socialScore + optionsScore + positioningScore) / 4,
+          confidence: this.calculateConfidence([newsScore, socialScore, optionsScore, positioningScore]),
+          components: {
+            news: newsScore,
+            social: socialScore,
+            options: optionsScore,
+            positioning: positioningScore
+          },
+          timestamp: new Date()
+        }
+      ];
+
+      await this.saveSentimentSignals(signals);
+      return signals;
+    } catch (error) {
+      console.error('❌ Error generating consolidated sentiment:', error);
+      return [];
+    }
+  }
+
+  private aggregateNewsSentiment(news: NewsAnalysis[]): number {
+    if (news.length === 0) return 0;
+    
+    const weightedSentiment = news.reduce((acc, article) => {
+      return acc + (article.sentiment * article.relevance * article.impact);
+    }, 0);
+    
+    const totalWeight = news.reduce((acc, article) => {
+      return acc + (article.relevance * article.impact);
+    }, 0);
+    
+    return totalWeight > 0 ? weightedSentiment / totalWeight : 0;
+  }
+
+  private aggregateSocialSentiment(social: SocialSentiment[]): number {
+    if (social.length === 0) return 0;
+    
+    const weightedSentiment = social.reduce((acc, platform) => {
+      const weight = platform.volume * platform.influencer_score;
+      return acc + (platform.sentiment * weight);
+    }, 0);
+    
+    const totalWeight = social.reduce((acc, platform) => {
+      return acc + (platform.volume * platform.influencer_score);
+    }, 0);
+    
+    return totalWeight > 0 ? weightedSentiment / totalWeight : 0;
+  }
+
   private async getOptionsSentiment(symbol: string): Promise<number> {
-    const optionsData = await this.analyzeOptionsFlow(symbol);
-    return optionsData.flowSentiment;
+    const optionsFlow = await this.analyzeOptionsFlow(symbol);
+    
+    // Calculate put/call ratio and unusual activity sentiment
+    const calls = optionsFlow.filter(o => o.option_type === 'call');
+    const puts = optionsFlow.filter(o => o.option_type === 'put');
+    
+    const callVolume = calls.reduce((sum, o) => sum + o.volume, 0);
+    const putVolume = puts.reduce((sum, o) => sum + o.volume, 0);
+    
+    const putCallRatio = putVolume / (callVolume || 1);
+    
+    // Lower put/call ratio = more bullish sentiment
+    return Math.max(-1, Math.min(1, (1 - putCallRatio) * 2));
   }
 
   private async getPositioningSentiment(symbol: string): Promise<number> {
@@ -497,7 +495,7 @@ class AlternativeDataIntegration {
           signal_type: signal.sentiment > 0 ? 'buy' : 'sell',
           confidence: signal.confidence,
           strength: Math.round(Math.abs(signal.sentiment) * 10),
-          entry_price: 1.1000, // Default EUR/USD price
+          entry_price: 1.1000,
           stop_loss: signal.sentiment > 0 ? 1.0950 : 1.1050,
           take_profit: signal.sentiment > 0 ? 1.1100 : 1.0900,
           risk_reward_ratio: 2.0,
@@ -515,7 +513,6 @@ class AlternativeDataIntegration {
     trendDirection: string,
     confidence: number
   ) {
-    // Save to a dedicated table or add to existing signals
     await supabase
       .from('trading_signals')
       .insert({
@@ -539,84 +536,67 @@ class AlternativeDataIntegration {
       });
   }
 
-  // ============= PUBLIC API =============
-  async generateComprehensiveSignal(symbol: string = 'EUR/USD'): Promise<{
-    overallSentiment: number;
-    confidence: number;
-    components: {
-      news: number;
-      economic: number;
-      options: number;
-      crossAsset: number;
-    };
-    riskFactors: string[];
-    recommendation: 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
-  }> {
+  private calculateConfidence(scores: number[]): number {
+    // Calculate confidence based on agreement between different sentiment sources
+    const average = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+    const variance = scores.reduce((sum, score) => sum + Math.pow(score - average, 2), 0) / scores.length;
+    const standardDeviation = Math.sqrt(variance);
     
-    // Gather all alternative data signals
-    const [
-      sentimentSignals,
-      economicSurprise,
-      optionsFlow,
-      crossAssetData
-    ] = await Promise.all([
-      this.analyzeNewsSentiment([symbol]),
-      this.calculateEconomicSurpriseIndex(),
-      this.analyzeOptionsFlow(symbol),
-      this.analyzeCrossAssetSignals()
-    ]);
+    // Lower standard deviation = higher confidence
+    return Math.max(0.1, Math.min(0.95, 1 - standardDeviation));
+  }
 
-    // Extract component scores
-    const newsScore = sentimentSignals[0]?.sentiment || 0;
-    const economicScore = economicSurprise.surpriseIndex;
-    const optionsScore = optionsFlow.flowSentiment;
-    const crossAssetScore = crossAssetData.momentum[symbol] || 0;
+  // ============= PUBLIC API =============
+  async getComprehensiveAlternativeDataSignal(symbol: string = 'EUR/USD'): Promise<{
+    sentiment: SentimentSignal[];
+    economicSurprise: any;
+    crossAsset: any;
+    intermarket: any;
+    overallRecommendation: string;
+    confidence: number;
+  }> {
+    try {
+      const [sentiment, economicSurprise, crossAsset, intermarket] = await Promise.all([
+        this.generateConsolidatedSentiment(symbol),
+        this.calculateEconomicSurpriseIndex(symbol.split('/')[0]),
+        this.analyzeCrossAssetSignals(symbol),
+        this.performIntermarketAnalysis()
+      ]);
 
-    // Calculate weighted overall sentiment
-    const weights = { news: 0.3, economic: 0.3, options: 0.2, crossAsset: 0.2 };
-    const overallSentiment = 
-      weights.news * newsScore +
-      weights.economic * economicScore +
-      weights.options * optionsScore +
-      weights.crossAsset * crossAssetScore;
+      // Combine all signals for overall recommendation
+      const sentimentScore = sentiment[0]?.sentiment || 0;
+      const economicScore = economicSurprise.surpriseIndex;
+      const crossAssetScore = crossAsset.overallSignal;
+      
+      const overallScore = (sentimentScore + economicScore + crossAssetScore) / 3;
+      const overallRecommendation = overallScore > 0.2 ? 'BUY' : 
+                                   overallScore < -0.2 ? 'SELL' : 'HOLD';
+      
+      const confidence = Math.min(0.95, (
+        (sentiment[0]?.confidence || 0) +
+        economicSurprise.confidence +
+        Math.abs(crossAsset.overallSignal)
+      ) / 3);
 
-    // Calculate confidence
-    const sentimentConfidence = sentimentSignals[0]?.confidence || 0;
-    const economicConfidence = economicSurprise.confidence;
-    const confidence = (sentimentConfidence + economicConfidence) / 2;
-
-    // Identify risk factors
-    const riskFactors: string[] = [];
-    if (crossAssetData.divergences.some(d => d.includes(symbol))) {
-      riskFactors.push('Cross-asset divergence detected');
+      return {
+        sentiment,
+        economicSurprise,
+        crossAsset,
+        intermarket,
+        overallRecommendation,
+        confidence
+      };
+    } catch (error) {
+      console.error('❌ Error getting comprehensive alternative data signal:', error);
+      return {
+        sentiment: [],
+        economicSurprise: { surpriseIndex: 0, trendDirection: 'neutral', confidence: 0, recentEvents: [] },
+        crossAsset: { bondYieldSpread: 0, equityMomentum: 0, commodityCorrelation: 0, volatilityRegime: 'medium', overallSignal: 0 },
+        intermarket: { dollarIndex: 103.5, goldSilverRatio: 75, yieldCurveSlope: 1.2, cryptoCorrelation: 0, riskOnOffSentiment: 0 },
+        overallRecommendation: 'HOLD',
+        confidence: 0
+      };
     }
-    if (crossAssetData.regimeChanges.includes(symbol)) {
-      riskFactors.push('Market regime change in progress');
-    }
-    if (Math.abs(optionsFlow.impliedVolatilitySkew) > 0.05) {
-      riskFactors.push('Elevated volatility skew');
-    }
-
-    // Generate recommendation
-    let recommendation: 'strong_buy' | 'buy' | 'hold' | 'sell' | 'strong_sell';
-    if (overallSentiment > 0.5 && confidence > 0.7) recommendation = 'strong_buy';
-    else if (overallSentiment > 0.2) recommendation = 'buy';
-    else if (overallSentiment > -0.2) recommendation = 'hold';
-    else if (overallSentiment > -0.5) recommendation = 'sell';
-    else recommendation = 'strong_sell';
-
-    return {
-      overallSentiment,
-      confidence,
-      components: {
-        news: newsScore,
-        economic: economicScore,
-        options: optionsScore,
-        crossAsset: crossAssetScore
-      },
-      riskFactors,
-      recommendation
-    };
   }
 }
 
