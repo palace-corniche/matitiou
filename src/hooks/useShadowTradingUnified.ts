@@ -314,10 +314,37 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
 
   // ============= ADVANCED FEATURES =============
   const modifyTrade = useCallback(async (tradeId: string, modifications: Partial<UnifiedShadowTrade>): Promise<boolean> => {
-    // Implementation for trade modification
-    // This would involve updating stop loss, take profit, etc.
     try {
-      // Placeholder - would implement with Supabase RPC
+      // Call the manage-trades edge function to modify the trade
+      const { data, error } = await supabase.functions.invoke('manage-trades', {
+        body: {
+          action: 'modify_trade',
+          tradeId,
+          stopLoss: modifications.stop_loss,
+          takeProfit: modifications.take_profit,
+          lotSize: modifications.lot_size
+        }
+      });
+
+      if (error) {
+        console.error('❌ Error modifying trade:', error);
+        toast({
+          title: "Modification Failed",
+          description: error.message || "Unable to modify trade",
+          variant: "destructive",
+        });
+        return false;
+      }
+
+      if (!data?.success) {
+        toast({
+          title: "Modification Failed", 
+          description: data?.error || "Trade modification failed",
+          variant: "destructive",
+        });
+        return false;
+      }
+
       toast({
         title: "Trade Modified",
         description: "Trade parameters updated successfully",
@@ -333,7 +360,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       });
       return false;
     }
-  }, [toast]);
+  }, [toast, refreshData]);
 
   const partialCloseTrade = useCallback(async (tradeId: string, percentage: number): Promise<boolean> => {
     const trade = openTrades.find(t => t.id === tradeId);

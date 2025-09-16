@@ -4,6 +4,7 @@
 import { supabase } from '@/integrations/supabase/client';
 import { marketDataService } from '@/services/realTimeMarketData';
 import { metaTraderPositionSizing } from '@/services/metaTraderPositionSizing';
+import { unifiedMarketData } from '@/services/unifiedMarketData';
 
 // ============= UNIFIED INTERFACES =============
 export interface UnifiedShadowTrade {
@@ -355,27 +356,35 @@ export class UnifiedShadowTradingEngine {
   // ============= TRADE MANAGEMENT =============
   async closeTrade(tradeId: string, lotSize?: number, reason: string = 'manual'): Promise<boolean> {
     try {
-      const latestTick = await marketDataService.getLatestTick('EUR/USD');
-      const currentPrice = latestTick ? (latestTick.bid + latestTick.ask) / 2 : 1.17000;
+      // Get current market price from unified market data
+      const currentTick = unifiedMarketData.getLastTick();
+      const currentPrice = currentTick ? (currentTick.bid + currentTick.ask) / 2 : 1.17000;
 
-      const { data: result, error } = await supabase
-        .rpc('close_shadow_trade', {
-          p_trade_id: tradeId,
-          p_close_price: currentPrice,
-          p_close_lot_size: lotSize,
-          p_close_reason: reason
-        });
+      // Call the manage-trades edge function to close the trade
+      const { data, error } = await supabase.functions.invoke('manage-trades', {
+        body: {
+          action: 'close_trade',
+          tradeId,
+          closeLotSize: lotSize,
+          closeReason: reason,
+          currentPrice
+        }
+      });
 
       if (error) {
         console.error('❌ Error closing trade:', error);
         return false;
       }
 
-      console.log('✅ Trade closed successfully:', result);
-      await this.refreshPortfolio();
+      if (!data?.success) {
+        console.error('❌ Trade close failed:', data?.error);
+        return false;
+      }
+
+      console.log('✅ Trade closed successfully:', data);
       return true;
-    } catch (error) {
-      console.error('❌ Error in closeTrade:', error);
+    } catch (tradeError) {
+      console.error('❌ Error in closeTrade:', tradeError);
       return false;
     }
   }
