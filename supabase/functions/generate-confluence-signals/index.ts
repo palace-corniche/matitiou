@@ -359,8 +359,8 @@ serve(async (req) => {
 
     const currentPrice = candles[candles.length - 1].close;
 
-// Generate comprehensive signal analysis using Master Signal Engine
-    const signalAnalysis = await generateMasterSignalAnalysis(candles, 'EUR/USD', '15m', 'trending');
+    // Generate comprehensive signal analysis using Enhanced Master Signal Engine with Real Data
+    const signalAnalysis = await generateMasterSignalAnalysis(candles, 'EUR/USD', '15m', 'trending', supabase);
 
     if (signalAnalysis?.success && signalAnalysis.masterSignal?.signal !== 'hold') {
       // Convert master signal to database format
