@@ -360,7 +360,40 @@ serve(async (req) => {
     const currentPrice = candles[candles.length - 1].close;
 
     // Generate comprehensive signal analysis using Enhanced Master Signal Engine with Real Data
-    const signalAnalysis = await generateMasterSignalAnalysis(candles, 'EUR/USD', '15m', 'trending', supabase);
+    const pair = 'EUR/USD';
+    const timeframe = '15m';
+    const regime = 'trending';
+    
+    console.log(`🎯 Starting comprehensive analysis for ${pair} (${timeframe}) with ${candles.length} candles`);
+    
+    // Generate modular signals with enhanced real data
+    const modularSignals = await generateModularSignals(supabase, candles, pair, timeframe, regime);
+    
+    // Generate master signal with Bayesian fusion
+    const masterSignal = await generateMasterSignalAnalysis(supabase, candles, pair, timeframe, regime, modularSignals);
+
+    // Enhanced diagnostics with real data
+    const diagnostics = await generateEnhancedDiagnostics(supabase, masterSignal, modularSignals, pair, timeframe);
+    
+    // Create complete signal analysis
+    const signalAnalysis = {
+      success: true,
+      timestamp: new Date().toISOString(),
+      pair,
+      timeframe,
+      masterSignal,
+      modularResults: modularSignals,
+      fusionResults: masterSignal,
+      diagnostics,
+      performanceMetrics: masterSignal?.performance || {},
+      qualityIndicators: masterSignal?.quality || {},
+      recommendation: {
+        action: masterSignal?.signal ? 'TRADE' : 'WAIT',
+        reasoning: masterSignal?.reasoning || 'No qualifying signal found',
+        nextActions: ['Monitor for signal improvements']
+      },
+      rejectionReason: !masterSignal?.signal ? 'No qualifying master signal generated' : null
+    };
 
     if (signalAnalysis?.success && signalAnalysis.masterSignal?.signal !== 'hold') {
       // Convert master signal to database format
@@ -503,33 +536,121 @@ serve(async (req) => {
   }
 });
 
-// Master Signal Analysis Engine
-async function generateMasterSignalAnalysis(
-  candles: any[], 
-  pair: string, 
-  timeframe: string, 
-  regime: string
-): Promise<CompleteSignalAnalysis | null> {
+// Enhanced Modular Signal Generation with Real Database Integration
+async function generateModularSignals(supabase: any, candles: any[], pair: string, timeframe: string, regime: string) {
+  console.log('🔧 Generating modular signals from real data...');
+  
+  const signals = [];
+  
   try {
-    console.log(`🎯 Starting comprehensive analysis for ${pair} (${timeframe}) with ${candles.length} candles`);
-    
-    // Phase 1: Generate modular signals
-    const modularResults = await generateModularSignals(candles, pair, timeframe);
-    
-    // Phase 2: Advanced fusion
-    const fusionResults = modularResults.allSignals.length > 0 ? 
-      await fuseSignalsWithBayesian(modularResults) : null;
-    
-    // Phase 3: Diagnostic analysis
-    const diagnostics = await generateSignalDiagnostics(modularResults, fusionResults);
-    
-    // Phase 4: Build complete analysis
-    return buildCompleteAnalysis(modularResults, fusionResults, diagnostics, pair, timeframe);
-    
+    // Technical signals with real market data
+    const technicalSignals = await generateTechnicalSignals(supabase, candles, pair, timeframe);
+    if (technicalSignals?.length > 0) {
+      signals.push(...technicalSignals);
+      console.log(`✅ Generated ${technicalSignals.length} technical signals`);
+    }
+
+    // Fundamental signals with real economic data
+    const fundamentalSignals = await generateFundamentalSignals(supabase, candles, pair, timeframe);
+    if (fundamentalSignals?.length > 0) {
+      signals.push(...fundamentalSignals);
+      console.log(`✅ Generated ${fundamentalSignals.length} fundamental signals`);
+    }
+
+    // Sentiment signals with real COT and news data
+    const sentimentSignals = await generateSentimentSignals(supabase, candles, pair, timeframe);
+    if (sentimentSignals?.length > 0) {
+      signals.push(...sentimentSignals);
+      console.log(`✅ Generated ${sentimentSignals.length} sentiment signals`);
+    }
+
+    // Multi-timeframe signals with real data
+    const multiTimeframeSignals = await generateMultiTimeframeSignals(supabase, candles, pair, timeframe);
+    if (multiTimeframeSignals?.length > 0) {
+      signals.push(...multiTimeframeSignals);
+      console.log(`✅ Generated ${multiTimeframeSignals.length} multi-timeframe signals`);
+    }
+
+    // Pattern signals with real harmonic and Elliott wave data
+    const patternSignals = await generatePatternSignals(supabase, candles, pair, timeframe);
+    if (patternSignals?.length > 0) {
+      signals.push(...patternSignals);
+      console.log(`✅ Generated ${patternSignals.length} pattern signals`);
+    }
+
+    // Strategy signals with real performance data
+    const strategySignals = await generateStrategySignals(supabase, candles, pair, timeframe);
+    if (strategySignals?.length > 0) {
+      signals.push(...strategySignals);
+      console.log(`✅ Generated ${strategySignals.length} strategy signals`);
+    }
+
   } catch (error) {
-    console.error('❌ Error in master signal analysis:', error);
-    return buildErrorAnalysis(error.message, pair, timeframe);
+    console.error('Error generating modular signals:', error);
   }
+
+  console.log(`📊 Total modular signals generated: ${signals.length}`);
+  return {
+    allSignals: signals,
+    technicalCount: signals.filter(s => s.source?.includes('technical')).length,
+    fundamentalCount: signals.filter(s => s.source?.includes('fundamental')).length,
+    sentimentCount: signals.filter(s => s.source?.includes('sentiment')).length,
+    patternCount: signals.filter(s => s.source?.includes('pattern')).length,
+    multiTimeframeCount: signals.filter(s => s.source?.includes('timeframe')).length,
+    strategyCount: signals.filter(s => s.source?.includes('strategy')).length,
+    qualityMetrics: {
+      dataFreshness: calculateDataFreshness(signals),
+      signalDiversity: signals.length > 0 ? new Set(signals.map(s => s.source)).size / signals.length : 0,
+      averageConfidence: signals.length > 0 ? signals.reduce((sum, s) => sum + (s.confidence || 0), 0) / signals.length : 0
+    }
+  };
+}
+
+// Enhanced Master Signal Analysis with Bayesian Fusion
+async function generateMasterSignalAnalysis(supabase: any, candles: any[], pair: string, timeframe: string, regime: string, modularSignals: any) {
+  console.log('🧠 Running enhanced Bayesian fusion with real data...');
+  
+  try {
+    const masterSignal = await fuseSignalsWithBayesian(supabase, modularSignals.allSignals, candles, pair, timeframe, regime);
+    return masterSignal;
+  } catch (error) {
+    console.error('Error in enhanced Bayesian fusion:', error);
+    return null;
+  }
+}
+
+// Enhanced Diagnostics with Real Data
+async function generateEnhancedDiagnostics(supabase: any, masterSignal: any, modularSignals: any, pair: string, timeframe: string) {
+  console.log('🔍 Running enhanced diagnostics...');
+  
+  try {
+    const diagnostics = await generateSignalDiagnostics(supabase, masterSignal, modularSignals, pair, timeframe);
+    return diagnostics;
+  } catch (error) {
+    console.error('Error generating enhanced diagnostics:', error);
+    return {
+      dataQuality: 0.5,
+      signalIntegrity: 0.5,
+      marketConditions: 'unknown',
+      recommendations: ['Error in diagnostics generation']
+    };
+  }
+}
+
+// Helper function to calculate data freshness
+function calculateDataFreshness(signals: any[]): number {
+  if (!signals.length) return 0;
+  
+  const now = Date.now();
+  const avgAge = signals.reduce((sum, signal) => {
+    const signalTime = new Date(signal.timestamp || signal.created_at || now).getTime();
+    return sum + (now - signalTime);
+  }, 0) / signals.length;
+  
+  // Convert to freshness score (higher = fresher)
+  // Fresh data (< 1 hour) = 1.0, older data decreases exponentially
+  const hoursOld = avgAge / (1000 * 60 * 60);
+  return Math.max(0, Math.exp(-hoursOld));
 }
 
 // Generate signals from all analysis modules
