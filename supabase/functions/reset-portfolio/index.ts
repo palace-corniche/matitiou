@@ -109,7 +109,7 @@ serve(async (req) => {
       .from('shadow_portfolios')
       .update({
         // Financial reset
-        balance: 100000.00,
+        balance: 100,
         equity: 100000.00,
         margin: 0.00,
         free_margin: 100000.00,
