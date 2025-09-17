@@ -538,44 +538,34 @@ export class UnifiedShadowTradingEngine {
     if (!this.currentPortfolio) return false;
 
     try {
-      // Close all open trades
-      const openTrades = await this.getOpenTrades();
-      for (const trade of openTrades) {
-        await this.closeTrade(trade.id, trade.lot_size, 'portfolio_reset');
+      console.log('🔄 Starting complete portfolio reset...');
+
+      // Use the comprehensive reset edge function that clears ALL historical data
+      const { data, error } = await supabase.functions.invoke('reset-portfolio', {
+        body: { portfolioId: this.currentPortfolio.id }
+      });
+
+      if (error) {
+        console.error('❌ Reset portfolio error:', error);
+        throw error;
       }
 
-      // Reset portfolio to initial state
-      const { error } = await supabase
-        .from('shadow_portfolios')
-        .update({
-          balance: this.INITIAL_BALANCE,
-          equity: this.INITIAL_BALANCE,
-          margin: 0,
-          free_margin: this.INITIAL_BALANCE,
-          margin_level: 0,
-          floating_pnl: 0,
-          total_trades: 0,
-          winning_trades: 0,
-          losing_trades: 0,
-          win_rate: 0,
-          average_win: 0,
-          average_loss: 0,
-          profit_factor: 0,
-          max_drawdown: 0,
-          current_drawdown: 0,
-          peak_balance: this.INITIAL_BALANCE,
-          max_equity: this.INITIAL_BALANCE,
-          sharpe_ratio: 0,
-          expectancy: 0,
-          daily_pnl_today: 0,
-          last_daily_reset: new Date().toISOString()
-        })
-        .eq('id', this.currentPortfolio.id);
+      if (!data?.success) {
+        throw new Error(data?.error || 'Portfolio reset failed');
+      }
 
-      if (error) throw error;
+      console.log('✅ Portfolio reset completed:', data.deletedCounts);
+      console.log('📊 Deleted records summary:', {
+        trades: data.deletedCounts.shadow_trades,
+        history: data.deletedCounts.trade_history,
+        performance: data.deletedCounts.performance_snapshots,
+        account: data.deletedCounts.account_history
+      });
 
+      // Refresh portfolio to get updated state
       await this.refreshPortfolio();
-      console.log('✅ Portfolio reset successfully');
+
+      console.log('✅ Portfolio completely reset to fresh state');
       return true;
     } catch (error) {
       console.error('❌ Error resetting portfolio:', error);
