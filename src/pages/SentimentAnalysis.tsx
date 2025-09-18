@@ -129,115 +129,7 @@ export default function SentimentAnalysisPage() {
     return <Brain className="h-4 w-4 text-gray-500" />;
   };
 
-  const renderCOTData = (cotReport: any) => {
-    if (!cotReport) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">COT Report (Commitment of Traders)</h4>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-xs text-muted-foreground">Commercial Long</div>
-            <div className="text-lg font-bold">{cotReport.commercialLong?.toFixed(1) || 'N/A'}%</div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-xs text-muted-foreground">Commercial Short</div>
-            <div className="text-lg font-bold">{cotReport.commercialShort?.toFixed(1) || 'N/A'}%</div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-xs text-muted-foreground">Non-Commercial Long</div>
-            <div className="text-lg font-bold">{cotReport.nonCommercialLong?.toFixed(1) || 'N/A'}%</div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-xs text-muted-foreground">Retail Sentiment</div>
-            <div className="text-lg font-bold">{cotReport.retailSentiment?.toFixed(1) || 'N/A'}%</div>
-            <Progress value={cotReport.retailSentiment || 0} className="mt-2" />
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderNewsSentiment = (newsSentiment: any) => {
-    if (!newsSentiment) return null;
-
-    const sentimentScore = (newsSentiment.score + 1) * 50; // Convert -1 to 1 scale to 0-100
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">News Sentiment Analysis</h4>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-medium">Overall Sentiment</span>
-              {getSentimentIcon(newsSentiment.score > 0.3 ? 'bullish' : newsSentiment.score < -0.3 ? 'bearish' : 'neutral')}
-            </div>
-            <div className="text-2xl font-bold">
-              {sentimentScore.toFixed(0)}/100
-            </div>
-            <Progress value={sentimentScore} className="mt-2" />
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium mb-2">News Sources</div>
-            <div className="flex flex-wrap gap-1">
-              {newsSentiment.sources?.map((source: string, index: number) => (
-                <Badge key={index} variant="outline" className="text-xs">
-                  {source}
-                </Badge>
-              ))}
-            </div>
-            <div className="text-sm font-medium mt-2 mb-1">Key Topics</div>
-            <div className="flex flex-wrap gap-1">
-              {newsSentiment.keyWords?.map((word: string, index: number) => (
-                <Badge key={index} variant="secondary" className="text-xs">
-                  {word}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderMarketSentiment = (marketSentiment: any) => {
-    if (!marketSentiment) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Market Sentiment Indicators</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Fear & Greed Index</div>
-            <div className="text-2xl font-bold">{marketSentiment.fearGreedIndex?.toFixed(0) || 'N/A'}</div>
-            <Progress value={marketSentiment.fearGreedIndex || 0} className="mt-2" />
-            <div className="text-xs text-muted-foreground mt-1">
-              {marketSentiment.fearGreedIndex > 75 ? 'Extreme Greed' :
-               marketSentiment.fearGreedIndex > 55 ? 'Greed' :
-               marketSentiment.fearGreedIndex > 45 ? 'Neutral' :
-               marketSentiment.fearGreedIndex > 25 ? 'Fear' : 'Extreme Fear'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Volatility Index</div>
-            <div className="text-2xl font-bold">{marketSentiment.volatilityIndex?.toFixed(1) || 'N/A'}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {marketSentiment.volatilityIndex > 30 ? 'High Volatility' :
-               marketSentiment.volatilityIndex > 20 ? 'Normal' : 'Low Volatility'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Put/Call Ratio</div>
-            <div className="text-2xl font-bold">{marketSentiment.putCallRatio?.toFixed(2) || 'N/A'}</div>
-            <div className="text-xs text-muted-foreground mt-1">
-              {marketSentiment.putCallRatio > 1.1 ? 'Bearish' :
-               marketSentiment.putCallRatio < 0.8 ? 'Bullish' : 'Neutral'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
+  // Mock data rendering functions removed - using only live data components
 
   const renderSignalCard = (signal: SentimentSignal) => (
     <Card key={signal.id} className="mb-4">
@@ -287,13 +179,7 @@ export default function SentimentAnalysisPage() {
           </div>
         </div>
 
-        {signal.intermediate_values?.sentiment_data && (
-          <>
-            {renderCOTData(signal.intermediate_values.sentiment_data.cotReport)}
-            {renderNewsSentiment(signal.intermediate_values.sentiment_data.newsSentiment)}
-            {renderMarketSentiment(signal.intermediate_values.sentiment_data.marketSentiment)}
-          </>
-        )}
+        {/* Mock sentiment data removed - using only live data below */}
 
         {/* Display Real COT Data */}
         {signal.intermediate_values?.cot_data && signal.intermediate_values.cot_data.length > 0 && (
