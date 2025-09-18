@@ -16,6 +16,7 @@ import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import { PnLValidationTest } from '@/components/PnLValidationTest';
 import PnLValidationComponent from '@/components/PnLValidationComponent';
+import SystemIntegrationTest from '@/components/SystemIntegrationTest';
 import PnLCalculator from '@/services/pnlCalculator';
 import {
   Activity,
@@ -437,13 +438,14 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
       {/* ============= COMPREHENSIVE TABS ============= */}
       <Tabs defaultValue="positions" className="w-full">
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="positions">Positions</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="performance">Performance</TabsTrigger>
           <TabsTrigger value="risk">Risk</TabsTrigger>
           <TabsTrigger value="validation">Validation</TabsTrigger>
+          <TabsTrigger value="integration">Integration</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
 
@@ -794,6 +796,11 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         {/* ============= VALIDATION TAB ============= */}
         <TabsContent value="validation" className="space-y-4">
           <PnLValidationComponent />
+        </TabsContent>
+
+        {/* ============= INTEGRATION TEST TAB ============= */}
+        <TabsContent value="integration" className="space-y-4">
+          <SystemIntegrationTest />
         </TabsContent>
 
         {/* ============= SETTINGS TAB ============= */}

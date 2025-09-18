@@ -653,72 +653,7 @@ function calculateDataFreshness(signals: any[]): number {
   return Math.max(0, Math.exp(-hoursOld));
 }
 
-// Generate signals from all analysis modules
-async function generateModularSignals(candles: any[], pair: string, timeframe: string) {
-  const allSignals: StandardSignal[] = [];
-  const modulePerformance: any[] = [];
-  
-  // Technical Analysis Module
-  try {
-    const technicalSignals = await generateTechnicalSignals(candles, pair, timeframe);
-    allSignals.push(...technicalSignals);
-    modulePerformance.push({ module: 'technical', signalCount: technicalSignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'technical', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  // Fundamental Analysis Module
-  try {
-    const fundamentalSignals = await generateFundamentalSignals(candles, pair, timeframe);
-    allSignals.push(...fundamentalSignals);
-    modulePerformance.push({ module: 'fundamental', signalCount: fundamentalSignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'fundamental', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  // Sentiment Analysis Module
-  try {
-    const sentimentSignals = await generateSentimentSignals(candles, pair, timeframe);
-    allSignals.push(...sentimentSignals);
-    modulePerformance.push({ module: 'sentiment', signalCount: sentimentSignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'sentiment', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  // Multi-Timeframe Analysis Module
-  try {
-    const multiTimeframeSignals = await generateMultiTimeframeSignals(candles, pair, timeframe);
-    allSignals.push(...multiTimeframeSignals);
-    modulePerformance.push({ module: 'multi_timeframe', signalCount: multiTimeframeSignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'multi_timeframe', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  // Pattern Recognition Module
-  try {
-    const patternSignals = await generatePatternSignals(candles, pair, timeframe);
-    allSignals.push(...patternSignals);
-    modulePerformance.push({ module: 'patterns', signalCount: patternSignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'patterns', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  // Strategy-Based Analysis Module
-  try {
-    const strategySignals = await generateStrategySignals(candles, pair, timeframe);
-    allSignals.push(...strategySignals);
-    modulePerformance.push({ module: 'strategy', signalCount: strategySignals.length, status: 'active' });
-  } catch (error) {
-    modulePerformance.push({ module: 'strategy', signalCount: 0, status: 'error', error: error.message });
-  }
-  
-  return {
-    allSignals,
-    modulePerformance,
-    totalSignals: allSignals.length,
-    activeModules: modulePerformance.filter(m => m.status === 'active').length
-  };
-}
+// Legacy function removed - using enhanced version at line 540 with real database integration
 
 // Convert master signal to database format
 function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
