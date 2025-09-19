@@ -1,394 +1,391 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Progress } from '@/components/ui/progress';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Slider } from '@/components/ui/slider';
+import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { portfolioIntelligenceManager } from '@/services/portfolioIntelligenceManager';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, LineChart, Line } from 'recharts';
-import { Briefcase, TrendingUp, DollarSign, Target, Settings, AlertTriangle, Plus } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import {
+  Settings,
+  Database,
+  Merge,
+  AlertTriangle,
+  CheckCircle,
+  Users,
+  BarChart3,
+  Trash2,
+  Zap
+} from 'lucide-react';
 
-interface Portfolio {
-  id: string;
-  name: string;
-  balance: number;
-  allocation: number;
-  performance: number;
-  riskLevel: 'low' | 'medium' | 'high';
+interface PortfolioManagementProps {
+  portfolioId?: string;
+  onPortfolioUpdated?: () => void;
 }
 
-export const PortfolioManagementPanel = () => {
-  const [portfolios, setPortfolios] = useState<Portfolio[]>([
-    { id: '1', name: 'Conservative', balance: 150000, allocation: 40, performance: 8.5, riskLevel: 'low' },
-    { id: '2', name: 'Growth', balance: 200000, allocation: 45, performance: 15.2, riskLevel: 'medium' },
-    { id: '3', name: 'Aggressive', balance: 100000, allocation: 15, performance: -3.1, riskLevel: 'high' },
-  ]);
-  
-  const [selectedPortfolio, setSelectedPortfolio] = useState<Portfolio | null>(portfolios[0]);
-  const [rebalancing, setRebalancing] = useState(false);
-  const [newAllocation, setNewAllocation] = useState<{ [key: string]: number }>({});
+export const PortfolioManagementPanel: React.FC<PortfolioManagementProps> = ({
+  portfolioId,
+  onPortfolioUpdated
+}) => {
+  const [isLoading, setIsLoading] = useState(false);
+  const [portfolioStats, setPortfolioStats] = useState<any>(null);
+  const [maxOpenTrades, setMaxOpenTrades] = useState([20]);
+  const [autoTradingEnabled, setAutoTradingEnabled] = useState(true);
   const { toast } = useToast();
 
-  // Portfolio allocation data for pie chart
-  const allocationData = portfolios.map(p => ({
-    name: p.name,
-    value: p.allocation,
-    balance: p.balance
-  }));
+  // Load current portfolio settings
+  useEffect(() => {
+    const loadPortfolioStats = async () => {
+      if (!portfolioId) return;
 
-  // Performance data for charts
-  const performanceData = Array.from({ length: 30 }, (_, i) => ({
-    day: i + 1,
-    conservative: 100000 + i * 150 + Math.random() * 1000,
-    growth: 100000 + i * 200 + Math.random() * 2000,
-    aggressive: 100000 + i * 100 + Math.random() * 3000 - 1500
-  }));
+      try {
+        const { data: portfolio, error } = await supabase
+          .from('shadow_portfolios')
+          .select('*')
+          .eq('id', portfolioId)
+          .single();
 
-  const riskMetrics = [
-    { metric: 'Value at Risk (95%)', value: '$15,000', status: 'good' },
-    { metric: 'Maximum Drawdown', value: '8.5%', status: 'warning' },
-    { metric: 'Sharpe Ratio', value: '1.85', status: 'good' },
-    { metric: 'Beta', value: '0.92', status: 'good' }
-  ];
+        if (error) throw error;
 
-  const runOptimization = async () => {
-    setRebalancing(true);
+        setMaxOpenTrades([portfolio.max_open_positions || 20]);
+        setAutoTradingEnabled(portfolio.auto_trading_enabled || true);
+        setPortfolioStats(portfolio);
+      } catch (error: any) {
+        console.error('Error loading portfolio stats:', error);
+      }
+    };
+
+    loadPortfolioStats();
+  }, [portfolioId]);
+
+  // Update max open trades
+  const updateMaxOpenTrades = async () => {
+    if (!portfolioId) return;
+
+    setIsLoading(true);
     try {
-      // Simulate optimization
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      const optimizedAllocations = await portfolioIntelligenceManager.optimizeAllocation(
-        portfolios.map(p => ({ symbol: p.name, weight: p.allocation / 100 })),
-        { riskTolerance: 0.15, expectedReturn: 0.12 }
-      );
-      
+      const { error } = await supabase
+        .from('shadow_portfolios')
+        .update({ 
+          max_open_positions: maxOpenTrades[0],
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', portfolioId);
+
+      if (error) throw error;
+
       toast({
-        title: "Optimization Complete",
-        description: "Portfolio allocation has been optimized",
+        title: "Settings Updated",
+        description: `Max open trades set to ${maxOpenTrades[0]}`,
       });
-    } catch (error) {
+
+      onPortfolioUpdated?.();
+    } catch (error: any) {
       toast({
-        title: "Optimization Failed",
-        description: "Failed to optimize portfolio allocation",
+        title: "Update Failed",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
-      setRebalancing(false);
+      setIsLoading(false);
     }
   };
 
-  const executeRebalance = async () => {
-    setRebalancing(true);
+  // Consolidate portfolios
+  const consolidatePortfolios = async () => {
+    setIsLoading(true);
     try {
-      await portfolioIntelligenceManager.rebalancePortfolio('main-portfolio', newAllocation);
-      
-      // Update local state
-      const updatedPortfolios = portfolios.map(p => ({
-        ...p,
-        allocation: newAllocation[p.id] || p.allocation
-      }));
-      setPortfolios(updatedPortfolios);
-      
-      toast({
-        title: "Rebalancing Complete",
-        description: "Portfolio has been successfully rebalanced",
+      const sessionId = localStorage.getItem('session_id') || `session_${Date.now()}`;
+      localStorage.setItem('session_id', sessionId);
+
+      const { data, error } = await supabase.functions.invoke('consolidate-portfolios', {
+        body: { sessionId, force: true }
       });
-    } catch (error) {
+
+      if (error) throw error;
+
+      if (!data?.success) {
+        throw new Error(data?.error || 'Consolidation failed');
+      }
+
       toast({
-        title: "Rebalancing Failed",
-        description: "Failed to rebalance portfolio",
+        title: "Portfolio Consolidation Complete",
+        description: `${data.consolidatedData.portfoliosMerged || 0} portfolios merged into master portfolio`,
+      });
+
+      // Wait a moment then refresh
+      setTimeout(() => {
+        onPortfolioUpdated?.();
+        window.location.reload();
+      }, 1000);
+
+    } catch (error: any) {
+      toast({
+        title: "Consolidation Failed",
+        description: error.message,
         variant: "destructive",
       });
     } finally {
-      setRebalancing(false);
+      setIsLoading(false);
     }
   };
 
-  const totalBalance = portfolios.reduce((sum, p) => sum + p.balance, 0);
-  const weightedPerformance = portfolios.reduce((sum, p) => sum + (p.performance * p.allocation / 100), 0);
+  // Check system health and portfolio count
+  const checkSystemHealth = async () => {
+    try {
+      const sessionId = localStorage.getItem('session_id');
+      
+      const { data: portfolios, error } = await supabase
+        .from('shadow_portfolios')
+        .select('id, account_name, is_active, created_at, total_trades')
+        .or(sessionId ? `session_id.eq.${sessionId}` : 'session_id.is.null')
+        .order('created_at', { ascending: false });
 
-  const COLORS = ['hsl(var(--primary))', 'hsl(var(--secondary))', 'hsl(var(--accent))', '#8884d8'];
+      if (error) throw error;
+
+      return {
+        totalPortfolios: portfolios?.length || 0,
+        activePortfolios: portfolios?.filter(p => p.is_active).length || 0,
+        portfolios: portfolios || []
+      };
+    } catch (error: any) {
+      console.error('Error checking system health:', error);
+      return { totalPortfolios: 0, activePortfolios: 0, portfolios: [] };
+    }
+  };
+
+  // Clean inactive portfolios
+  const cleanInactivePortfolios = async () => {
+    setIsLoading(true);
+    try {
+      const sessionId = localStorage.getItem('session_id');
+      
+      const { data, error } = await supabase
+        .from('shadow_portfolios')
+        .delete()
+        .eq('is_active', false)
+        .or(sessionId ? `session_id.eq.${sessionId}` : 'session_id.is.null');
+
+      if (error) throw error;
+
+      toast({
+        title: "Cleanup Complete",
+        description: "Inactive portfolios have been removed",
+      });
+
+      onPortfolioUpdated?.();
+    } catch (error: any) {
+      toast({
+        title: "Cleanup Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const [systemHealth, setSystemHealth] = useState<any>(null);
+
+  useEffect(() => {
+    const loadSystemHealth = async () => {
+      const health = await checkSystemHealth();
+      setSystemHealth(health);
+    };
+    loadSystemHealth();
+  }, []);
 
   return (
     <div className="space-y-6">
-      {/* Overview */}
+      {/* System Health Overview */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Portfolio Intelligence Manager
-              </CardTitle>
-              <CardDescription>
-                AI-driven portfolio optimization and management
-              </CardDescription>
+          <CardTitle className="flex items-center">
+            <BarChart3 className="h-5 w-5 mr-2" />
+            System Health Overview
+          </CardTitle>
+          <CardDescription>
+            Portfolio management and system optimization tools
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {systemHealth && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-primary">
+                  {systemHealth.totalPortfolios}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Total Portfolios
+                </div>
+              </div>
+              <div className="text-center p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-green-600">
+                  {systemHealth.activePortfolios}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Active Portfolios
+                </div>
+              </div>
+              <div className="text-center p-4 border rounded-lg">
+                <div className="text-2xl font-bold text-orange-600">
+                  {systemHealth.totalPortfolios - systemHealth.activePortfolios}
+                </div>
+                <div className="text-sm text-muted-foreground">
+                  Inactive Portfolios
+                </div>
+              </div>
             </div>
-            <Button onClick={runOptimization} disabled={rebalancing}>
-              {rebalancing ? "Optimizing..." : "Optimize Portfolio"}
+          )}
+
+          {systemHealth?.totalPortfolios > 1 && (
+            <div className="flex flex-col space-y-2 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+              <div className="flex items-center">
+                <AlertTriangle className="h-4 w-4 text-orange-600 mr-2" />
+                <span className="font-medium text-orange-800">
+                  Multiple Portfolios Detected
+                </span>
+              </div>
+              <p className="text-sm text-orange-700">
+                You have {systemHealth.totalPortfolios} portfolios. For optimal performance, 
+                consider consolidating them into a single unified portfolio.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Portfolio Configuration */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Settings className="h-5 w-5 mr-2" />
+            Portfolio Configuration
+          </CardTitle>
+          <CardDescription>
+            Adjust trading parameters and risk settings
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {/* Max Open Trades Setting */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label htmlFor="max-trades">Maximum Open Trades</Label>
+              <Badge variant="outline">{maxOpenTrades[0]} trades</Badge>
+            </div>
+            <Slider
+              id="max-trades"
+              min={5}
+              max={100}
+              step={5}
+              value={maxOpenTrades}
+              onValueChange={setMaxOpenTrades}
+              className="w-full"
+            />
+            <div className="flex justify-between text-sm text-muted-foreground">
+              <span>Conservative (5)</span>
+              <span>Balanced (20)</span>
+              <span>Aggressive (100)</span>
+            </div>
+            <Button 
+              onClick={updateMaxOpenTrades}
+              disabled={isLoading || !portfolioId}
+              size="sm"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Update Settings
             </Button>
           </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="text-center">
-              <div className="text-2xl font-bold text-primary">
-                ${totalBalance.toLocaleString()}
-              </div>
-              <div className="text-sm text-muted-foreground">Total AUM</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-green-600">
-                {weightedPerformance.toFixed(1)}%
-              </div>
-              <div className="text-sm text-muted-foreground">Weighted Return</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
-                1.85
-              </div>
-              <div className="text-sm text-muted-foreground">Sharpe Ratio</div>
-            </div>
-            <div className="text-center">
-              <div className="text-2xl font-bold text-purple-600">
-                8.5%
-              </div>
-              <div className="text-sm text-muted-foreground">Max Drawdown</div>
+
+          <Separator />
+
+          {/* Quick Presets */}
+          <div className="space-y-4">
+            <Label>Quick Presets</Label>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+              {[
+                { label: "Conservative", value: 5 },
+                { label: "Moderate", value: 10 },
+                { label: "Balanced", value: 20 },
+                { label: "Aggressive", value: 50 }
+              ].map((preset) => (
+                <Button
+                  key={preset.label}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMaxOpenTrades([preset.value])}
+                  className={maxOpenTrades[0] === preset.value ? 'border-primary' : ''}
+                >
+                  {preset.label}
+                  <br />
+                  <span className="text-xs text-muted-foreground">
+                    {preset.value} trades
+                  </span>
+                </Button>
+              ))}
             </div>
           </div>
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="allocation" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="allocation">Allocation</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="risk">Risk Analysis</TabsTrigger>
-          <TabsTrigger value="optimization">Optimization</TabsTrigger>
-        </TabsList>
+      {/* Portfolio Management Actions */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Database className="h-5 w-5 mr-2" />
+            Portfolio Management
+          </CardTitle>
+          <CardDescription>
+            Consolidate and optimize your trading portfolios
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Button
+              onClick={consolidatePortfolios}
+              disabled={isLoading}
+              className="h-16 flex flex-col items-center justify-center space-y-1"
+              variant="default"
+            >
+              <Merge className="h-5 w-5" />
+              <span className="font-medium">Consolidate Portfolios</span>
+              <span className="text-xs opacity-80">
+                Merge multiple portfolios into one
+              </span>
+            </Button>
 
-        <TabsContent value="allocation" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Current Allocation</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={allocationData}
-                      cx="50%"
-                      cy="50%"
-                      labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}%`}
-                      outerRadius={80}
-                      fill="#8884d8"
-                      dataKey="value"
-                    >
-                      {allocationData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Portfolio Breakdown</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {portfolios.map((portfolio) => (
-                    <div key={portfolio.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{portfolio.name}</span>
-                          <Badge variant={
-                            portfolio.riskLevel === 'low' ? 'secondary' :
-                            portfolio.riskLevel === 'medium' ? 'default' : 'destructive'
-                          }>
-                            {portfolio.riskLevel} risk
-                          </Badge>
-                        </div>
-                        <div className="text-right">
-                          <div className="font-medium">${portfolio.balance.toLocaleString()}</div>
-                          <div className={`text-sm ${portfolio.performance > 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {portfolio.performance > 0 ? '+' : ''}{portfolio.performance.toFixed(1)}%
-                          </div>
-                        </div>
-                      </div>
-                      <Progress value={portfolio.allocation} className="h-2" />
-                      <div className="text-sm text-muted-foreground">
-                        {portfolio.allocation}% allocation
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <Button
+              onClick={cleanInactivePortfolios}
+              disabled={isLoading}
+              className="h-16 flex flex-col items-center justify-center space-y-1"
+              variant="outline"
+            >
+              <Trash2 className="h-5 w-5" />
+              <span className="font-medium">Clean Database</span>
+              <span className="text-xs opacity-80">
+                Remove inactive portfolios
+              </span>
+            </Button>
           </div>
-        </TabsContent>
 
-        <TabsContent value="performance" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Comparison</CardTitle>
-              <CardDescription>
-                30-day performance across different portfolio strategies
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <LineChart data={performanceData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="day" />
-                  <YAxis />
-                  <Tooltip />
-                  <Line type="monotone" dataKey="conservative" stroke="#10b981" strokeWidth={2} />
-                  <Line type="monotone" dataKey="growth" stroke="hsl(var(--primary))" strokeWidth={2} />
-                  <Line type="monotone" dataKey="aggressive" stroke="#ef4444" strokeWidth={2} />
-                </LineChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {portfolios.map((portfolio) => (
-              <Card key={portfolio.id}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="font-medium">{portfolio.name}</span>
-                    <Badge variant={portfolio.performance > 0 ? 'default' : 'destructive'}>
-                      {portfolio.performance > 0 ? '+' : ''}{portfolio.performance.toFixed(1)}%
-                    </Badge>
-                  </div>
-                  <div className="text-2xl font-bold mb-1">
-                    ${portfolio.balance.toLocaleString()}
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {portfolio.allocation}% of total portfolio
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="risk" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Risk Metrics
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {riskMetrics.map((metric, index) => (
-                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <div className="font-medium">{metric.metric}</div>
-                      <div className="text-sm text-muted-foreground">Current value</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-2xl font-bold">{metric.value}</div>
-                      <Badge variant={metric.status === 'good' ? 'default' : 'destructive'}>
-                        {metric.status === 'good' ? 'Good' : 'Warning'}
-                      </Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Risk Distribution</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={portfolios}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="name" />
-                  <YAxis />
-                  <Tooltip />
-                  <Bar dataKey="allocation" fill="hsl(var(--primary))" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="optimization" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Target className="h-5 w-5" />
-                Portfolio Optimization
-              </CardTitle>
-              <CardDescription>
-                AI-driven optimization for risk-adjusted returns
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="p-4 bg-muted/50 rounded-lg">
-                <div className="font-medium mb-2">Optimization Objectives</div>
-                <ul className="text-sm text-muted-foreground space-y-1">
-                  <li>• Maximize risk-adjusted returns (Sharpe ratio)</li>
-                  <li>• Maintain diversification across strategies</li>
-                  <li>• Control maximum drawdown below 10%</li>
-                  <li>• Adapt to changing market regimes</li>
+          <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-start space-x-2">
+              <Zap className="h-4 w-4 text-blue-600 mt-0.5" />
+              <div className="text-sm text-blue-800">
+                <p className="font-medium mb-1">Recommended Actions:</p>
+                <ul className="space-y-1">
+                  <li>• Use "Consolidate Portfolios" to merge all trades into one master portfolio</li>
+                  <li>• Set max open trades based on your risk tolerance (20 is recommended)</li>
+                  <li>• Clean inactive portfolios regularly to maintain optimal performance</li>
                 </ul>
               </div>
-
-              <div className="space-y-4">
-                <div className="font-medium">Suggested Reallocation</div>
-                {portfolios.map((portfolio) => (
-                  <div key={portfolio.id} className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{portfolio.name}</span>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {portfolio.allocation}% → 
-                        </span>
-                        <Input
-                          type="number"
-                          className="w-20"
-                          value={newAllocation[portfolio.id] || portfolio.allocation}
-                          onChange={(e) => setNewAllocation(prev => ({
-                            ...prev,
-                            [portfolio.id]: parseInt(e.target.value) || 0
-                          }))}
-                        />
-                        <span className="text-sm">%</span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <Button onClick={executeRebalance} disabled={rebalancing}>
-                  {rebalancing ? "Rebalancing..." : "Execute Rebalance"}
-                </Button>
-                <Button variant="outline" onClick={runOptimization}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Recalculate
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

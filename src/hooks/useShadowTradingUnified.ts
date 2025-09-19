@@ -174,25 +174,46 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     setIsLoading(true);
     
     try {
-      const success = await unifiedShadowTradingEngine.resetPortfolio();
-      
-      if (success) {
-        toast({
-          title: "Portfolio Reset",
-          description: "Portfolio has been reset to initial state with $100,000 balance",
-        });
-        
-        await refreshData();
-      } else {
-        toast({
-          title: "Reset Failed",
-          description: "Unable to reset portfolio",
-          variant: "destructive",
-        });
+      // First consolidate portfolios to ensure we have a single master portfolio
+      const sessionId = localStorage.getItem('session_id') || `session_${Date.now()}`;
+      localStorage.setItem('session_id', sessionId);
+
+      const { data: consolidationResult, error: consolidationError } = await supabase.functions.invoke('consolidate-portfolios', {
+        body: { sessionId }
+      });
+
+      if (consolidationError) {
+        console.warn('Portfolio consolidation failed, proceeding with reset:', consolidationError);
       }
+
+      const masterPortfolioId = consolidationResult?.masterPortfolio?.id || portfolio?.id;
+
+      if (!masterPortfolioId) {
+        throw new Error('No portfolio found to reset');
+      }
+
+      // Reset the master portfolio using the reset-portfolio function
+      const { data: resetResult, error: resetError } = await supabase.functions.invoke('reset-portfolio', {
+        body: { portfolioId: masterPortfolioId }
+      });
+
+      if (resetError) {
+        throw new Error(resetError.message || 'Reset portfolio function failed');
+      }
+
+      if (!resetResult?.success) {
+        throw new Error(resetResult?.error || 'Portfolio reset failed');
+      }
+
+      toast({
+        title: "Portfolio Reset Complete",
+        description: "Master portfolio has been reset to initial state with $100,000 balance",
+      });
       
-      return success;
+      await refreshData();
+      return true;
     } catch (error: any) {
+      console.error('Reset portfolio error:', error);
       toast({
         title: "Reset Error",
         description: error.message,
@@ -202,7 +223,7 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
     } finally {
       setIsLoading(false);
     }
-  }, [toast]);
+  }, [toast, portfolio?.id]);
 
   // ============= CENTRALIZED PnL CALCULATION USING PnLCalculator =============
   const updateTradesPnLRealTime = useCallback((tick: UnifiedTick) => {
@@ -467,12 +488,28 @@ export const useShadowTradingUnified = (): UseShadowTradingUnified => {
       setError(null);
       
       try {
-        // Initialize portfolio with timeout
-        console.debug('📊 Creating/fetching portfolio...');
-        const portfolioData = await withTimeout(
-          unifiedShadowTradingEngine.getOrCreatePortfolio(),
-          REQUEST_TIMEOUT_MS
-        );
+        // Ensure we have a session ID for portfolio management
+        const sessionId = localStorage.getItem('session_id') || `session_${Date.now()}`;
+        localStorage.setItem('session_id', sessionId);
+        
+        // First, consolidate any existing portfolios
+        console.debug('🔄 Consolidating portfolios...');
+        const { data: consolidationResult } = await supabase.functions.invoke('consolidate-portfolios', {
+          body: { sessionId }
+        });
+
+        let portfolioData;
+        if (consolidationResult?.success && consolidationResult?.masterPortfolio) {
+          console.debug('✅ Using consolidated master portfolio');
+          portfolioData = consolidationResult.masterPortfolio;
+        } else {
+          // Fallback to creating/getting portfolio
+          console.debug('📊 Creating/fetching portfolio...');
+          portfolioData = await withTimeout(
+            unifiedShadowTradingEngine.getOrCreatePortfolio(),
+            REQUEST_TIMEOUT_MS
+          );
+        }
         
         if (portfolioData) {
           console.debug('✅ Portfolio initialized, refreshing data...');

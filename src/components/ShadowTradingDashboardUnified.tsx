@@ -14,6 +14,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
+import { PortfolioManagementPanel } from '@/components/PortfolioManagementPanel';
 import { PnLValidationTest } from '@/components/PnLValidationTest';
 import PnLValidationComponent from '@/components/PnLValidationComponent';
 import SystemIntegrationTest from '@/components/SystemIntegrationTest';
@@ -436,18 +437,19 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* ============= COMPREHENSIVE TABS ============= */}
-      <Tabs defaultValue="positions" className="w-full">
-        <TabsList className="grid w-full grid-cols-8">
-          <TabsTrigger value="positions">Positions</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-          <TabsTrigger value="analytics">Analytics</TabsTrigger>
-          <TabsTrigger value="performance">Performance</TabsTrigger>
-          <TabsTrigger value="risk">Risk</TabsTrigger>
-          <TabsTrigger value="validation">Validation</TabsTrigger>
-          <TabsTrigger value="integration">Integration</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
+        {/* ============= COMPREHENSIVE TABS ============= */}
+        <Tabs defaultValue="positions" className="w-full">
+          <TabsList className="grid w-full grid-cols-9">
+            <TabsTrigger value="positions">Positions</TabsTrigger>
+            <TabsTrigger value="history">History</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="risk">Risk</TabsTrigger>
+            <TabsTrigger value="validation">Validation</TabsTrigger>
+            <TabsTrigger value="integration">Integration</TabsTrigger>
+            <TabsTrigger value="portfolio">Portfolio</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+          </TabsList>
 
         {/* ============= OPEN POSITIONS TAB ============= */}
         <TabsContent value="positions" className="space-y-4">
@@ -801,6 +803,14 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         {/* ============= INTEGRATION TEST TAB ============= */}
         <TabsContent value="integration" className="space-y-4">
           <SystemIntegrationTest />
+        </TabsContent>
+
+        {/* ============= PORTFOLIO MANAGEMENT TAB ============= */}
+        <TabsContent value="portfolio" className="space-y-4">
+          <PortfolioManagementPanel 
+            portfolioId={portfolio?.id}
+            onPortfolioUpdated={refreshData}
+          />
         </TabsContent>
 
         {/* ============= SETTINGS TAB ============= */}
