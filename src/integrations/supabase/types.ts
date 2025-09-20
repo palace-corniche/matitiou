@@ -86,7 +86,7 @@ export type Database = {
           exchange_rate: number | null
           id: string
           payment_method: string | null
-          portfolio_id: string
+          portfolio_id: string | null
           processed_at: string | null
           processed_by: string | null
           reference_number: string | null
@@ -104,7 +104,7 @@ export type Database = {
           exchange_rate?: number | null
           id?: string
           payment_method?: string | null
-          portfolio_id: string
+          portfolio_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
           reference_number?: string | null
@@ -122,7 +122,7 @@ export type Database = {
           exchange_rate?: number | null
           id?: string
           payment_method?: string | null
-          portfolio_id?: string
+          portfolio_id?: string | null
           processed_at?: string | null
           processed_by?: string | null
           reference_number?: string | null
@@ -715,6 +715,108 @@ export type Database = {
           updated_at?: string | null
           wave_degree?: string
           wave_label?: string
+        }
+        Relationships: []
+      }
+      global_trading_account: {
+        Row: {
+          auto_trading_enabled: boolean
+          average_loss: number
+          average_win: number
+          balance: number
+          consecutive_losses: number
+          consecutive_wins: number
+          created_at: string
+          current_drawdown: number
+          equity: number
+          floating_pnl: number
+          free_margin: number
+          id: string
+          largest_loss: number
+          largest_win: number
+          leverage: number
+          losing_trades: number
+          margin: number
+          margin_level: number
+          max_drawdown: number
+          max_equity: number
+          max_open_positions: number
+          peak_balance: number
+          profit_factor: number
+          sharpe_ratio: number
+          total_commission: number
+          total_swap: number
+          total_trades: number
+          updated_at: string
+          used_margin: number
+          win_rate: number
+          winning_trades: number
+        }
+        Insert: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          consecutive_losses?: number
+          consecutive_wins?: number
+          created_at?: string
+          current_drawdown?: number
+          equity?: number
+          floating_pnl?: number
+          free_margin?: number
+          id?: string
+          largest_loss?: number
+          largest_win?: number
+          leverage?: number
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_equity?: number
+          max_open_positions?: number
+          peak_balance?: number
+          profit_factor?: number
+          sharpe_ratio?: number
+          total_commission?: number
+          total_swap?: number
+          total_trades?: number
+          updated_at?: string
+          used_margin?: number
+          win_rate?: number
+          winning_trades?: number
+        }
+        Update: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          consecutive_losses?: number
+          consecutive_wins?: number
+          created_at?: string
+          current_drawdown?: number
+          equity?: number
+          floating_pnl?: number
+          free_margin?: number
+          id?: string
+          largest_loss?: number
+          largest_win?: number
+          leverage?: number
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_equity?: number
+          max_open_positions?: number
+          peak_balance?: number
+          profit_factor?: number
+          sharpe_ratio?: number
+          total_commission?: number
+          total_swap?: number
+          total_trades?: number
+          updated_at?: string
+          used_margin?: number
+          win_rate?: number
+          winning_trades?: number
         }
         Relationships: []
       }
@@ -1725,7 +1827,7 @@ export type Database = {
           notes: string | null
           order_type: string
           partial_fill_allowed: boolean | null
-          portfolio_id: string
+          portfolio_id: string | null
           slippage_tolerance: number | null
           status: string | null
           stop_loss: number | null
@@ -1748,7 +1850,7 @@ export type Database = {
           notes?: string | null
           order_type: string
           partial_fill_allowed?: boolean | null
-          portfolio_id: string
+          portfolio_id?: string | null
           slippage_tolerance?: number | null
           status?: string | null
           stop_loss?: number | null
@@ -1771,7 +1873,7 @@ export type Database = {
           notes?: string | null
           order_type?: string
           partial_fill_allowed?: boolean | null
-          portfolio_id?: string
+          portfolio_id?: string | null
           slippage_tolerance?: number | null
           status?: string | null
           stop_loss?: number | null
@@ -2230,7 +2332,7 @@ export type Database = {
           pnl: number | null
           pnl_percent: number | null
           point_value: number | null
-          portfolio_id: string
+          portfolio_id: string | null
           position_size: number
           profit: number | null
           profit_pips: number | null
@@ -2285,7 +2387,7 @@ export type Database = {
           pnl?: number | null
           pnl_percent?: number | null
           point_value?: number | null
-          portfolio_id: string
+          portfolio_id?: string | null
           position_size: number
           profit?: number | null
           profit_pips?: number | null
@@ -2340,7 +2442,7 @@ export type Database = {
           pnl?: number | null
           pnl_percent?: number | null
           point_value?: number | null
-          portfolio_id?: string
+          portfolio_id?: string | null
           position_size?: number
           profit?: number | null
           profit_pips?: number | null
@@ -2361,15 +2463,7 @@ export type Database = {
           unrealized_pnl?: number | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "shadow_trades_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "shadow_portfolios"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       signal_audit: {
         Row: {
@@ -2683,7 +2777,7 @@ export type Database = {
           lot_size: number
           margin_used: number | null
           original_trade_id: string | null
-          portfolio_id: string
+          portfolio_id: string | null
           profit: number | null
           profit_pips: number | null
           slippage_pips: number | null
@@ -2707,7 +2801,7 @@ export type Database = {
           lot_size: number
           margin_used?: number | null
           original_trade_id?: string | null
-          portfolio_id: string
+          portfolio_id?: string | null
           profit?: number | null
           profit_pips?: number | null
           slippage_pips?: number | null
@@ -2731,7 +2825,7 @@ export type Database = {
           lot_size?: number
           margin_used?: number | null
           original_trade_id?: string | null
-          portfolio_id?: string
+          portfolio_id?: string | null
           profit?: number | null
           profit_pips?: number | null
           slippage_pips?: number | null
@@ -2741,15 +2835,7 @@ export type Database = {
           take_profit?: number | null
           trade_type?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "trade_history_portfolio_id_fkey"
-            columns: ["portfolio_id"]
-            isOneToOne: false
-            referencedRelation: "shadow_portfolios"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       trade_signals_enhanced: {
         Row: {
@@ -3147,9 +3233,49 @@ export type Database = {
           trading_start_hour: number
         }[]
       }
+      get_global_trading_account: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          auto_trading_enabled: boolean
+          average_loss: number
+          average_win: number
+          balance: number
+          consecutive_losses: number
+          consecutive_wins: number
+          created_at: string
+          current_drawdown: number
+          equity: number
+          floating_pnl: number
+          free_margin: number
+          id: string
+          largest_loss: number
+          largest_win: number
+          leverage: number
+          losing_trades: number
+          margin: number
+          margin_level: number
+          max_drawdown: number
+          max_equity: number
+          max_open_positions: number
+          peak_balance: number
+          profit_factor: number
+          sharpe_ratio: number
+          total_commission: number
+          total_swap: number
+          total_trades: number
+          updated_at: string
+          used_margin: number
+          win_rate: number
+          winning_trades: number
+        }[]
+      }
       manage_break_even: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      reset_global_trading_account: {
+        Args: Record<PropertyKey, never>
+        Returns: Json
       }
       run_trading_diagnostics: {
         Args: Record<PropertyKey, never>

@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
+import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 import AccountSettingsDialog from '@/components/AccountSettingsDialog';
 import { PortfolioManagementPanel } from '@/components/PortfolioManagementPanel';
 import { PnLValidationTest } from '@/components/PnLValidationTest';

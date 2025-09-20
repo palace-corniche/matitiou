@@ -1,0 +1,404 @@
+// Global Shadow Trading Engine - Simplified
+import { supabase } from '@/integrations/supabase/client';
+import { unifiedMarketData } from '@/services/unifiedMarketData';
+
+// Simplified interfaces for global system
+export interface GlobalShadowTrade {
+  id: string;
+  symbol: string;
+  trade_type: 'buy' | 'sell';
+  entry_price: number;
+  entry_time: string;
+  stop_loss: number;
+  take_profit: number;
+  lot_size: number;
+  position_size: number;
+  status: 'open' | 'closed';
+  exit_price?: number;
+  exit_time?: string;
+  exit_reason?: string;
+  pnl?: number;
+  profit_pips?: number;
+  current_price?: number;
+  unrealized_pnl?: number;
+  contract_size: number;
+  commission?: number;
+  swap?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface GlobalTradingAccount {
+  id: string;
+  balance: number;
+  equity: number;
+  margin: number;
+  free_margin: number;
+  used_margin: number;
+  margin_level: number;
+  floating_pnl: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  win_rate: number;
+  average_win: number;
+  average_loss: number;
+  profit_factor: number;
+  max_drawdown: number;
+  sharpe_ratio: number;
+  peak_balance: number;
+  max_equity: number;
+  current_drawdown: number;
+  consecutive_wins: number;
+  consecutive_losses: number;
+  largest_win: number;
+  largest_loss: number;
+  total_commission: number;
+  total_swap: number;
+  max_open_positions: number;
+  auto_trading_enabled: boolean;
+  leverage: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TradeExecutionRequest {
+  symbol: string;
+  trade_type: 'buy' | 'sell';
+  lot_size: number;
+  entry_price?: number;
+  stop_loss?: number;
+  take_profit?: number;
+  comment?: string;
+  magic_number?: number;
+}
+
+export interface GlobalPerformanceMetrics {
+  accountBalance: number;
+  accountEquity: number;
+  floatingPnL: number;
+  margin: number;
+  freeMargin: number;
+  marginLevel: number;
+  totalTrades: number;
+  winningTrades: number;
+  losingTrades: number;
+  winRate: number;
+  averageWin: number;
+  averageLoss: number;
+  profitFactor: number;
+  sharpeRatio: number;
+  maxDrawdown: number;
+  currentDrawdown: number;
+  consecutiveWins: number;
+  consecutiveLosses: number;
+  largestWin: number;
+  largestLoss: number;
+  openTradesCount: number;
+  totalVolume: number;
+  averageTradeSize: number;
+  bestDay: number;
+  worstDay: number;
+  tradingDays: number;
+  averageTradeDuration: number;
+  monthlyReturns: Array<{ month: string; return: number; trades: number }>;
+  weeklyReturns: Array<{ week: string; return: number; trades: number }>;
+  dailyReturns: Array<{ date: string; return: number; trades: number }>;
+  hourlyBreakdown: Record<string, { trades: number; winRate: number; pnl: number }>;
+  sessionBreakdown: Record<string, { trades: number; winRate: number; pnl: number }>;
+}
+
+class GlobalShadowTradingEngine {
+  private currentAccount: GlobalTradingAccount | null = null;
+  private readonly DEFAULT_LOT_SIZE = 0.01;
+  private readonly GLOBAL_ACCOUNT_ID = '00000000-0000-0000-0000-000000000001';
+
+  constructor() {
+    this.initializeRealTimeUpdates();
+  }
+
+  private initializeRealTimeUpdates() {
+    // Subscribe to market data updates
+    unifiedMarketData.subscribe((tick: any) => {
+      this.updateRealTimePnL(tick);
+    });
+  }
+
+  // Global Account Management
+  async getGlobalAccount(): Promise<GlobalTradingAccount> {
+    try {
+      const { data, error } = await supabase.rpc('get_global_trading_account');
+
+      if (error) {
+        throw new Error(`Failed to fetch global account: ${error.message}`);
+      }
+
+      if (!data || data.length === 0) {
+        throw new Error('Global trading account not found');
+      }
+
+      this.currentAccount = data[0] as GlobalTradingAccount;
+      return this.currentAccount;
+    } catch (error) {
+      console.error('Global account error:', error);
+      throw error;
+    }
+  }
+
+  async refreshAccount(): Promise<GlobalTradingAccount> {
+    const { data, error } = await supabase.rpc('get_global_trading_account');
+
+    if (error) {
+      throw new Error(`Failed to refresh account: ${error.message}`);
+    }
+
+    this.currentAccount = data[0] as GlobalTradingAccount;
+    return this.currentAccount;
+  }
+
+  async resetAccount(): Promise<void> {
+    try {
+      const { error } = await supabase.rpc('reset_global_trading_account');
+
+      if (error) {
+        throw new Error(`Failed to reset account: ${error.message}`);
+      }
+
+      // Refresh account after reset
+      await this.refreshAccount();
+    } catch (error) {
+      console.error('Account reset error:', error);
+      throw error;
+    }
+  }
+
+  // Trade Execution
+  async executeTrade(request: TradeExecutionRequest): Promise<GlobalShadowTrade> {
+    try {
+      if (!this.currentAccount) {
+        await this.getGlobalAccount();
+      }
+
+      // Get current market price if not provided
+      let currentPrice = request.entry_price;
+      if (!currentPrice) {
+        const latestTick = unifiedMarketData.getLastTick();
+        currentPrice = latestTick ? (latestTick.bid + latestTick.ask) / 2 : 1.17000;
+      }
+
+      const orderData = {
+        symbol: request.symbol,
+        trade_type: request.trade_type,
+        lot_size: request.lot_size || this.DEFAULT_LOT_SIZE,
+        entry_price: currentPrice,
+        stop_loss: request.stop_loss || this.calculateDefaultStopLoss(currentPrice, request.trade_type),
+        take_profit: request.take_profit || this.calculateDefaultTakeProfit(currentPrice, request.trade_type),
+        comment: request.comment || 'Global Trading',
+        magic_number: request.magic_number || 12345,
+        order_type: 'market'
+      };
+
+      const { data, error } = await supabase.rpc('execute_advanced_order', {
+        p_portfolio_id: this.GLOBAL_ACCOUNT_ID,
+        p_order_data: orderData
+      });
+
+      if (error) {
+        throw new Error(`Trade execution failed: ${error.message}`);
+      }
+
+      const result = data as any;
+      if (!result.success) {
+        throw new Error(`Trade execution rejected: ${result.error}`);
+      }
+
+      // Refresh account data
+      await this.refreshAccount();
+
+      // Return the executed trade
+      const { data: tradeData } = await supabase
+        .from('shadow_trades')
+        .select('*')
+        .eq('id', result.trade_id)
+        .single();
+
+      return tradeData as GlobalShadowTrade;
+    } catch (error) {
+      console.error('Trade execution error:', error);
+      throw error;
+    }
+  }
+
+  async closeTrade(tradeId: string, lotSize?: number, reason: string = 'manual'): Promise<boolean> {
+    try {
+      const currentTick = unifiedMarketData.getLastTick();
+      const currentPrice = currentTick ? (currentTick.bid + currentTick.ask) / 2 : 1.17000;
+
+      const { data, error } = await supabase.functions.invoke('manage-trades', {
+        body: {
+          action: 'close_trade',
+          tradeId,
+          closeLotSize: lotSize,
+          closeReason: reason,
+          currentPrice
+        }
+      });
+
+      if (error) {
+        console.error('Error closing trade:', error);
+        return false;
+      }
+
+      if (!data?.success) {
+        console.error('Trade close failed:', data?.error);
+        return false;
+      }
+
+      await this.refreshAccount();
+      return true;
+    } catch (error) {
+      console.error('Error in closeTrade:', error);
+      return false;
+    }
+  }
+
+  // Trade Data Retrieval
+  async getOpenTrades(): Promise<GlobalShadowTrade[]> {
+    try {
+      const { data, error } = await supabase
+        .from('shadow_trades')
+        .select('*')
+        .eq('status', 'open')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch open trades: ${error.message}`);
+      }
+
+      return data as GlobalShadowTrade[];
+    } catch (error) {
+      console.error('Open trades fetch error:', error);
+      throw error;
+    }
+  }
+
+  async getTradeHistory(limit: number = 50): Promise<any[]> {
+    try {
+      const { data, error } = await supabase
+        .from('trade_history')
+        .select('*')
+        .order('execution_time', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        throw new Error(`Failed to fetch trade history: ${error.message}`);
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Trade history fetch error:', error);
+      throw error;
+    }
+  }
+
+  // Performance Metrics
+  async getPerformanceMetrics(): Promise<GlobalPerformanceMetrics> {
+    try {
+      if (!this.currentAccount) {
+        await this.getGlobalAccount();
+      }
+
+      const openTrades = await this.getOpenTrades();
+      const tradeHistory = await this.getTradeHistory(1000);
+
+      return {
+        accountBalance: this.currentAccount!.balance,
+        accountEquity: this.currentAccount!.equity,
+        floatingPnL: this.currentAccount!.floating_pnl || 0,
+        margin: this.currentAccount!.margin || 0,
+        freeMargin: this.currentAccount!.free_margin || 0,
+        marginLevel: this.currentAccount!.margin_level || 0,
+        totalTrades: this.currentAccount!.total_trades || 0,
+        winningTrades: this.currentAccount!.winning_trades || 0,
+        losingTrades: this.currentAccount!.losing_trades || 0,
+        winRate: this.currentAccount!.win_rate || 0,
+        averageWin: this.currentAccount!.average_win || 0,
+        averageLoss: this.currentAccount!.average_loss || 0,
+        profitFactor: this.currentAccount!.profit_factor || 0,
+        sharpeRatio: this.currentAccount!.sharpe_ratio || 0,
+        maxDrawdown: this.currentAccount!.max_drawdown || 0,
+        currentDrawdown: this.currentAccount!.current_drawdown || 0,
+        consecutiveWins: this.currentAccount!.consecutive_wins || 0,
+        consecutiveLosses: this.currentAccount!.consecutive_losses || 0,
+        largestWin: this.currentAccount!.largest_win || 0,
+        largestLoss: this.currentAccount!.largest_loss || 0,
+        openTradesCount: openTrades.length,
+        totalVolume: openTrades.reduce((sum, trade) => sum + trade.lot_size, 0),
+        averageTradeSize: openTrades.length > 0 ? openTrades.reduce((sum, trade) => sum + trade.lot_size, 0) / openTrades.length : 0,
+        bestDay: 0, // Simplified
+        worstDay: 0, // Simplified
+        tradingDays: 0, // Simplified
+        averageTradeDuration: 0, // Simplified
+        monthlyReturns: [],
+        weeklyReturns: [],
+        dailyReturns: [],
+        hourlyBreakdown: {},
+        sessionBreakdown: {}
+      };
+    } catch (error) {
+      console.error('Performance metrics error:', error);
+      throw error;
+    }
+  }
+
+  // Helper methods
+  private calculateDefaultStopLoss(entryPrice: number, tradeType: 'buy' | 'sell'): number {
+    const stopDistance = entryPrice * 0.001; // 0.1% stop loss
+    return tradeType === 'buy' ? entryPrice - stopDistance : entryPrice + stopDistance;
+  }
+
+  private calculateDefaultTakeProfit(entryPrice: number, tradeType: 'buy' | 'sell'): number {
+    const tpDistance = entryPrice * 0.002; // 0.2% take profit
+    return tradeType === 'buy' ? entryPrice + tpDistance : entryPrice - tpDistance;
+  }
+
+  private async updateRealTimePnL(tick: any) {
+    try {
+      const openTrades = await this.getOpenTrades();
+      if (openTrades.length === 0) return;
+
+      const tradeIds = openTrades.map(trade => trade.id);
+      
+      await supabase.functions.invoke('manage-trades', {
+        body: {
+          action: 'update_real_time_pnl',
+          tradeIds,
+          currentPrice: (tick.bid + tick.ask) / 2
+        }
+      });
+    } catch (error) {
+      console.error('Real-time P&L update error:', error);
+    }
+  }
+
+  // Analytics helpers
+  async calculateOptimalLotSize(symbol: string, riskPercent: number, entryPrice: number, stopLoss: number): Promise<number> {
+    try {
+      const { data, error } = await supabase.rpc('calculate_optimal_lot_size', {
+        p_portfolio_id: this.GLOBAL_ACCOUNT_ID,
+        p_symbol: symbol,
+        p_risk_percentage: riskPercent,
+        p_entry_price: entryPrice,
+        p_stop_loss: stopLoss
+      });
+
+      if (error) throw error;
+      return (data as any)?.optimal_lot_size || this.DEFAULT_LOT_SIZE;
+    } catch (error) {
+      console.error('Lot size calculation error:', error);
+      return this.DEFAULT_LOT_SIZE;
+    }
+  }
+}
+
+export const globalShadowTradingEngine = new GlobalShadowTradingEngine();

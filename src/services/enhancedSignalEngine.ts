@@ -21,7 +21,7 @@ import {
 } from './advancedIndicators';
 import { ConfluenceEngine, type ConfluenceSignal } from './confluenceEngine';
 import { newsAnalysisEngine } from './newsAnalysis';
-import { unifiedShadowTradingEngine } from './shadowTradingEngineUnified';
+import { globalShadowTradingEngine } from './globalShadowTradingEngine';
 
 export class EnhancedSignalEngine {
   private confluenceEngine = new ConfluenceEngine();

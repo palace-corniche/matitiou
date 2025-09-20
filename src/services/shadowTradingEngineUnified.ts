@@ -779,4 +779,5 @@ export class UnifiedShadowTradingEngine {
 }
 
 // ============= EXPORT SINGLETON =============
-export const unifiedShadowTradingEngine = new UnifiedShadowTradingEngine();
+// Legacy export - use globalShadowTradingEngine from new file instead
+export const unifiedShadowTradingEngine = null;
