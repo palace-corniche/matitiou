@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
+// Global Shadow Trading Dashboard - Main trading interface
 import {
   Activity,
   TrendingUp,
