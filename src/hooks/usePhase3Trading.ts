@@ -44,39 +44,15 @@ export const usePhase3Trading = () => {
         localStorage.setItem('phase3_session_id', sessionId);
       }
 
-      const { data: existingPortfolio, error: fetchError } = await supabase
-        .from('shadow_portfolios')
-        .select('*')
-        .eq('session_id', sessionId)
-        .eq('is_active', true)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_global_trading_account');
 
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        throw fetchError;
+      if (error) throw error;
+      const account = Array.isArray(data) ? data[0] : data;
+      if (account) {
+        setPortfolio(account as any);
+        return (account as any).id;
       }
-
-      if (!existingPortfolio) {
-        const { data: newPortfolio, error: createError } = await supabase
-          .from('shadow_portfolios')
-          .insert({
-            session_id: sessionId,
-            balance: 100000,
-            equity: 100000,
-            free_margin: 100000,
-            account_type: 'demo',
-            account_currency: 'USD',
-            leverage: 100
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        setPortfolio(newPortfolio);
-        return newPortfolio.id;
-      } else {
-        setPortfolio(existingPortfolio);
-        return existingPortfolio.id;
-      }
+      return null;
     } catch (error) {
       console.error('Portfolio initialization error:', error);
       toast.error('Failed to initialize portfolio');
@@ -224,7 +200,7 @@ export const usePhase3Trading = () => {
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'shadow_portfolios'
+        table: 'global_trading_account'
       }, (payload) => {
         if (payload.new.id === portfolioId) {
           setPortfolio(payload.new as Portfolio);

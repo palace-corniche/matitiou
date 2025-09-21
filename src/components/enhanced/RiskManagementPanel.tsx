@@ -134,14 +134,11 @@ const RiskManagementPanel: React.FC<RiskManagementPanelProps> = ({
     setRiskSettings(updatedSettings);
 
     try {
-      // Update portfolio risk settings
+      // Update global account risk settings (simplified for global system)
       const { error } = await supabase
-        .from('shadow_portfolios')
+        .from('global_trading_account')
         .update({
-          risk_per_trade: updatedSettings.riskPercentage / 100,
-          max_open_positions: updatedSettings.maxPositions,
-          daily_loss_limit: updatedSettings.maxDailyLoss,
-          max_drawdown_limit: updatedSettings.maxDrawdown
+          max_open_positions: updatedSettings.maxPositions
         })
         .eq('id', portfolio.id);
 

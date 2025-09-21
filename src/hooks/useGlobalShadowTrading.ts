@@ -239,10 +239,16 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
       setMarketData(tick);
     };
 
-    unifiedMarketData.subscribe(handleMarketUpdate);
+    const unsubscribe = unifiedMarketData.subscribe({
+      onTick: handleMarketUpdate,
+      onConnectionChange: () => {},
+      onError: (error: Error) => {
+        console.error('Unified market data error:', error);
+      }
+    });
 
     return () => {
-      // No unsubscribe needed as unifiedMarketData.subscribe returns a function
+      try { typeof unsubscribe === 'function' && unsubscribe(); } catch {}
     };
   }, []);
 

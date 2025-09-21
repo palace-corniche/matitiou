@@ -123,7 +123,13 @@ class GlobalShadowTradingEngine {
       this.updateRealTimePnL(tick);
     };
 
-    unifiedMarketData.subscribe(handleMarketUpdate);
+    unifiedMarketData.subscribe({
+      onTick: handleMarketUpdate,
+      onConnectionChange: () => {},
+      onError: (error: Error) => {
+        console.error('Unified market data error:', error);
+      }
+    });
   }
 
   // Global Account Management

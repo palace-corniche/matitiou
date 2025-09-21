@@ -33,14 +33,12 @@ import EnhancedTickDisplay from './EnhancedTickDisplay';
 import DiagnosticsPanel from './DiagnosticsPanel';
 import { RealTimePriceTicker } from './RealTimePriceTicker';
 import { TradeModificationDialog } from './TradeModificationDialog';
-import { PerformanceCharts } from './PerformanceCharts';
+
 import { LotSizeManager } from './LotSizeManager';
 import { AccountDefaultsManager } from './AccountDefaultsManager';
 import { PreflightMonitor } from './PreflightMonitor';
 import { IntelligenceWidgets } from './IntelligenceWidgets';
 import { IntelligencePositionSizer } from './IntelligencePositionSizer';
-import AccountSettingsDialog from '../AccountSettingsDialog';
-import DepositWithdrawDialog from '../DepositWithdrawDialog';
 
 interface TradingInstrument {
   symbol: string;
@@ -149,7 +147,7 @@ const TradingTerminal: React.FC = () => {
         () => loadOpenTrades()
       )
       .on('postgres_changes',
-        { event: '*', schema: 'public', table: 'shadow_portfolios' },
+        { event: '*', schema: 'public', table: 'global_trading_account' },
         () => loadPortfolio()
       )
       .on('postgres_changes',
@@ -192,38 +190,13 @@ const TradingTerminal: React.FC = () => {
         localStorage.setItem('session_id', sessionId);
       }
 
-      const { data, error } = await supabase
-        .from('shadow_portfolios')
-        .select('*')
-        .eq('session_id', sessionId)
-        .eq('is_active', true)
-        .maybeSingle();
+      const { data, error } = await supabase.rpc('get_global_trading_account');
 
-      if (error && error.code !== 'PGRST116') throw error;
+      if (error) throw error;
 
-      if (!data) {
-        // Create default portfolio
-        const { data: newPortfolio, error: createError } = await supabase
-          .from('shadow_portfolios')
-          .insert({
-            session_id: sessionId,
-            balance: 100000,
-            equity: 100000,
-            free_margin: 100000,
-            account_type: 'demo',
-            account_currency: 'USD',
-            leverage: 100,
-            account_name: 'Demo Account',
-            account_server: 'MetaTrader Demo Server',
-            account_company: 'Lovable Trading'
-          })
-          .select()
-          .single();
-
-        if (createError) throw createError;
-        setPortfolio(newPortfolio);
-      } else {
-        setPortfolio(data);
+      const account = Array.isArray(data) ? data[0] : data;
+      if (account) {
+        setPortfolio(account as any);
       }
     } catch (error) {
       console.error('Error loading portfolio:', error);
@@ -519,8 +492,6 @@ const TradingTerminal: React.FC = () => {
               <TabsTrigger value="intelligence">Intelligence</TabsTrigger>
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="trades">Trades</TabsTrigger>
-              <TabsTrigger value="analytics">Analytics</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
             
             <TabsContent value="preflight" className="mt-4">
@@ -636,78 +607,6 @@ const TradingTerminal: React.FC = () => {
               </Card>
             </TabsContent>
             
-            <TabsContent value="analytics" className="mt-4">
-              <ScrollArea className="h-[400px]">
-                <PerformanceCharts portfolioId={portfolio?.id} />
-              </ScrollArea>
-            </TabsContent>
-
-            <TabsContent value="settings" className="mt-4">
-              <div className="space-y-4">
-                {portfolio && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2">
-                      <AccountSettingsDialog
-                        portfolioId={portfolio.id}
-                        currentSettings={{
-                          account_currency: portfolio.account_currency,
-                          leverage: portfolio.leverage,
-                          account_type: portfolio.account_type,
-                          balance: portfolio.balance,
-                          daily_loss_limit: portfolio.daily_loss_limit,
-                          max_drawdown_limit: portfolio.max_drawdown_limit,
-                          margin_call_level: portfolio.margin_call_level,
-                          stop_out_level: portfolio.stop_out_level
-                        }}
-                        onSettingsUpdate={loadPortfolio}
-                      />
-                      <DepositWithdrawDialog
-                        portfolioId={portfolio.id}
-                        currentBalance={portfolio.balance}
-                        currentEquity={portfolio.equity}
-                        accountCurrency={portfolio.account_currency}
-                        onTransactionComplete={loadPortfolio}
-                      />
-                    </div>
-                    
-                    <AccountDefaultsManager
-                      portfolioId={portfolio.id}
-                      portfolioBalance={portfolio.balance}
-                      portfolioLeverage={portfolio.leverage}
-                      accountCurrency={portfolio.account_currency}
-                      onDefaultsUpdate={loadPortfolio}
-                    />
-                    
-                    <LotSizeManager
-                      portfolio={{
-                        id: portfolio.id,
-                        balance: portfolio.balance,
-                        leverage: portfolio.leverage,
-                        account_currency: portfolio.account_currency,
-                        risk_per_trade: portfolio.risk_per_trade
-                      }}
-                      symbol={selectedSymbol}
-                      entryPrice={instruments.find(i => i.symbol === selectedSymbol)?.ask_price}
-                      stopLoss={instruments.find(i => i.symbol === selectedSymbol)?.ask_price ? 
-                        instruments.find(i => i.symbol === selectedSymbol)!.ask_price - 0.0020 : undefined}
-                      onLotSizeChange={(lotSize) => {
-                        console.log('Selected lot size:', lotSize);
-                      }}
-                    />
-                    
-                    <PendingOrders 
-                      orders={pendingOrders}
-                      onCancel={(orderId) => {
-                        toast("Cancel order functionality to be implemented");
-                      }}
-                      onModify={(orderId) => {
-                        toast("Modify order functionality to be implemented");
-                      }}
-                    />
-                  </>
-                )}
-              </div>
-            </TabsContent>
           </Tabs>
         </div>
       </div>
