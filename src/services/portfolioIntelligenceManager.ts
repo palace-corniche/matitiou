@@ -641,14 +641,13 @@ class PortfolioIntelligenceManager {
   // ==================== HELPER METHODS ====================
   
   private async getPortfolioData(portfolioId: string): Promise<any> {
-    const { data, error } = await supabase
-      .from('shadow_portfolios')
-      .select('*')
-      .eq('id', portfolioId)
-      .single();
+    const { data, error } = await supabase.rpc('get_global_trading_account');
     
-    if (error) throw error;
-    return data;
+    if (error || !data || data.length === 0) {
+      throw new Error('Global trading account not found');
+    }
+    
+    return data[0];
   }
 
   private async getCurrentAllocations(portfolioId: string): Promise<CurrencyAllocation[]> {

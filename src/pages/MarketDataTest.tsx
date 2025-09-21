@@ -2,10 +2,10 @@ import React from 'react';
 import NavigationBar from '@/components/NavigationBar';
 import { MarketDataTest } from '@/components/enhanced/MarketDataTest';
 import { LiveMarketStatus } from '@/components/enhanced/LiveMarketStatus';
-import { useShadowTradingUnified } from '@/hooks/useShadowTradingUnified';
+import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 
 const MarketDataTestPage: React.FC = () => {
-  const { currentPrice, tickData, isConnected } = useShadowTradingUnified();
+  const { marketData, isLoading } = useGlobalShadowTrading();
 
   return (
     <div className="min-h-screen bg-background">
@@ -20,9 +20,9 @@ const MarketDataTestPage: React.FC = () => {
           </div>
 
           <LiveMarketStatus 
-            currentPrice={currentPrice}
-            tickData={tickData}
-            isConnected={isConnected}
+            currentPrice={marketData?.price}
+            tickData={marketData}
+            isConnected={!isLoading}
           />
 
           <MarketDataTest />

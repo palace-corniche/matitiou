@@ -144,16 +144,14 @@ class AutomatedTradingEngine {
     intelligence: MarketIntelligence
   ): Promise<AutoExecutionResult> {
     try {
-      // Get portfolio for position sizing
-      const { data: portfolio } = await supabase
-        .from('shadow_portfolios')
-        .select('*')
-        .eq('id', portfolioId)
-        .single();
+      // Get global account for position sizing
+      const { data: accountData, error: accountError } = await supabase.rpc('get_global_trading_account');
 
-      if (!portfolio) {
-        throw new Error('Portfolio not found');
+      if (accountError || !accountData || accountData.length === 0) {
+        throw new Error('Global trading account not found');
       }
+
+      const account = accountData[0];
 
       // Determine trade direction and confidence
       const { direction, confidence, reasoning } = this.analyzeTradeDirection(intelligence);
@@ -178,13 +176,13 @@ class AutomatedTradingEngine {
         -0.02, // Expected loss (-2%)
         confidence,
         {
-          accountBalance: portfolio.balance,
+          accountBalance: account.balance,
           riskPerTrade: 0.02, // 2% risk
           maxPositionSize: 0.05, // 5% max position
           cvarLimit: 0.03, // 3% CVaR limit
           maxDrawdownBudget: 0.15, // 15% max drawdown
           correlationMatrix: [], // Simplified
-          currentDrawdown: portfolio.current_drawdown || 0,
+          currentDrawdown: account.current_drawdown || 0,
           openPositions: [] // Would fetch actual positions
         }
       );
@@ -213,7 +211,7 @@ class AutomatedTradingEngine {
           portfolioId,
           symbol: 'EUR/USD',
           tradeType: direction,
-          lotSize: positionResult.finalSize * portfolio.balance / 100000, // Convert to lot size
+          lotSize: positionResult.finalSize * account.balance / 100000, // Convert to lot size
           entryPrice,
           stopLoss,
           takeProfit,

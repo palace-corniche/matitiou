@@ -1,5 +1,5 @@
 import { UnifiedTick } from './unifiedMarketData';
-import { UnifiedShadowTrade } from './shadowTradingEngineUnified';
+import { GlobalShadowTrade } from './globalShadowTradingEngine';
 
 export interface PnLResult {
   pips: number;
@@ -37,37 +37,28 @@ export class PnLCalculator {
   }
 
   /**
-   * Calculate PnL for a trade
+   * Calculate PnL in USD for EUR/USD
    */
   static calculatePnL(
-    tradeType: 'buy' | 'sell',
-    entryPrice: number,
-    currentPrice: number,
+    pips: number,
     lotSize: number
   ): number {
-    const pips = this.calculatePips(tradeType, entryPrice, currentPrice);
-    const pipValue = lotSize * this.EUR_USD_PIP_VALUE_PER_LOT;
-    return pips * pipValue;
+    return pips * lotSize * this.EUR_USD_PIP_VALUE_PER_LOT;
   }
 
   /**
-   * Get the appropriate current price for a trade based on direction
-   * BUY positions: use bid price (selling price)
-   * SELL positions: use ask price (buying back price)
+   * Get current market price for closing position
    */
   static getCurrentPrice(tradeType: 'buy' | 'sell', tick: UnifiedTick): number {
-    if (tradeType === 'buy') {
-      return tick.bid; // BUY positions close at bid
-    } else {
-      return tick.ask; // SELL positions close at ask
-    }
+    // Use bid for closing long positions, ask for closing short positions
+    return tradeType === 'buy' ? tick.bid : tick.ask;
   }
 
   /**
    * Calculate complete PnL result for a trade
    */
   static calculateTradeResult(
-    trade: UnifiedShadowTrade,
+    trade: GlobalShadowTrade,
     currentTick: UnifiedTick
   ): PnLResult {
     const currentPrice = this.getCurrentPrice(trade.trade_type as 'buy' | 'sell', currentTick);
@@ -90,6 +81,19 @@ export class PnLCalculator {
   }
 
   /**
+   * Calculate required margin for EUR/USD trade
+   */
+  static calculateRequiredMargin(
+    lotSize: number,
+    entryPrice: number,
+    leverage: number = 100
+  ): number {
+    const contractSize = 100000; // Standard lot size for EUR/USD
+    const positionValue = lotSize * contractSize * entryPrice;
+    return positionValue / leverage;
+  }
+
+  /**
    * Format pips for display (1 decimal place)
    */
   static formatPips(pips: number): string {
@@ -103,6 +107,22 @@ export class PnLCalculator {
     const sign = pnl >= 0 ? '+' : '';
     return `${sign}$${pnl.toFixed(2)}`;
   }
+}
+
+/**
+ * Quick helper function for trade metrics calculation
+ */
+export function calculateTradeMetrics(trade: GlobalShadowTrade, currentTick: UnifiedTick): PnLResult {
+  const currentPrice = trade.trade_type === 'buy' ? currentTick.bid : currentTick.ask;
+  const pips = PnLCalculator.calculatePips(trade.trade_type, trade.entry_price, currentPrice);
+  const pipValue = trade.lot_size * 10; // $10 per pip for 1.0 lot EUR/USD
+  const pnl = pips * pipValue;
+
+  return {
+    pips,
+    pnl,
+    pipValue
+  };
 }
 
 export default PnLCalculator;

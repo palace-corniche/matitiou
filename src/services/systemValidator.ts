@@ -345,17 +345,13 @@ export class SystemValidator {
     let score = 100;
 
     try {
-      // Check shadow portfolio functionality
-      const { data: portfolios } = await supabase
-        .from('shadow_portfolios')
-        .select('*')
-        .eq('is_active', true)
-        .limit(1);
+      // Check global trading account functionality
+      const { data: account } = await supabase.rpc('get_global_trading_account');
 
-      if (!portfolios || portfolios.length === 0) {
-        issues.push('No active shadow portfolios');
+      if (!account || account.length === 0) {
+        issues.push('Global trading account not found');
         score -= 50;
-        recommendations.push('Initialize shadow trading portfolios');
+        recommendations.push('Initialize global trading account');
       }
 
       // Check recent trade execution

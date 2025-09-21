@@ -13,7 +13,7 @@ import { SentimentGauge } from '@/components/SentimentGauge';
 import { EconomicSurpriseTracker } from '@/components/EconomicSurpriseTracker';
 import { CorrelationMatrix } from '@/components/CorrelationMatrix';
 import { CentralBankTracker } from '@/components/CentralBankTracker';
-import IntelligenceSignalsDashboard from '@/components/IntelligenceSignalsDashboard';
+import EnhancedSignalAnalyticsDashboard from '@/components/EnhancedSignalAnalyticsDashboard';
 
 const FundamentalAnalysis: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('EUR/USD');
@@ -129,14 +129,9 @@ const FundamentalAnalysis: React.FC = () => {
           </TabsContent>
           
           <TabsContent value="signals" className="space-y-6">
-            <IntelligenceSignalsDashboard
-              symbol={selectedSymbol}
-              timeframe="15m"
-              onSignalSelect={(signal) => {
-                // Navigate to trading dashboard with signal preloaded
-                window.location.href = '/enhanced-trading';
-              }}
-            />
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">Signal analytics will be available in the global trading system.</p>
+            </div>
           </TabsContent>
         </Tabs>
       </div>

@@ -317,15 +317,14 @@ class PreflightSystem {
       console.error('Failed to log graceful failure:', error);
     }
     
-    // Disable auto-trading across all portfolios
+    // Disable auto-trading on global account
     try {
       const { error } = await supabase
-        .from('shadow_portfolios')
+        .from('global_trading_account')
         .update({ 
-          auto_trading_enabled: false,
-          trading_allowed: false
+          auto_trading_enabled: false
         })
-        .neq('id', '00000000-0000-0000-0000-000000000000');
+        .eq('id', '00000000-0000-0000-0000-000000000001');
       
       if (error) {
         console.error('Failed to disable auto-trading:', error);

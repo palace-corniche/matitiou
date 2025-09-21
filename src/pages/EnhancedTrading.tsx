@@ -1,12 +1,12 @@
 import React from 'react';
 import NavigationBar from '@/components/NavigationBar';
-import EnhancedTradingDashboard from '@/components/EnhancedTradingDashboard';
+import ShadowTradingDashboardUnified from '@/components/ShadowTradingDashboardUnified';
 
 const EnhancedTrading: React.FC = () => {
   return (
     <div className="min-h-screen bg-background">
       <NavigationBar />
-      <EnhancedTradingDashboard />
+      <ShadowTradingDashboardUnified />
     </div>
   );
 };

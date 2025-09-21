@@ -58,9 +58,7 @@ const PnLVerificationTest: React.FC = () => {
               scenario.currentPrice
             );
             const calculatedPnL = PnLCalculator.calculatePnL(
-              scenario.tradeType, 
-              scenario.entryPrice, 
-              scenario.currentPrice, 
+              calculatedPips, 
               scenario.lotSize
             );
             
