@@ -7,8 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Separator } from '@/components/ui/separator';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
-// Global Shadow Trading Dashboard - Main trading interface
+
+// Enhanced Components
+import { PerformanceMetricsPanel } from '@/components/enhanced/PerformanceMetricsPanel';
+import { PositionsTable } from '@/components/enhanced/PositionsTable';
+import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
+import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
+
+// Global Shadow Trading Dashboard - Professional trading interface
 import {
   Activity,
   TrendingUp,
@@ -25,7 +33,10 @@ import {
   BarChart3,
   PieChart,
   LineChart,
-  Users
+  Users,
+  Shield,
+  Clock,
+  Percent
 } from 'lucide-react';
 
 const ShadowTradingDashboardUnified: React.FC = () => {
@@ -105,178 +116,315 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     );
   }
 
+  const dailyPnL = account?.floating_pnl || 0;
+  const totalReturn = account ? ((account.balance - 100000) / 100000) * 100 : 0;
+  const marginLevel = account?.margin_level || 0;
+  const openPositionsCount = openTrades.length;
+
+  const getPnLColor = (value: number) => {
+    if (value > 0) return "text-green-600";
+    if (value < 0) return "text-red-600";
+    return "text-muted-foreground";
+  };
+
+  const getMarginColor = (level: number) => {
+    if (level >= 200) return "text-green-600";
+    if (level >= 100) return "text-yellow-600";
+    return "text-red-600";
+  };
+
   return (
-    <div className="min-h-screen bg-background">
-      <div className="container mx-auto px-4 py-6 space-y-6">
-        {/* Header with global stats */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <DollarSign className="h-4 w-4 text-muted-foreground" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">Balance</p>
-                  <div className="text-2xl font-bold text-primary">
-                    ${account?.balance?.toFixed(2) || '0.00'}
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
+      <div className="container mx-auto px-4 py-6 space-y-8">
+        {/* Enhanced Header with comprehensive stats */}
+        <div className="space-y-6">
+          {/* Main Account Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <Card className="border-l-4 border-l-primary shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Account Balance</p>
+                    <div className="text-3xl font-bold text-primary">
+                      ${account?.balance?.toFixed(2) || '0.00'}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Peak: ${account?.peak_balance?.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-primary/10">
+                    <DollarSign className="h-6 w-6 text-primary" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">Equity</p>
-                  <div className="text-2xl font-bold">
-                    ${account?.equity?.toFixed(2) || '0.00'}
+            <Card className="border-l-4 border-l-blue-500 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Current Equity</p>
+                    <div className="text-3xl font-bold">
+                      ${account?.equity?.toFixed(2) || '0.00'}
+                    </div>
+                    <p className={`text-xs mt-1 ${getPnLColor(dailyPnL)}`}>
+                      Today: {dailyPnL >= 0 ? '+' : ''}${dailyPnL.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-blue-100">
+                    <TrendingUp className="h-6 w-6 text-blue-600" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Activity className="h-4 w-4 text-muted-foreground" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">Floating P&L</p>
-                  <div className="text-2xl font-bold text-accent">
-                    ${account?.floating_pnl?.toFixed(2) || '0.00'}
+            <Card className="border-l-4 border-l-purple-500 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Total Return</p>
+                    <div className={`text-3xl font-bold ${getPnLColor(totalReturn)}`}>
+                      {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Since inception
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-purple-100">
+                    <BarChart3 className="h-6 w-6 text-purple-600" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardContent className="p-6">
-              <div className="flex items-center space-x-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                <div className="space-y-1">
-                  <p className="text-sm font-medium leading-none">EUR/USD</p>
-                  <div className="text-2xl font-bold">
-                    {marketData?.price?.toFixed(5) || '1.17000'}
+            <Card className="border-l-4 border-l-orange-500 shadow-lg">
+              <CardContent className="p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground">Margin Level</p>
+                    <div className={`text-3xl font-bold ${getMarginColor(marginLevel)}`}>
+                      {marginLevel.toFixed(0)}%
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Free: ${account?.free_margin?.toFixed(2) || '0.00'}
+                    </p>
+                  </div>
+                  <div className="p-3 rounded-full bg-orange-100">
+                    <Shield className="h-6 w-6 text-orange-600" />
                   </div>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Secondary Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold">{openPositionsCount}</div>
+                <div className="text-xs text-muted-foreground">Open Positions</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold">{account?.total_trades || 0}</div>
+                <div className="text-xs text-muted-foreground">Total Trades</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold text-primary">{(account?.win_rate || 0).toFixed(1)}%</div>
+                <div className="text-xs text-muted-foreground">Win Rate</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold">{(account?.profit_factor || 0).toFixed(2)}</div>
+                <div className="text-xs text-muted-foreground">Profit Factor</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold text-red-600">{(account?.max_drawdown || 0).toFixed(1)}%</div>
+                <div className="text-xs text-muted-foreground">Max Drawdown</div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-muted/30">
+              <CardContent className="p-4 text-center">
+                <div className="text-lg font-bold font-mono">{marketData?.price?.toFixed(5) || '1.17000'}</div>
+                <div className="text-xs text-muted-foreground">EUR/USD</div>
+              </CardContent>
+            </Card>
+          </div>
         </div>
 
-        {/* Action buttons */}
-        <div className="flex gap-4">
-          <Button 
-            onClick={resetAccount}
-            variant="destructive"
-            disabled={isResetting}
-            size="sm"
-          >
-            {isResetting ? 'Resetting...' : 'Reset Account'}
-          </Button>
-          <Button 
-            onClick={toggleAutoTrading}
-            variant={account?.auto_trading_enabled ? "default" : "outline"}
-            size="sm"
-          >
-            {account?.auto_trading_enabled ? "Disable" : "Enable"} Auto Trading
-          </Button>
-          <Button 
-            onClick={refreshData}
-            variant="outline"
-            disabled={isRefreshing}
-            size="sm"
-          >
-            {isRefreshing ? <RefreshCw className="h-4 w-4 animate-spin" /> : "Refresh"}
-          </Button>
+        {/* Enhanced Action buttons */}
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex gap-2">
+            <Button 
+              onClick={refreshData}
+              variant="outline"
+              disabled={isRefreshing}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {isRefreshing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              Refresh Data
+            </Button>
+            
+            <Button 
+              onClick={toggleAutoTrading}
+              variant={account?.auto_trading_enabled ? "default" : "outline"}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {account?.auto_trading_enabled ? <Zap className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+              {account?.auto_trading_enabled ? "Auto ON" : "Auto OFF"}
+            </Button>
+          </div>
+
+          <Separator orientation="vertical" className="h-6" />
+
+          <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2">
+              <Badge variant={marketData ? "default" : "secondary"} className="flex items-center gap-1">
+                <Wifi className="h-3 w-3" />
+                {marketData ? "Connected" : "Disconnected"}
+              </Badge>
+            </div>
+            
+            <div className="text-muted-foreground">
+              Last update: {new Date().toLocaleTimeString()}
+            </div>
+          </div>
+
+          <div className="ml-auto">
+            <Button 
+              onClick={resetAccount}
+              variant="destructive"
+              disabled={isResetting}
+              size="sm"
+              className="flex items-center gap-2"
+            >
+              {isResetting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
+              {isResetting ? 'Resetting...' : 'Reset Account'}
+            </Button>
+          </div>
         </div>
 
-        {/* Main content tabs */}
-        <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="trading">Trading</TabsTrigger>
-            <TabsTrigger value="positions">Positions</TabsTrigger>
-            <TabsTrigger value="history">History</TabsTrigger>
-            <TabsTrigger value="account">Account</TabsTrigger>
+        {/* Enhanced Main content tabs */}
+        <Tabs defaultValue="overview" className="space-y-8">
+          <TabsList className="grid w-full grid-cols-5 h-12">
+            <TabsTrigger value="overview" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Overview
+            </TabsTrigger>
+            <TabsTrigger value="trading" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              Trading
+            </TabsTrigger>
+            <TabsTrigger value="positions" className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Positions ({openPositionsCount})
+            </TabsTrigger>
+            <TabsTrigger value="history" className="flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              History
+            </TabsTrigger>
+            <TabsTrigger value="account" className="flex items-center gap-2">
+              <Settings className="h-4 w-4" />
+              Account
+            </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Quick Trade Panel */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Quick Trade</CardTitle>
-                  <CardDescription>Execute trades instantly</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label>Trade Type</Label>
-                      <Select 
-                        value={quickTradeData.tradeType} 
-                        onValueChange={(value: 'buy' | 'sell') => 
-                          setQuickTradeData(prev => ({ ...prev, tradeType: value }))
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="buy">Buy</SelectItem>
-                          <SelectItem value="sell">Sell</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Lot Size</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        value={quickTradeData.lotSize}
-                        onChange={(e) => setQuickTradeData(prev => ({ 
-                          ...prev, 
-                          lotSize: parseFloat(e.target.value) || 0.01 
-                        }))}
-                      />
-                    </div>
-                  </div>
-                  <Button 
-                    onClick={handleQuickTrade}
-                    disabled={isExecutingTrade}
-                    className="w-full"
-                    variant={quickTradeData.tradeType === 'buy' ? 'default' : 'destructive'}
-                  >
-                    {isExecutingTrade ? 'Executing...' : `${quickTradeData.tradeType.toUpperCase()} ${quickTradeData.lotSize} Lots`}
-                  </Button>
-                </CardContent>
-              </Card>
+          <TabsContent value="overview" className="space-y-8">
+            <PerformanceMetricsPanel 
+              account={account}
+              performanceMetrics={performanceMetrics}
+            />
+          </TabsContent>
 
-              {/* Market Status */}
+          <TabsContent value="trading" className="space-y-8">
+            <TradingControlPanel
+              marketData={marketData}
+              isExecutingTrade={isExecutingTrade}
+              onExecuteTrade={async (request) => {
+                await executeTrade(request);
+              }}
+              onCalculateOptimalLotSize={calculateOptimalLotSize}
+            />
+
+            {/* Market Data Overview */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Market Status</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Market Overview
+                  </CardTitle>
                   <CardDescription>Real-time market information</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <span>EUR/USD</span>
-                      <span className="font-mono text-lg">{marketData?.price?.toFixed(5) || '1.17000'}</span>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="text-center p-4 bg-muted/30 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Bid Price</p>
+                        <p className="text-2xl font-mono font-bold">{marketData?.bid?.toFixed(5) || '1.17000'}</p>
+                      </div>
+                      <div className="text-center p-4 bg-muted/30 rounded-lg">
+                        <p className="text-sm text-muted-foreground">Ask Price</p>
+                        <p className="text-2xl font-mono font-bold">{marketData?.ask?.toFixed(5) || '1.17005'}</p>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span>Bid</span>
-                      <span className="font-mono">{marketData?.bid?.toFixed(5) || '1.17000'}</span>
+                    
+                    <Separator />
+                    
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="flex justify-between">
+                        <span>Spread:</span>
+                        <span className="font-mono">{marketData?.spread?.toFixed(1) || '1.5'} pips</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>Last Update:</span>
+                        <span>{new Date().toLocaleTimeString()}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span>Ask</span>
-                      <span className="font-mono">{marketData?.ask?.toFixed(5) || '1.17000'}</span>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Quick Stats
+                  </CardTitle>
+                  <CardDescription>Current session summary</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Open Trades</p>
+                      <p className="text-xl font-bold">{openPositionsCount}</p>
                     </div>
-                    <div className="flex justify-between items-center">
-                      <span>Spread</span>
-                      <span className="font-mono">{marketData?.spread?.toFixed(1) || '1.5'} pips</span>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Used Margin</p>
+                      <p className="text-xl font-bold">${(account?.used_margin || 0).toFixed(0)}</p>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Free Margin</p>
+                      <p className="text-xl font-bold">${(account?.free_margin || 0).toFixed(0)}</p>
+                    </div>
+                    <div className="text-center p-3 bg-muted/30 rounded-lg">
+                      <p className="text-sm text-muted-foreground">Margin Level</p>
+                      <p className={`text-xl font-bold ${getMarginColor(marginLevel)}`}>
+                        {marginLevel.toFixed(0)}%
+                      </p>
                     </div>
                   </div>
                 </CardContent>
@@ -284,98 +432,18 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             </div>
           </TabsContent>
 
-          <TabsContent value="positions" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Open Positions ({openTrades.length})</CardTitle>
-                <CardDescription>Currently active trades</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {openTrades.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No open positions
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-4">
-                      {openTrades.map((trade) => (
-                        <div key={trade.id} className="border rounded-lg p-4">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={trade.trade_type === 'buy' ? 'default' : 'destructive'}>
-                                  {trade.trade_type.toUpperCase()}
-                                </Badge>
-                                <span className="font-medium">{trade.symbol}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {trade.lot_size} lots
-                                </span>
-                              </div>
-                              <div className="mt-2 text-sm space-y-1">
-                                <div>Entry: {trade.entry_price.toFixed(5)}</div>
-                                <div>Current: {trade.current_price?.toFixed(5) || 'N/A'}</div>
-                                <div>P&L: ${trade.unrealized_pnl?.toFixed(2) || '0.00'}</div>
-                              </div>
-                            </div>
-                            <Button
-                              onClick={() => closeTrade(trade.id)}
-                              disabled={isClosingTrade}
-                              variant="outline"
-                              size="sm"
-                            >
-                              Close
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="positions" className="space-y-8">
+            <PositionsTable
+              openTrades={openTrades}
+              isClosingTrade={isClosingTrade}
+              onCloseTrade={async (tradeId) => {
+                await closeTrade(tradeId);
+              }}
+            />
           </TabsContent>
 
-          <TabsContent value="history" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Trade History</CardTitle>
-                <CardDescription>Recent trading activity</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {tradeHistory.length === 0 ? (
-                  <div className="text-center py-8 text-muted-foreground">
-                    No trade history
-                  </div>
-                ) : (
-                  <ScrollArea className="h-[400px]">
-                    <div className="space-y-4">
-                      {tradeHistory.slice(0, 20).map((trade) => (
-                        <div key={trade.id} className="border rounded-lg p-4">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant={trade.action_type === 'close' ? 'secondary' : 'outline'}>
-                                  {trade.action_type.toUpperCase()}
-                                </Badge>
-                                <span className="font-medium">{trade.symbol}</span>
-                                <span className="text-sm text-muted-foreground">
-                                  {trade.lot_size} lots
-                                </span>
-                              </div>
-                              <div className="mt-2 text-sm space-y-1">
-                                <div>Price: {trade.execution_price.toFixed(5)}</div>
-                                <div>P&L: ${trade.profit?.toFixed(2) || '0.00'}</div>
-                                <div>Time: {new Date(trade.execution_time).toLocaleString()}</div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </ScrollArea>
-                )}
-              </CardContent>
-            </Card>
+          <TabsContent value="history" className="space-y-8">
+            <TradeHistoryTable tradeHistory={tradeHistory} />
           </TabsContent>
 
           <TabsContent value="account" className="space-y-6">
