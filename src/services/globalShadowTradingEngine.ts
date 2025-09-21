@@ -119,9 +119,11 @@ class GlobalShadowTradingEngine {
 
   private initializeRealTimeUpdates() {
     // Subscribe to market data updates
-    unifiedMarketData.subscribe((tick: any) => {
+    const handleMarketUpdate = (tick: any) => {
       this.updateRealTimePnL(tick);
-    });
+    };
+
+    unifiedMarketData.subscribe(handleMarketUpdate);
   }
 
   // Global Account Management

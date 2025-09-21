@@ -235,14 +235,14 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
 
   // Subscribe to market data updates
   useEffect(() => {
-    const subscription = unifiedMarketData.subscribe((tick: UnifiedTick) => {
+    const handleMarketUpdate = (tick: UnifiedTick) => {
       setMarketData(tick);
-    });
+    };
+
+    unifiedMarketData.subscribe(handleMarketUpdate);
 
     return () => {
-      if (subscription && typeof subscription.unsubscribe === 'function') {
-        subscription.unsubscribe();
-      }
+      // No unsubscribe needed as unifiedMarketData.subscribe returns a function
     };
   }, []);
 

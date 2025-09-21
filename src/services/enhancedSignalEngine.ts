@@ -76,7 +76,7 @@ export class EnhancedSignalEngine {
         // Auto-execute in shadow trading system
         try {
           if (signal.signal !== 'neutral') {
-            unifiedShadowTradingEngine.executeTrade({
+            globalShadowTradingEngine.executeTrade({
               symbol: signal.pair || 'EUR/USD',
               trade_type: signal.signal,
               lot_size: 0.01,

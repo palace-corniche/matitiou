@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AutomatedTradingPanel } from '@/components/AutomatedTradingPanel';
 import { MultiTimeframeAnalysis } from '@/components/MultiTimeframeAnalysis';
 import { IntelligenceBacktestingPanel } from '@/components/IntelligenceBacktestingPanel';
-import { PortfolioManagementPanel } from '@/components/PortfolioManagementPanel';
+// Portfolio management removed - now using global system
 import { Brain, Clock, BarChart3, Briefcase } from 'lucide-react';
 
 export default function IntelligenceHub() {
@@ -102,7 +102,20 @@ export default function IntelligenceHub() {
           </TabsContent>
 
           <TabsContent value="portfolio">
-            <PortfolioManagementPanel />
+            <Card>
+              <CardHeader>
+                <CardTitle>Global Trading System</CardTitle>
+                <CardDescription>
+                  Portfolio management has been simplified to a global trading account system.
+                  All trading now happens through the unified Shadow Trading interface.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <p className="text-muted-foreground">
+                  Visit the Shadow Trading page to access the simplified global trading system.
+                </p>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>
