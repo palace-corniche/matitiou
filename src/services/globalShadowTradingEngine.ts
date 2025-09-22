@@ -242,14 +242,12 @@ class GlobalShadowTradingEngine {
       const currentTick = unifiedMarketData.getLastTick();
       const currentPrice = currentTick ? (currentTick.bid + currentTick.ask) / 2 : 1.17000;
 
-      const { data, error } = await supabase.functions.invoke('manage-trades', {
-        body: {
-          action: 'close_trade',
-          tradeId,
-          closeLotSize: lotSize,
-          closeReason: reason,
-          currentPrice
-        }
+      // Use direct RPC call instead of edge function
+      const { data, error } = await supabase.rpc('close_shadow_trade', {
+        p_trade_id: tradeId,
+        p_close_price: currentPrice,
+        p_close_lot_size: lotSize,
+        p_close_reason: reason
       });
 
       if (error) {
@@ -257,11 +255,12 @@ class GlobalShadowTradingEngine {
         return false;
       }
 
-      if (!data?.success) {
-        console.error('Trade close failed:', data?.error);
+      if (!(data as any)?.success) {
+        console.error('Trade close failed:', (data as any)?.error || 'Unknown error');
         return false;
       }
 
+      // Refresh account data after successful trade closure
       await this.refreshAccount();
       return true;
     } catch (error) {

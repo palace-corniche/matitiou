@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
+import { useToast } from '@/hooks/use-toast';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 
 // Enhanced Components
@@ -60,6 +61,8 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     updateMaxOpenTrades,
     calculateOptimalLotSize
   } = useGlobalShadowTrading();
+
+  const { toast } = useToast();
 
   // Local state for UI
   const [quickTradeData, setQuickTradeData] = useState({
@@ -305,7 +308,31 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
           <div className="ml-auto">
             <Button 
-              onClick={resetAccount}
+              onClick={() => {
+                const confirmed = window.confirm(
+                  "Are you sure you want to reset your account? This will:\n\n" +
+                  "• Delete ALL open positions\n" +
+                  "• Clear ALL trade history\n" +
+                  "• Reset balance to $100,000\n" +
+                  "• Reset all metrics to zero\n\n" +
+                  "This action cannot be undone!"
+                );
+                if (confirmed) {
+                  resetAccount().then(() => {
+                    refreshData();
+                    toast({
+                      title: "Account Reset Complete",
+                      description: "All data cleared - account reset to initial state",
+                    });
+                  }).catch(() => {
+                    toast({
+                      variant: "destructive",
+                      title: "Reset Failed",
+                      description: "Failed to reset account. Please try again.",
+                    });
+                  });
+                }
+              }}
               variant="destructive"
               disabled={isResetting}
               size="sm"
