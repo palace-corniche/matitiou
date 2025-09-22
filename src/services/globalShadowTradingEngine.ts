@@ -370,22 +370,9 @@ class GlobalShadowTradingEngine {
   }
 
   private async updateRealTimePnL(tick: any) {
-    try {
-      const openTrades = await this.getOpenTrades();
-      if (openTrades.length === 0) return;
-
-      const tradeIds = openTrades.map(trade => trade.id);
-      
-      await supabase.functions.invoke('manage-trades', {
-        body: {
-          action: 'update_real_time_pnl',
-          tradeIds,
-          currentPrice: (tick.bid + tick.ask) / 2
-        }
-      });
-    } catch (error) {
-      console.error('Real-time P&L update error:', error);
-    }
+    // Note: This functionality is disabled as the edge function doesn't support update_real_time_pnl action
+    // Real-time P&L updates are handled by the database function instead
+    console.log('Real-time P&L update skipped - using database function instead');
   }
 
   // Analytics helpers
