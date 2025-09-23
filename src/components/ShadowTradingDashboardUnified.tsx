@@ -10,12 +10,14 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
+import { globalShadowTradingEngine } from '@/services/globalShadowTradingEngine';
 
 // Enhanced Components
 import { PerformanceMetricsPanel } from '@/components/enhanced/PerformanceMetricsPanel';
 import { PositionsTable } from '@/components/enhanced/PositionsTable';
 import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
 import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
+import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
 
 // Global Shadow Trading Dashboard - Professional trading interface
 import {
@@ -42,24 +44,36 @@ import {
 
 const ShadowTradingDashboardUnified: React.FC = () => {
   const {
+    // State
     account,
     openTrades,
     tradeHistory,
     performanceMetrics,
     marketData,
+    
+    // Loading states
     isLoading,
     isExecutingTrade,
     isClosingTrade,
     isRefreshing,
     isResetting,
     error,
+    
+    // Actions
     executeTrade,
     closeTrade,
     resetAccount,
     refreshData,
+    
+    // Settings
     toggleAutoTrading,
     updateMaxOpenTrades,
-    calculateOptimalLotSize
+    
+    // Analytics
+    calculateOptimalLotSize,
+    
+    // Phase 4: Validation
+    validateResetCompletion
   } = useGlobalShadowTrading();
 
   const { toast } = useToast();
@@ -308,29 +322,69 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
           <div className="ml-auto">
             <Button 
-              onClick={() => {
+              onClick={async () => {
+                // Enhanced confirmation with current data stats
+                const currentStats = {
+                  trades: openTrades?.length || 0,
+                  history: tradeHistory?.length || 0,
+                  balance: account?.balance || 0
+                };
+                
                 const confirmed = window.confirm(
-                  "Are you sure you want to reset your account? This will:\n\n" +
-                  "• Delete ALL open positions\n" +
-                  "• Clear ALL trade history\n" +
-                  "• Reset balance to $100,000\n" +
-                  "• Reset all metrics to zero\n\n" +
-                  "This action cannot be undone!"
+                  `⚠️ COMPLETE ACCOUNT RESET ⚠️\n\n` +
+                  `Current Status:\n` +
+                  `• Open Trades: ${currentStats.trades}\n` +
+                  `• Trade History: ${currentStats.history} records\n` +
+                  `• Account Balance: $${currentStats.balance.toFixed(2)}\n\n` +
+                  `This will:\n` +
+                  `• Delete ALL open positions\n` +
+                  `• Clear ALL trade history\n` +
+                  `• Reset balance to $100,000\n` +
+                  `• Reset all metrics to zero\n\n` +
+                  `This action cannot be undone!\n\n` +
+                  `Continue with reset?`
                 );
+                
                 if (confirmed) {
-                  resetAccount().then(() => {
-                    refreshData();
-                    toast({
-                      title: "Account Reset Complete",
-                      description: "All data cleared - account reset to initial state",
-                    });
-                  }).catch(() => {
+                  try {
+                    await resetAccount();
+                    
+                    // Phase 4: Enhanced post-reset validation and feedback
+                    setTimeout(async () => {
+                      try {
+                        // Validate reset was successful
+                        const validation = await validateResetCompletion();
+                        
+                        if (validation.success) {
+                          toast({
+                            title: "✅ Account Reset Complete",
+                            description: `${validation.message}\n• Balance: $${validation.stats.accountBalance.toFixed(2)}\n• Trades: ${validation.stats.tradesCount}\n• History: ${validation.stats.historyCount}`,
+                          });
+                        } else {
+                          toast({
+                            variant: "destructive",
+                            title: "⚠️ Reset Incomplete",
+                            description: `Validation failed:\n${validation.errors.join('\n')}`,
+                          });
+                        }
+                      } catch (error) {
+                        console.error('Post-reset validation failed:', error);
+                        toast({
+                          variant: "destructive",
+                          title: "Validation Error",
+                          description: "Could not verify reset completion",
+                        });
+                      }
+                    }, 2000);
+                    
+                  } catch (error) {
+                    console.error('Reset failed:', error);
                     toast({
                       variant: "destructive",
                       title: "Reset Failed",
-                      description: "Failed to reset account. Please try again.",
+                      description: "Failed to reset account. Please try again or check console for details.",
                     });
-                  });
+                  }
                 }
               }}
               variant="destructive"
@@ -339,7 +393,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
               className="flex items-center gap-2"
             >
               {isResetting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-              {isResetting ? 'Resetting...' : 'Reset Account'}
+              {isResetting ? 'Resetting & Validating...' : 'Reset Account'}
             </Button>
           </div>
         </div>
@@ -545,6 +599,9 @@ const ShadowTradingDashboardUnified: React.FC = () => {
                 </CardContent>
               </Card>
             </div>
+            
+            {/* Phase 4: Reset Validation Panel */}
+            <ResetValidationPanel />
           </TabsContent>
         </Tabs>
       </div>

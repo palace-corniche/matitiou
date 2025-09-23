@@ -38,6 +38,18 @@ export interface UseGlobalShadowTrading {
 
   // Analytics Helpers
   calculateOptimalLotSize: (symbol: string, riskPercent: number, entryPrice: number, stopLoss: number) => Promise<number>;
+  
+  // Phase 4: Validation helpers
+  validateResetCompletion: () => Promise<{
+    success: boolean;
+    message: string;
+    errors: string[];
+    stats: {
+      tradesCount: number;
+      historyCount: number;
+      accountBalance: number;
+    };
+  }>;
 }
 
 export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
@@ -119,25 +131,114 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
     }
   }, [isClosingTrade]);
 
+  // Phase 3: Enhanced reset with explicit state clearing and validation
   const resetAccount = useCallback(async (): Promise<void> => {
     if (isResetting) return;
     
     setIsResetting(true);
+    setError(null);
+    
     try {
-      await withTimeout(
+      // Step 1: Call the enhanced reset function
+      const result = await withTimeout(
         globalShadowTradingEngine.resetAccount(),
         15000
       );
       
-      toast.success('Account reset successfully');
+      // Step 2: Phase 4 - Validate reset was successful
+      const validation = await validateResetCompletion();
+      
+      if (!validation.success) {
+        throw new Error(`Reset validation failed: ${validation.errors.join(', ')}`);
+      }
+      
+      // Step 3: Force complete state clearing
+      setAccount(null);
+      setOpenTrades([]);
+      setTradeHistory([]);
+      setPerformanceMetrics(null);
+      setMarketData(null);
+      
+      // Step 4: Refresh data to get clean initial state
       await refreshData();
+      
+      // Step 5: Comprehensive success feedback
+      toast.success(`Account reset completed successfully! ${validation.message}`);
+      
     } catch (error) {
       console.error('Account reset failed:', error);
-      toast.error('Account reset failed');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      setError(`Reset failed: ${errorMessage}`);
+      toast.error(`Reset failed: ${errorMessage}`);
     } finally {
       setIsResetting(false);
     }
   }, [isResetting]);
+
+  // Phase 4: Data validation helper
+  const validateResetCompletion = useCallback(async (): Promise<{
+    success: boolean;
+    message: string;
+    errors: string[];
+    stats: {
+      tradesCount: number;
+      historyCount: number;
+      accountBalance: number;
+    };
+  }> => {
+    try {
+      const [trades, history, account] = await Promise.all([
+        globalShadowTradingEngine.getOpenTrades(),
+        globalShadowTradingEngine.getTradeHistory(10),
+        globalShadowTradingEngine.getGlobalAccount()
+      ]);
+      
+      const errors: string[] = [];
+      
+      // Validation checks
+      if (trades.length > 0) {
+        errors.push(`${trades.length} trades still exist`);
+      }
+      
+      if (history.length > 0) {
+        errors.push(`${history.length} history records still exist`);
+      }
+      
+      if (account?.balance !== 100000) {
+        errors.push(`Account balance is ${account?.balance} instead of 100000`);
+      }
+      
+      if (account?.total_trades !== 0) {
+        errors.push(`Total trades counter is ${account?.total_trades} instead of 0`);
+      }
+      
+      const success = errors.length === 0;
+      
+      return {
+        success,
+        message: success ? 
+          'All data cleared and account reset to initial state (100K balance)' : 
+          'Reset incomplete - validation failed',
+        errors,
+        stats: {
+          tradesCount: trades.length,
+          historyCount: history.length,
+          accountBalance: account?.balance || 0
+        }
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Validation check failed',
+        errors: ['Unable to verify reset completion'],
+        stats: {
+          tradesCount: -1,
+          historyCount: -1,
+          accountBalance: -1
+        }
+      };
+    }
+  }, []);
 
   const refreshData = useCallback(async (): Promise<void> => {
     if (isRefreshing) return;
@@ -290,6 +391,9 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
     updateMaxOpenTrades,
     
     // Analytics Helpers
-    calculateOptimalLotSize
+    calculateOptimalLotSize,
+    
+    // Phase 4: Validation helpers
+    validateResetCompletion
   };
 };
