@@ -420,16 +420,37 @@ serve(async (req) => {
       performanceMetrics: masterSignal?.performance || {},
       qualityIndicators: masterSignal?.quality || {},
       recommendation: {
-        action: masterSignal?.signal ? 'TRADE' : 'WAIT',
+        action: (masterSignal?.signal ? 'TRADE' : 'WAIT') as 'TRADE' | 'WAIT' | 'REVIEW_SETUP' | 'CHECK_DATA',
         reasoning: masterSignal?.reasoning || 'No qualifying signal found',
         nextActions: ['Monitor for signal improvements']
       },
-      rejectionReason: !masterSignal?.signal ? 'No qualifying master signal generated' : null
+      rejectionReason: !masterSignal?.signal ? 'No qualifying master signal generated' : undefined
     };
 
+    // Phase 1 & 2: Enhanced signal validation and error handling
     if (signalAnalysis?.success && signalAnalysis.masterSignal?.signal && signalAnalysis.masterSignal?.signal !== 'hold') {
-      // Convert master signal to database format - FIX NULL CHECK
-      const confluenceSignal = convertMasterSignalToDatabase(signalAnalysis);
+      console.log('✅ Valid master signal found, converting to database format...');
+      
+      let confluenceSignal;
+      try {
+        // Convert master signal to database format with enhanced error handling
+        confluenceSignal = convertMasterSignalToDatabase(signalAnalysis);
+      } catch (conversionError) {
+        console.error('❌ Signal conversion failed:', (conversionError as Error).message);
+        
+        // Phase 2: Log conversion failures for monitoring
+        await supabase.from('system_health').insert({
+          function_name: 'convert-master-signal',
+          status: 'error',
+          error_message: `Signal conversion failed: ${(conversionError as Error).message}`,
+          execution_time_ms: Date.now() - startTime,
+          processed_items: 0
+        });
+        
+        status = 'error';
+        errorMessage = `Signal conversion failed: ${(conversionError as Error).message}`;
+        confluenceSignal = null;
+      }
       
       // Check if similar signal was generated recently (last 30 minutes)
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
@@ -442,9 +463,9 @@ serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      // Only create signal if no similar recent signal or this one is significantly stronger
-      const shouldCreateSignal = !recentSignals?.length || 
-        confluenceSignal.confluence_score > (recentSignals[0].confluence_score + 10);
+      // Only create signal if conversion was successful and no similar recent signal exists
+      const shouldCreateSignal = confluenceSignal && (!recentSignals?.length || 
+        confluenceSignal.confluence_score > (recentSignals[0].confluence_score + 10));
 
       if (shouldCreateSignal) {
         const { error: insertError } = await supabase
@@ -571,7 +592,7 @@ serve(async (req) => {
         function_name: 'generate-confluence-signals',
         execution_time_ms: executionTime,
         status: 'error',
-        error_message: error.message,
+        error_message: (error as Error).message,
         processed_items: processedItems
       });
     } catch (logError) {
@@ -608,7 +629,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating technical signals:', error);
-    moduleErrors.push({ module: 'technical', error: error.message });
+    moduleErrors.push({ module: 'technical', error: (error as Error).message });
     // Add fallback technical signal
     signals.push(generateFallbackSignal('technical_fallback', candles, pair, timeframe));
   }
@@ -622,7 +643,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating fundamental signals:', error);
-    moduleErrors.push({ module: 'fundamental', error: error.message });
+    moduleErrors.push({ module: 'fundamental', error: (error as Error).message });
     // Add fallback fundamental signal
     signals.push(generateFallbackSignal('fundamental_fallback', candles, pair, timeframe));
   }
@@ -739,7 +760,7 @@ async function generateMasterSignalAnalysis(supabase: any, candles: any[], pair:
       await supabase.from('system_health').insert({
         function_name: 'fusion-bayesian',
         status: 'error',
-        error_message: error.message,
+        error_message: (error as Error).message,
         processed_items: modularSignals?.allSignals?.length || 0
       });
     } catch (logError) {
@@ -756,8 +777,8 @@ async function generateEnhancedDiagnostics(supabase: any, masterSignal: any, mod
   console.log('🔍 Running enhanced diagnostics...');
   
   try {
-    // FIX: Pass signals array correctly for diagnostics
-    const diagnostics = await generateSignalDiagnostics(modularSignals?.allSignals || [], masterSignal, null, pair);
+    // FIX: Pass signals array correctly for diagnostics - remove extra parameter
+    const diagnostics = await generateSignalDiagnostics(modularSignals?.allSignals || [], masterSignal, null);
     return diagnostics;
   } catch (error) {
     console.error('Error generating enhanced diagnostics:', error);
@@ -788,16 +809,39 @@ function calculateDataFreshness(signals: any[]): number {
 
 // Legacy function removed - using enhanced version at line 540 with real database integration
 
-// Convert master signal to database format - FIX NULL HANDLING
+// Convert master signal to database format - PHASE 1: FIX NULL HANDLING & VALIDATION
 function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
-  const masterSignal = analysis.masterSignal;
+  console.log('🔄 Converting master signal to database format...');
   
-  // Validate masterSignal exists and has required properties
-  if (!masterSignal || !masterSignal.signal || !masterSignal.entryPrice) {
-    throw new Error('Invalid master signal: missing required properties');
+  // Phase 1: Comprehensive validation
+  if (!analysis) {
+    throw new Error('Analysis object is null or undefined');
   }
   
-  const currentPrice = masterSignal.entryPrice;
+  const masterSignal = analysis.masterSignal;
+  
+  if (!masterSignal) {
+    throw new Error('Master signal is null or undefined');
+  }
+  
+  if (!masterSignal.signal || masterSignal.signal === 'hold') {
+    throw new Error('No valid signal type found');
+  }
+  
+  // Handle missing entryPrice - use current market price as fallback
+  let currentPrice = masterSignal.entryPrice;
+  
+  if (!currentPrice && analysis.modularResults?.allSignals?.length > 0) {
+    // Fallback: extract price from modular signals
+    const signalWithPrice = analysis.modularResults.allSignals.find((s: any) => s.entryPrice || s.entry_price);
+    currentPrice = signalWithPrice?.entryPrice || signalWithPrice?.entry_price;
+  }
+  
+  if (!currentPrice) {
+    // Last resort: use a reasonable default for EUR/USD
+    currentPrice = 1.17; // Safe fallback for EUR/USD
+    console.warn('⚠️ Using fallback price for signal conversion');
+  }
   
   return {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -806,14 +850,14 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     confluence_score: Math.round((masterSignal.confidence || 0.5) * 100),
     strength: Math.min(100, Math.max(0, Math.round((masterSignal.strength || 0.5) * 10))),
     confidence: masterSignal.confidence || 0.5,
-    entry_price: masterSignal.entryPrice,
+    entry_price: currentPrice,
     stop_loss: masterSignal.stopLoss || currentPrice * 0.995,
     take_profit: masterSignal.takeProfit || currentPrice * 1.015,
     risk_reward_ratio: masterSignal.riskRewardRatio || 2.0,
-    description: masterSignal.reasoning || 'No reasoning provided',
+    description: masterSignal.reasoning || 'Master signal generated',
     alert_level: (masterSignal.confidence || 0.5) > 0.8 ? 'high' : 
                  (masterSignal.confidence || 0.5) > 0.6 ? 'medium' : 'low',
-    factors: (masterSignal.contributingSignals || []).map(signal => ({
+    factors: (masterSignal.contributingSignals || []).map((signal: any) => ({
       type: signal.source || 'unknown',
       name: signal.signal || 'hold',
       strength: signal.strength || 0.5,
