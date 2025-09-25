@@ -2059,6 +2059,117 @@ export type Database = {
         }
         Relationships: []
       }
+      shadow_portfolios: {
+        Row: {
+          auto_trading_enabled: boolean
+          average_loss: number
+          average_win: number
+          balance: number
+          consecutive_losses: number
+          consecutive_wins: number
+          created_at: string
+          current_drawdown: number
+          equity: number
+          floating_pnl: number
+          free_margin: number
+          id: string
+          initial_deposit: number
+          largest_loss: number
+          largest_win: number
+          last_trade_time: string | null
+          leverage: number
+          losing_trades: number
+          margin: number
+          margin_level: number
+          max_drawdown: number
+          max_equity: number
+          max_open_positions: number
+          peak_balance: number
+          portfolio_name: string
+          profit_factor: number
+          sharpe_ratio: number
+          total_commission: number
+          total_swap: number
+          total_trades: number
+          updated_at: string
+          used_margin: number
+          win_rate: number
+          winning_trades: number
+        }
+        Insert: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          consecutive_losses?: number
+          consecutive_wins?: number
+          created_at?: string
+          current_drawdown?: number
+          equity?: number
+          floating_pnl?: number
+          free_margin?: number
+          id?: string
+          initial_deposit?: number
+          largest_loss?: number
+          largest_win?: number
+          last_trade_time?: string | null
+          leverage?: number
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_equity?: number
+          max_open_positions?: number
+          peak_balance?: number
+          portfolio_name?: string
+          profit_factor?: number
+          sharpe_ratio?: number
+          total_commission?: number
+          total_swap?: number
+          total_trades?: number
+          updated_at?: string
+          used_margin?: number
+          win_rate?: number
+          winning_trades?: number
+        }
+        Update: {
+          auto_trading_enabled?: boolean
+          average_loss?: number
+          average_win?: number
+          balance?: number
+          consecutive_losses?: number
+          consecutive_wins?: number
+          created_at?: string
+          current_drawdown?: number
+          equity?: number
+          floating_pnl?: number
+          free_margin?: number
+          id?: string
+          initial_deposit?: number
+          largest_loss?: number
+          largest_win?: number
+          last_trade_time?: string | null
+          leverage?: number
+          losing_trades?: number
+          margin?: number
+          margin_level?: number
+          max_drawdown?: number
+          max_equity?: number
+          max_open_positions?: number
+          peak_balance?: number
+          portfolio_name?: string
+          profit_factor?: number
+          sharpe_ratio?: number
+          total_commission?: number
+          total_swap?: number
+          total_trades?: number
+          updated_at?: string
+          used_margin?: number
+          win_rate?: number
+          winning_trades?: number
+        }
+        Relationships: []
+      }
       shadow_trades: {
         Row: {
           break_even_triggered: boolean | null
