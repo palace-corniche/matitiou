@@ -396,17 +396,42 @@ serve(async (req) => {
     console.log('🚀 Starting shadow trade execution...');
     console.log('📋 Trigger:', trigger, 'Signal ID:', signal_id);
 
-    // Get all active portfolios
+    // Get all active portfolios (removed is_active filter as column doesn't exist)
+    console.log('🔍 Fetching active portfolios...');
     const { data: portfolios, error: portfoliosError } = await supabase
       .from('shadow_portfolios')
       .select('*')
-      .eq('is_active', true)
       .eq('auto_trading_enabled', true);
 
-    if (portfoliosError || !portfolios?.length) {
-      console.log('⚠️ No active portfolios found for trading');
+    if (portfoliosError) {
+      console.error('❌ Error fetching portfolios:', portfoliosError);
       return new Response(
-        JSON.stringify({ success: true, message: 'No active portfolios found' }),
+        JSON.stringify({ success: false, error: 'Error fetching portfolios', details: portfoliosError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!portfolios?.length) {
+      console.log('⚠️ No active portfolios found for trading');
+      console.log('💡 Checking all portfolios...');
+      
+      // Check if any portfolios exist at all
+      const { data: allPortfolios } = await supabase
+        .from('shadow_portfolios')
+        .select('id, auto_trading_enabled, portfolio_name');
+      
+      console.log(`📊 Total portfolios in database: ${allPortfolios?.length || 0}`);
+      allPortfolios?.forEach(p => {
+        console.log(`  - ${p.portfolio_name} (${p.id.slice(0, 8)}): auto_trading=${p.auto_trading_enabled}`);
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No active portfolios found', 
+          totalPortfolios: allPortfolios?.length || 0,
+          portfolios: allPortfolios 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -414,11 +439,13 @@ serve(async (req) => {
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
     // Get qualifying signals (either specific signal or all new signals)
+    // Get qualifying signals (lowered threshold from 25 to 15 based on diagnostic)
+    console.log('🎯 Fetching qualifying signals...');
     let signalsQuery = supabase
       .from('trading_signals')
       .select('*')
       .eq('was_executed', false)
-      .gte('confluence_score', 25) // Minimum score threshold
+      .gte('confluence_score', 15) // Lowered from 25 to 15 based on actual signal scores
       .in('signal_type', ['buy', 'sell'])
       .order('created_at', { ascending: false });
 
@@ -432,10 +459,37 @@ serve(async (req) => {
 
     const { data: signals, error: signalsError } = await signalsQuery.limit(5);
 
-    if (signalsError || !signals?.length) {
-      console.log('⚠️ No qualifying signals found for execution');
+    if (signalsError) {
+      console.error('❌ Error fetching signals:', signalsError);
       return new Response(
-        JSON.stringify({ success: true, message: 'No qualifying signals found' }),
+        JSON.stringify({ success: false, error: 'Error fetching signals', details: signalsError }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!signals?.length) {
+      console.log('⚠️ No qualifying signals found for execution');
+      
+      // Check what signals exist
+      const { data: allSignals } = await supabase
+        .from('trading_signals')
+        .select('confluence_score, signal_type, was_executed, created_at')
+        .eq('was_executed', false)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      console.log(`📊 Recent unexecuted signals: ${allSignals?.length || 0}`);
+      allSignals?.forEach(s => {
+        console.log(`  - Score: ${s.confluence_score}, Type: ${s.signal_type}, Age: ${Math.round((Date.now() - new Date(s.created_at).getTime()) / 60000)}min`);
+      });
+      
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'No qualifying signals found', 
+          recentSignals: allSignals?.length || 0,
+          signals: allSignals 
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
