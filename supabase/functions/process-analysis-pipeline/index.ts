@@ -100,8 +100,8 @@ serve(async (req) => {
     console.error('❌ Pipeline processing error:', error);
     return new Response(
       JSON.stringify({ 
-        error: error.message,
-        details: error.stack,
+        error: (error as Error).message,
+        details: (error as Error).stack,
         timestamp: new Date().toISOString()
       }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -129,7 +129,7 @@ async function processModularSignal(supabase: any, moduleId: string, tickData: a
       console.log(`✅ ${moduleId} signal generated successfully`);
     }
   } catch (error) {
-    console.error(`❌ Failed to process ${moduleId}:`, error.message);
+    console.error(`❌ Failed to process ${moduleId}:`, (error as Error).message);
     throw error;
   }
 }

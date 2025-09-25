@@ -625,7 +625,7 @@ serve(async (req) => {
         function_name: 'execute-shadow-trades',
         execution_time_ms: executionTime,
         status: 'error',
-        error_message: error.message,
+        error_message: (error as Error).message,
         processed_items: processedItems
       });
     } catch (logError) {
@@ -635,7 +635,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: (error as Error).message,
         executionTimeMs: executionTime
       }),
       {

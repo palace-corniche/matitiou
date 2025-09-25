@@ -69,7 +69,7 @@ serve(async (req) => {
         function_name: 'manage-adaptive-thresholds',
         execution_time_ms: executionTime,
         status: 'error',
-        error_message: error.message,
+        error_message: (error as Error).message,
         processed_items: 0
       });
     } catch (logError) {
@@ -79,7 +79,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: (error as Error).message,
         executionTimeMs: executionTime
       }),
       {
@@ -229,10 +229,10 @@ async function analyzeSystemPerformance(supabase: any): Promise<Response> {
   const rejectionRate = totalEvaluated > 0 ? (rejections.length / totalEvaluated) * 100 : 0;
   const signalsPerHour = signals.length / 24;
   
-  const winningTrades = trades.filter(trade => (trade.pnl || 0) > 0).length;
+  const winningTrades = trades.filter((trade: any) => (trade.pnl || 0) > 0).length;
   const winRate = trades.length > 0 ? (winningTrades / trades.length) * 100 : 0;
 
-  const successfulRuns = systemLogs.filter(log => log.status === 'success').length;
+  const successfulRuns = systemLogs.filter((log: any) => log.status === 'success').length;
   const systemSuccessRate = systemLogs.length > 0 ? (successfulRuns / systemLogs.length) * 100 : 0;
 
   // Rejection analysis
@@ -444,7 +444,7 @@ async function performHealthCheck(supabase: any): Promise<Response> {
     };
 
     // Overall health assessment
-    const healthStatuses = Object.values(checks).slice(0, -1).map(check => check.status);
+    const healthStatuses = Object.values(checks).slice(0, -1).map((check: any) => check.status);
     const errorCount = healthStatuses.filter(status => status === 'error').length;
     const warningCount = healthStatuses.filter(status => status === 'warning').length;
 

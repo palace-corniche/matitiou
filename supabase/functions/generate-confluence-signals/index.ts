@@ -602,7 +602,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: (error as Error).message,
         executionTimeMs: executionTime
       }),
       {
@@ -657,7 +657,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating sentiment signals:', error);
-    moduleErrors.push({ module: 'sentiment', error: error.message });
+    moduleErrors.push({ module: 'sentiment', error: (error as Error).message });
     // Add fallback sentiment signal
     signals.push(generateFallbackSignal('sentiment_fallback', candles, pair, timeframe));
   }
@@ -671,7 +671,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating multi-timeframe signals:', error);
-    moduleErrors.push({ module: 'multi_timeframe', error: error.message });
+    moduleErrors.push({ module: 'multi_timeframe', error: (error as Error).message });
   }
 
   // Pattern signals with enhanced error handling
@@ -683,7 +683,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating pattern signals:', error);
-    moduleErrors.push({ module: 'pattern', error: error.message });
+    moduleErrors.push({ module: 'pattern', error: (error as Error).message });
   }
 
   // Strategy signals with enhanced error handling
@@ -695,7 +695,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     }
   } catch (error) {
     console.error('Error generating strategy signals:', error);
-    moduleErrors.push({ module: 'strategy', error: error.message });
+    moduleErrors.push({ module: 'strategy', error: (error as Error).message });
   }
 
   // Log module errors for monitoring

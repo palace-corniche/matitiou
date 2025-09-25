@@ -57,7 +57,7 @@ serve(async (req) => {
     console.error('Enhanced trading error:', error);
     return new Response(JSON.stringify({ 
       success: false, 
-      error: error.message 
+      error: (error as Error).message 
     }), {
       status: 400,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },

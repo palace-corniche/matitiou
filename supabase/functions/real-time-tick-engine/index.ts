@@ -96,7 +96,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message,
+        error: (error as Error).message,
         timestamp: new Date().toISOString()
       }),
       { 
@@ -200,7 +200,7 @@ async function fetchRealEURUSDPrice(): Promise<number | null> {
       }
       
     } catch (error) {
-      console.warn(`⚠️ ${api.name} failed:`, error.message);
+      console.warn(`⚠️ ${api.name} failed:`, (error as Error).message);
       continue;
     }
   }

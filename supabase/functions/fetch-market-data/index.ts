@@ -79,7 +79,7 @@ serve(async (req) => {
             open_price: parseFloat(candle.open),
             high_price: parseFloat(candle.high),
             low_price: parseFloat(candle.low),
-            volume: candle.volume ? parseInt(candle.volume) : null,
+            volume: candle.volume ? parseInt(candle.volume) : undefined,
             timestamp: new Date(candle.datetime).toISOString(),
             data_source: 'twelve_data',
             is_live: true
@@ -179,7 +179,7 @@ serve(async (req) => {
         function_name: 'fetch-market-data',
         execution_time_ms: executionTime,
         status: 'error',
-        error_message: error.message,
+        error_message: (error as Error).message,
         processed_items: processedItems
       });
     } catch (logError) {
@@ -189,7 +189,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message,
+        error: (error as Error).message,
         processedItems,
         executionTimeMs: executionTime
       }),

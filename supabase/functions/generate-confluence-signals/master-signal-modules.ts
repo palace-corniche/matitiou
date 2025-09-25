@@ -186,8 +186,8 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
         confidence: Math.min(1, bbStrength + Math.abs(bb50Position) * 0.3),
         strength: bbStrength,
         entryPrice: currentPrice,
-        stopLoss: bbSignal === 'buy' ? bb20.lower * 0.999 : bb20.upper * 1.001,
-        takeProfit: bbSignal === 'buy' ? bb20.upper : bb20.lower,
+        stopLoss: bbSignal === 'buy' ? bb20[bb20.length - 1].lower * 0.999 : bb20[bb20.length - 1].upper * 1.001,
+        takeProfit: bbSignal === 'buy' ? bb20[bb20.length - 1].upper : bb20[bb20.length - 1].lower,
         factors: [
           { name: 'bb20_position', value: bb20Position, weight: 0.6, contribution: Math.abs(bb20Position) * 0.6 },
           { name: 'bb50_position', value: bb50Position, weight: 0.25, contribution: Math.abs(bb50Position) * 0.25 },
@@ -285,8 +285,8 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
       .order('event_time', { ascending: true });
 
     if (economicEvents && economicEvents.length > 0) {
-      const eurEvents = economicEvents.filter(e => e.currency === 'EUR');
-      const usdEvents = economicEvents.filter(e => e.currency === 'USD');
+      const eurEvents = economicEvents.filter((e: any) => e.currency === 'EUR');
+      const usdEvents = economicEvents.filter((e: any) => e.currency === 'USD');
       
       // Create signal based on upcoming high-impact events
       const eventImbalance = eurEvents.length - usdEvents.length;
@@ -1259,15 +1259,15 @@ export async function generateSignalDiagnostics(signals: StandardSignal[], fusio
 
     for (const signal of signals) {
       const moduleType = signal.source.split('_')[0];
-      if (moduleStats[moduleType]) {
-        moduleStats[moduleType].signals++;
-        moduleStats[moduleType].avgConfidence += signal.confidence;
+      if ((moduleStats as any)[moduleType]) {
+        (moduleStats as any)[moduleType].signals++;
+        (moduleStats as any)[moduleType].avgConfidence += signal.confidence;
       }
     }
 
     // Calculate averages and mark active modules
     for (const module of Object.keys(moduleStats)) {
-      const stats = moduleStats[module];
+      const stats = (moduleStats as any)[module];
       if (stats.signals > 0) {
         stats.active = 1;
         stats.avgConfidence = stats.avgConfidence / stats.signals;
@@ -1529,7 +1529,7 @@ function calculateWeightedAlignment(trends: any, strengths: any): number {
   let totalWeight = 0;
   
   Object.keys(trends).forEach(tf => {
-    const weight = weights[tf] || 0.1;
+    const weight = (weights as any)[tf] || 0.1;
     const score = trends[tf] === 'up' ? 1 : trends[tf] === 'down' ? -1 : 0;
     weightedScore += weight * score * strengths[tf];
     totalWeight += weight;

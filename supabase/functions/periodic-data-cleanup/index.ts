@@ -127,7 +127,7 @@ serve(async (req) => {
     
     const errorResult: CleanupResult = {
       success: false,
-      message: `Cleanup failed: ${error.message}`,
+      message: `Cleanup failed: ${(error as Error).message}`,
       cleaned_records: {
         shadow_trades: 0,
         trade_history: 0,

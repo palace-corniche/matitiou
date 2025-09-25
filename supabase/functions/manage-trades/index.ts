@@ -59,7 +59,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         success: false, 
-        error: error.message 
+        error: (error as Error).message 
       }),
       { 
         status: 400, 
@@ -342,23 +342,23 @@ async function updatePortfolioMetrics(supabase: any, portfolioId: string) {
 
     // Calculate comprehensive metrics
     const totalTrades = closedTrades.length
-    const winningTrades = closedTrades.filter(t => t.pnl > 0)
-    const losingTrades = closedTrades.filter(t => t.pnl <= 0)
+    const winningTrades = closedTrades.filter((t: any) => t.pnl > 0)
+    const losingTrades = closedTrades.filter((t: any) => t.pnl <= 0)
     
     const winRate = totalTrades > 0 ? winningTrades.length / totalTrades : 0
     const averageWin = winningTrades.length > 0 
-      ? winningTrades.reduce((sum, t) => sum + t.pnl, 0) / winningTrades.length 
+      ? winningTrades.reduce((sum: number, t: any) => sum + t.pnl, 0) / winningTrades.length 
       : 0
     const averageLoss = losingTrades.length > 0 
-      ? Math.abs(losingTrades.reduce((sum, t) => sum + t.pnl, 0) / losingTrades.length)
+      ? Math.abs(losingTrades.reduce((sum: number, t: any) => sum + t.pnl, 0) / losingTrades.length)
       : 0
 
     const profitFactor = averageLoss > 0 ? averageWin / averageLoss : 0
-    const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map(t => t.pnl)) : 0
-    const largestLoss = losingTrades.length > 0 ? Math.min(...losingTrades.map(t => t.pnl)) : 0
+    const largestWin = winningTrades.length > 0 ? Math.max(...winningTrades.map((t: any) => t.pnl)) : 0
+    const largestLoss = losingTrades.length > 0 ? Math.min(...losingTrades.map((t: any) => t.pnl)) : 0
 
-    const totalCommission = closedTrades.reduce((sum, t) => sum + (t.commission || 0), 0)
-    const totalSwap = closedTrades.reduce((sum, t) => sum + (t.swap || 0), 0)
+    const totalCommission = closedTrades.reduce((sum: number, t: any) => sum + (t.commission || 0), 0)
+    const totalSwap = closedTrades.reduce((sum: number, t: any) => sum + (t.swap || 0), 0)
 
     // Calculate consecutive wins/losses
     let consecutiveWins = 0
