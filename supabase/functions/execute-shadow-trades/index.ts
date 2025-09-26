@@ -564,29 +564,39 @@ serve(async (req) => {
             }
           }
 
-          // Calculate position size based on risk management
+          // Calculate position size based on risk management  
           const positionSize = calculatePositionSize(
-            portfolio.balance,
+            parseFloat(portfolio.balance.toString()),
             signal.entry_price,
-            signal.stop_loss,
-            portfolio.risk_per_trade
+            signal.stop_loss || signal.entry_price * 0.98, // Default stop loss if none
+            0.02 // 2% risk per trade
           );
 
-          // Create new shadow trade
+          // Validate position size
+          if (!positionSize || positionSize <= 0) {
+            console.error(`❌ Invalid position size: ${positionSize} for signal ${signal.signal_id}`);
+            continue;
+          }
+
+          console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
+
+          // Create new shadow trade with proper field mapping
           const newTrade = {
             portfolio_id: portfolio.id,
-            signal_id: signal.id,
             symbol: signal.pair,
             trade_type: signal.signal_type,
+            lot_size: positionSize, // Use lot_size, not position_size
             entry_price: signal.entry_price,
-            entry_time: new Date().toISOString(),
-            stop_loss: signal.stop_loss,
-            take_profit: signal.take_profit,
-            position_size: positionSize,
-            confluence_score: signal.confluence_score,
-            risk_reward_ratio: signal.risk_reward_ratio,
+            stop_loss: signal.stop_loss || 0,
+            take_profit: signal.take_profit || 0,
+            contract_size: 100000, // Standard lot size
+            margin_required: positionSize * signal.entry_price * 100000 * 0.01, // 1% margin
+            comment: `AI Signal ${signal.signal_id}`,
+            confidence_score: signal.confluence_score,
             status: 'open'
           };
+
+          console.log(`💾 Creating trade:`, newTrade);
 
           const { data: insertedTrade, error: tradeError } = await supabase
             .from('shadow_trades')
@@ -595,17 +605,21 @@ serve(async (req) => {
             .single();
 
           if (tradeError) {
-            console.error('Error creating trade:', tradeError);
+            console.error(`❌ Error creating trade for signal ${signal.signal_id}:`, tradeError);
+            console.error(`❌ Trade data that failed:`, newTrade);
             continue;
           }
 
+          console.log(`✅ Successfully created trade ${insertedTrade.id} for signal ${signal.signal_id}`);
+
           // Update portfolio metrics
-          const margin = positionSize * 0.01; // 1% margin requirement
+          const margin = newTrade.margin_required;
           await supabase
             .from('shadow_portfolios')
             .update({
-              margin: parseFloat(portfolio.margin.toString()) + margin,
-              free_margin: parseFloat(portfolio.balance.toString()) - parseFloat(portfolio.margin.toString()) - margin,
+              used_margin: parseFloat(portfolio.used_margin.toString()) + margin,
+              free_margin: parseFloat(portfolio.free_margin.toString()) - margin,
+              margin_level: (parseFloat(portfolio.equity.toString()) / (parseFloat(portfolio.used_margin.toString()) + margin)) * 100,
               updated_at: new Date().toISOString()
             })
             .eq('id', portfolio.id);
@@ -616,26 +630,40 @@ serve(async (req) => {
             signal_type: signal.signal_type,
             entry_price: signal.entry_price,
             position_size: positionSize,
-            confluence_score: signal.confluence_score
+            confluence_score: signal.confluence_score,
+            success: true
           });
 
           processedItems++;
-          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade for portfolio ${portfolio.id.slice(0, 8)}: $${positionSize.toFixed(2)} @ ${signal.entry_price}`);
+          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade for portfolio ${portfolio.id.slice(0, 8)}: ${positionSize} lots @ ${signal.entry_price}`);
 
         } catch (tradeError) {
-          console.error(`Error executing trade for portfolio ${portfolio.id}:`, tradeError);
+          console.error(`❌ Error executing trade for portfolio ${portfolio.id}:`, tradeError);
+          executedTrades.push({
+            signal_id: signal.signal_id,
+            portfolio_id: portfolio.id,
+            error: (tradeError as Error).message,
+            success: false
+          });
         }
       }
+    }
 
-      // Mark signal as executed
-      await supabase
-        .from('trading_signals')
-        .update({ 
-          was_executed: true,
-          execution_reason: `Executed ${processedItems} trades`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', signal.id);
+    // Only mark signals as executed if we actually created trades
+    if (executedTrades.filter(t => t.success).length > 0) {
+      for (const signal of signals) {
+        const hasSuccessfulTrade = executedTrades.some(t => t.success);
+        if (hasSuccessfulTrade) {
+          await supabase
+            .from('trading_signals')
+            .update({ 
+              was_executed: true,
+              execution_reason: `Executed trades successfully`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', signal.id);
+        }
+      }
     }
 
     // Log system health
