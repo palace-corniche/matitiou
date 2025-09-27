@@ -580,19 +580,20 @@ serve(async (req) => {
 
           console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
 
-          // Create new shadow trade with proper field mapping
+          // Create new shadow trade with correct schema fields
           const newTrade = {
             portfolio_id: portfolio.id,
             symbol: signal.pair,
             trade_type: signal.signal_type,
-            lot_size: positionSize, // Use lot_size, not position_size
+            lot_size: positionSize,
+            position_size: positionSize, // Required field
             entry_price: signal.entry_price,
             stop_loss: signal.stop_loss || 0,
             take_profit: signal.take_profit || 0,
-            contract_size: 100000, // Standard lot size
-            margin_required: positionSize * signal.entry_price * 100000 * 0.01, // 1% margin
+            contract_size: 100000,
+            margin_required: positionSize * signal.entry_price * 100000 * 0.01,
+            confluence_score: signal.confluence_score, // Required field
             comment: `AI Signal ${signal.signal_id}`,
-            confidence_score: signal.confluence_score,
             status: 'open'
           };
 
