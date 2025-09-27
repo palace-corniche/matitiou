@@ -468,6 +468,7 @@ serve(async (req) => {
         confluenceSignal.confluence_score > (recentSignals[0].confluence_score + 10));
 
       if (shouldCreateSignal) {
+        // **PHASE 1: FIX MASTER SIGNALS STORAGE** - Insert into both tables
         const { error: insertError } = await supabase
           .from('trading_signals')
           .insert(confluenceSignal);
@@ -479,6 +480,67 @@ serve(async (req) => {
         } else {
           console.log(`🎯 Generated ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
           processedItems = 1;
+
+          // **CRITICAL FIX: Store master signal and fusion data**
+          try {
+            // Store complete master signal
+            await supabase.from('master_signals').insert({
+              analysis_id: confluenceSignal.signal_id,
+              signal_type: confluenceSignal.signal_type,
+              confidence_score: confluenceSignal.confidence,
+              strength: confluenceSignal.strength,
+              entry_price: confluenceSignal.entry_price,
+              stop_loss: confluenceSignal.stop_loss,
+              take_profit: confluenceSignal.take_profit,
+              risk_reward_ratio: confluenceSignal.risk_reward_ratio,
+              contributing_signals: confluenceSignal.factors || [],
+              reasoning: confluenceSignal.description,
+              market_conditions: {
+                price: confluenceSignal.entry_price,
+                volatility: 'normal',
+                trend: confluenceSignal.signal_type,
+                session: 'london'
+              },
+              symbol: confluenceSignal.pair,
+              timeframe: '15m'
+            });
+
+            // Store fusion analytics
+            await supabase.from('master_signals_fusion').insert({
+              analysis_id: confluenceSignal.signal_id,
+              confidence_score: confluenceSignal.confidence,
+              contributing_signals: confluenceSignal.factors || [],
+              weighted_score: confluenceSignal.confluence_score,
+              signal_weights: {
+                technical: 0.4,
+                fundamental: 0.2,
+                sentiment: 0.2,
+                pattern: 0.2
+              },
+              recommended_entry: confluenceSignal.entry_price,
+              recommended_stop_loss: confluenceSignal.stop_loss,
+              recommended_take_profit: confluenceSignal.take_profit,
+              recommended_lot_size: 0.01,
+              risk_assessment: {
+                risk_level: confluenceSignal.confidence > 0.8 ? 'low' : 'medium',
+                max_loss: Math.abs(confluenceSignal.entry_price - confluenceSignal.stop_loss),
+                expected_profit: Math.abs(confluenceSignal.take_profit - confluenceSignal.entry_price)
+              },
+              market_conditions: {
+                volatility: 'normal',
+                trend: confluenceSignal.signal_type,
+                momentum: confluenceSignal.strength > 7 ? 'strong' : 'moderate'
+              },
+              timeframe: '15m',
+              fusion_decision: confluenceSignal.signal_type,
+              fusion_reasoning: `Bayesian fusion of ${(confluenceSignal.factors || []).length} signals`,
+              symbol: confluenceSignal.pair
+            });
+
+            console.log('✅ Master signal and fusion data stored successfully');
+          } catch (storageError) {
+            console.error('⚠️ Failed to store master signal data:', storageError);
+          }
 
           // Trigger trade execution for high-quality master signals
           if (signalAnalysis.masterSignal.confidence >= 0.75) {
