@@ -508,7 +508,7 @@ serve(async (req) => {
           // Check if portfolio can accept new trades
           const { data: openTrades } = await supabase
             .from('shadow_trades')
-            .select('id, margin_required, position_size')
+            .select('id, margin_required, position_size, entry_price, trade_type, symbol')
             .eq('portfolio_id', portfolio.id)
             .eq('status', 'open');
 
@@ -516,6 +516,19 @@ serve(async (req) => {
 
           if (actualOpenPositions >= portfolio.max_open_positions) {
             console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${actualOpenPositions}/${portfolio.max_open_positions})`);
+            continue;
+          }
+
+          // CRITICAL FIX: Check for duplicate entry price trades (within 2 pips tolerance)
+          const pipTolerance = 0.0002; // 2 pips for EUR/USD
+          const duplicateTrade = openTrades?.find(trade => 
+            trade.symbol === signal.pair &&
+            trade.trade_type === signal.signal_type &&
+            Math.abs(parseFloat(trade.entry_price.toString()) - signal.entry_price) <= pipTolerance
+          );
+
+          if (duplicateTrade) {
+            console.log(`🚫 Duplicate trade detected for ${signal.pair} ${signal.signal_type} at ${signal.entry_price} - skipping`);
             continue;
           }
 
@@ -581,19 +594,22 @@ serve(async (req) => {
           console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
 
           // Create new shadow trade with correct schema fields
+          const contractSize = 100000; // Standard lot size for EUR/USD
+          const marginRequiredLots = positionSize * signal.entry_price * contractSize * 0.01; // 1% margin
+          
           const newTrade = {
             portfolio_id: portfolio.id,
             symbol: signal.pair,
             trade_type: signal.signal_type,
-            lot_size: positionSize,
+            lot_size: positionSize, // Now properly calculated as forex lots (0.01-1.0)
             position_size: positionSize, // Required field
             entry_price: signal.entry_price,
             stop_loss: signal.stop_loss || 0,
             take_profit: signal.take_profit || 0,
-            contract_size: 100000,
-            margin_required: positionSize * signal.entry_price * 100000 * 0.01,
+            contract_size: contractSize,
+            margin_required: marginRequiredLots,
             confluence_score: signal.confluence_score, // Required field
-            comment: `AI Signal ${signal.signal_id}`,
+            comment: `AI Signal ${signal.signal_id} (Lot: ${positionSize})`,
             status: 'open'
           };
 
@@ -735,44 +751,34 @@ function calculatePositionSize(
   stopLoss: number,
   riskPerTrade: number
 ): number {
-  // Enhanced position sizing with Kelly Criterion and CVaR constraints
+  // CRITICAL FIX: Convert from dollar amounts to proper forex lot sizes
   const riskAmount = balance * riskPerTrade;
-  const stopLossDistance = Math.abs(entryPrice - stopLoss) / entryPrice;
+  const stopLossDistance = Math.abs(entryPrice - stopLoss);
+  const stopLossPips = stopLossDistance / 0.0001; // Convert to pips
   
-  // Base position size from risk management
-  let basePositionSize = riskAmount / stopLossDistance;
+  // For EUR/USD: 1 standard lot = 100,000 units, 1 pip = $10 for 1 lot
+  const pipValuePerLot = 10; // $10 per pip for 1 standard lot
+  const maxRiskPips = stopLossPips > 0 ? stopLossPips : 50; // Default 50 pips if no SL
   
-  // Kelly fraction calculation (simplified - in production, use actual win probability)
-  const estimatedWinProbability = 0.6; // Conservative estimate
-  const rewardRiskRatio = 2.0; // 2:1 risk-reward
-  const kellyFraction = ((estimatedWinProbability * rewardRiskRatio) - (1 - estimatedWinProbability)) / rewardRiskRatio;
-  const kellyPositionSize = balance * Math.max(0, Math.min(0.25, kellyFraction)); // Cap at 25%
+  // Calculate lot size based on risk
+  const dollarRiskPerPip = riskAmount / maxRiskPips;
+  let lotSize = dollarRiskPerPip / pipValuePerLot;
   
-  // Use the more conservative of the two approaches
-  let positionSize = Math.min(basePositionSize, kellyPositionSize);
+  // CRITICAL: Ensure lot size is in proper forex range (0.01 to 1.0)
+  lotSize = Math.max(0.01, Math.min(1.0, lotSize));
   
-  // CVaR constraint - limit to 5% of portfolio value at risk
-  const cvarLimit = balance * 0.05;
-  const cvarConstrainedSize = cvarLimit / stopLossDistance;
-  positionSize = Math.min(positionSize, cvarConstrainedSize);
+  // Round to valid lot increments (0.01 steps)
+  lotSize = Math.round(lotSize * 100) / 100;
   
-  // Multi-level caps
-  const maxPositionSize = balance * 0.08; // Reduced from 10% to 8% for better risk control
-  positionSize = Math.min(positionSize, maxPositionSize);
-  
-  // Minimum position size (but not if risk is too high)
-  const minPositionSize = balance * 0.005; // 0.5% minimum
-  positionSize = Math.max(positionSize, minPositionSize);
-  
-  // Final validation - ensure position doesn't risk more than intended
-  const actualRisk = positionSize * stopLossDistance;
-  const maxAllowedRisk = balance * riskPerTrade * 1.5; // Allow 1.5x for rounding
-  
-  if (actualRisk > maxAllowedRisk) {
-    positionSize = maxAllowedRisk / stopLossDistance;
+  // Final validation - default to 0.01 if invalid
+  if (isNaN(lotSize) || lotSize <= 0) {
+    console.warn(`⚠️ Invalid lot size calculated, defaulting to 0.01`);
+    lotSize = 0.01;
   }
   
-  return Math.round(positionSize * 100) / 100;
+  console.log(`📊 Position Sizing: Risk=$${riskAmount}, SL Pips=${maxRiskPips}, Lot Size=${lotSize}`);
+  
+  return lotSize;
 }
 
 function calculatePnL(trade: any, exitPrice: number) {
