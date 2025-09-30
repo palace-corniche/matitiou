@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { Progress } from '@/components/ui/progress';
+import { calculateTradeMetrics } from '@/services/pnlCalculator';
+import { unifiedMarketData, UnifiedTick } from '@/services/unifiedMarketData';
 import {
   Table,
   TableBody,
@@ -39,6 +41,36 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
   className = ""
 }) => {
   const [selectedTrade, setSelectedTrade] = useState<string | null>(null);
+  const [currentTick, setCurrentTick] = useState<UnifiedTick | null>(null);
+
+  // Subscribe to live price updates
+  useEffect(() => {
+    const unsubscribe = unifiedMarketData.subscribe({
+      onTick: (tick) => setCurrentTick(tick),
+      onConnectionChange: () => {},
+      onError: () => {}
+    });
+
+    return unsubscribe;
+  }, []);
+
+  // Calculate live PnL for a trade
+  const getLivePnL = (trade: GlobalShadowTrade) => {
+    if (currentTick && trade.symbol === 'EUR/USD') {
+      const liveMetrics = calculateTradeMetrics(trade, currentTick);
+      return {
+        pnl: liveMetrics.pnl,
+        pips: liveMetrics.pips,
+        currentPrice: trade.trade_type === 'buy' ? currentTick.bid : currentTick.ask
+      };
+    }
+    // Fallback to DB values
+    return {
+      pnl: trade.unrealized_pnl || 0,
+      pips: trade.profit_pips || 0,
+      currentPrice: trade.current_price || trade.entry_price
+    };
+  };
 
   const formatDuration = (entryTime: string) => {
     const now = new Date();
@@ -66,7 +98,11 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
     return "secondary";
   };
 
-  const totalPnL = openTrades.reduce((sum, trade) => sum + (trade.unrealized_pnl || 0), 0);
+  // Calculate total using live PnL
+  const totalPnL = openTrades.reduce((sum, trade) => {
+    const livePnL = getLivePnL(trade);
+    return sum + livePnL.pnl;
+  }, 0);
   const totalVolume = openTrades.reduce((sum, trade) => sum + trade.lot_size, 0);
 
   if (openTrades.length === 0) {
@@ -149,7 +185,9 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {openTrades.map((trade) => (
+              {openTrades.map((trade) => {
+                const livePnL = getLivePnL(trade);
+                return (
                 <TableRow 
                   key={trade.id}
                   className={selectedTrade === trade.id ? "bg-muted/50" : ""}
@@ -185,28 +223,33 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
                   
                   <TableCell className="font-mono">
                     <div className="flex items-center gap-1">
-                      {(trade.current_price || trade.entry_price).toFixed(5)}
-                      {trade.trade_type === 'buy' ? 
-                        (trade.current_price || 0) > trade.entry_price ? 
-                          <TrendingUp className="h-3 w-3 text-green-500" /> : 
-                          <TrendingDown className="h-3 w-3 text-red-500" />
-                        :
-                        (trade.current_price || 0) < trade.entry_price ? 
-                          <TrendingUp className="h-3 w-3 text-green-500" /> : 
-                          <TrendingDown className="h-3 w-3 text-red-500" />
-                      }
+                      {livePnL.currentPrice.toFixed(5)}
+                      {currentTick && (
+                        <div className="flex items-center gap-1">
+                          {trade.trade_type === 'buy' ? 
+                            livePnL.currentPrice > trade.entry_price ? 
+                              <TrendingUp className="h-3 w-3 text-green-500" /> : 
+                              <TrendingDown className="h-3 w-3 text-red-500" />
+                            :
+                            livePnL.currentPrice < trade.entry_price ? 
+                              <TrendingUp className="h-3 w-3 text-green-500" /> : 
+                              <TrendingDown className="h-3 w-3 text-red-500" />
+                          }
+                          <Badge variant="outline" className="text-xs">LIVE</Badge>
+                        </div>
+                      )}
                     </div>
                   </TableCell>
                   
                   <TableCell>
-                    <div className={`font-semibold ${getPnLColor(trade.unrealized_pnl || 0)}`}>
-                      {(trade.unrealized_pnl || 0) >= 0 ? '+' : ''}${(trade.unrealized_pnl || 0).toFixed(2)}
+                    <div className={`font-semibold ${getPnLColor(livePnL.pnl)}`}>
+                      {livePnL.pnl >= 0 ? '+' : ''}${livePnL.pnl.toFixed(2)}
                     </div>
                   </TableCell>
                   
                   <TableCell>
-                    <div className={`font-mono ${getPnLColor(trade.profit_pips || 0)}`}>
-                      {(trade.profit_pips || 0) >= 0 ? '+' : ''}{(trade.profit_pips || 0).toFixed(1)}
+                    <div className={`font-mono ${getPnLColor(livePnL.pips)}`}>
+                      {livePnL.pips >= 0 ? '+' : ''}{livePnL.pips.toFixed(1)}
                     </div>
                   </TableCell>
                   
@@ -239,7 +282,8 @@ export const PositionsTable: React.FC<PositionsTableProps> = ({
                     </div>
                   </TableCell>
                 </TableRow>
-              ))}
+                );
+              })}
             </TableBody>
           </Table>
         </ScrollArea>

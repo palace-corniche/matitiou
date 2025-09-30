@@ -36,7 +36,7 @@ class UnifiedMarketDataService {
     this.startConnectionMonitoring();
   }
 
-  // ============= TWELVE DATA API INTEGRATION =============
+  // ============= MARKET DATA FEED INTEGRATION =============
   private async fetchLivePrice(): Promise<UnifiedTick | null> {
     try {
       const cacheKey = 'EURUSD';
@@ -47,7 +47,39 @@ class UnifiedMarketDataService {
         return this.createTickFromPrice(cached.price);
       }
 
-      // Fetch fresh data from TwelveData API
+      // Primary: Use fresh market_data_feed data from Supabase
+      const { supabase } = await import('@/integrations/supabase/client');
+      
+      const { data: marketData } = await supabase
+        .from('market_data_feed')
+        .select('price, timestamp')
+        .eq('symbol', 'EUR/USD')
+        .order('timestamp', { ascending: false })
+        .limit(1);
+      
+      if (marketData && marketData.length > 0) {
+        const latestData = marketData[0];
+        const dataAge = Date.now() - new Date(latestData.timestamp).getTime();
+        
+        // Use if less than 10 minutes old
+        if (dataAge < 10 * 60 * 1000) {
+          const price = parseFloat(latestData.price?.toString() || '0');
+          
+          if (price > 0) {
+            // Cache the price
+            this.priceCache.set(cacheKey, {
+              price,
+              timestamp: Date.now()
+            });
+            
+            console.log(`📊 EUR/USD from market_data_feed: ${price} (${Math.round(dataAge/1000)}s old)`);
+            return this.createTickFromPrice(price, 'market_data_feed');
+          }
+        }
+      }
+      
+      // Fallback to TwelveData if market_data_feed is stale
+      console.log('🔄 market_data_feed stale, trying TwelveData...');
       const response = await fetch('https://api.twelvedata.com/quote?symbol=EUR/USD&apikey=demo');
       
       if (!response.ok) {
@@ -72,22 +104,23 @@ class UnifiedMarketDataService {
         timestamp: Date.now()
       });
 
-      return this.createTickFromPrice(price);
+      console.log(`📊 EUR/USD from TwelveData: ${price}`);
+      return this.createTickFromPrice(price, 'TwelveData');
       
     } catch (error) {
-      console.warn('⚠️ TwelveData API error, using fallback:', error);
+      console.warn('⚠️ All price sources failed, using fallback:', error);
       
-      // Use realistic fallback with time-based variation - remove hardcoded price
+      // Final fallback to synthetic price
       const timeSeed = Math.floor(Date.now() / 60000); // Changes every minute
       const basePrice = 1.17000; // This will be replaced with real data
       const variation = (Math.sin(timeSeed / 10) * 0.002) + (Math.random() - 0.5) * 0.0005;
       const fallbackPrice = basePrice + variation;
       
-      return this.createTickFromPrice(fallbackPrice);
+      return this.createTickFromPrice(fallbackPrice, 'synthetic');
     }
   }
 
-  private createTickFromPrice(price: number): UnifiedTick {
+  private createTickFromPrice(price: number, source: string = 'unknown'): UnifiedTick {
     // Calculate realistic bid/ask spread (typically 1-2 pips for EUR/USD)
     const spread = 0.00015; // 1.5 pips
     const bid = price - (spread / 2);
@@ -100,7 +133,7 @@ class UnifiedMarketDataService {
       ask: parseFloat(ask.toFixed(5)),
       spread: parseFloat((spread * 10000).toFixed(1)), // in pips
       timestamp: Date.now(),
-      source: 'TwelveData'
+      source: source
     };
   }
 
