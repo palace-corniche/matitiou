@@ -3022,6 +3022,48 @@ export type Database = {
         }
         Relationships: []
       }
+      winning_patterns: {
+        Row: {
+          avg_pips: number
+          avg_profit: number
+          confidence_threshold: number
+          created_at: string
+          id: string
+          is_active: boolean
+          pattern_criteria: Json
+          pattern_type: string
+          sample_size: number
+          updated_at: string
+          win_rate: number
+        }
+        Insert: {
+          avg_pips?: number
+          avg_profit?: number
+          confidence_threshold?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pattern_criteria: Json
+          pattern_type: string
+          sample_size?: number
+          updated_at?: string
+          win_rate?: number
+        }
+        Update: {
+          avg_pips?: number
+          avg_profit?: number
+          confidence_threshold?: number
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          pattern_criteria?: Json
+          pattern_type?: string
+          sample_size?: number
+          updated_at?: string
+          win_rate?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -3030,6 +3072,15 @@ export type Database = {
       archive_old_trades: {
         Args: Record<PropertyKey, never>
         Returns: undefined
+      }
+      calculate_dynamic_lot_size: {
+        Args: {
+          p_account_balance?: number
+          p_portfolio_id: string
+          p_quality_score: number
+          p_risk_percent?: number
+        }
+        Returns: number
       }
       calculate_eurusd_pnl: {
         Args: {
@@ -3062,6 +3113,15 @@ export type Database = {
           profit_pips: number
           unrealized_pnl: number
         }[]
+      }
+      calculate_trade_quality_score: {
+        Args: {
+          p_confluence_score?: number
+          p_market_regime?: string
+          p_signal_id: string
+          p_volatility_percentile?: number
+        }
+        Returns: number
       }
       cleanup_anonymous_data: {
         Args: Record<PropertyKey, never>
@@ -3159,11 +3219,19 @@ export type Database = {
           value: number
         }[]
       }
+      should_trade_now: {
+        Args: { p_min_quality_score?: number; p_symbol?: string }
+        Returns: Json
+      }
       update_eurusd_pnl: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
       update_trailing_stops: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_winning_patterns: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
