@@ -2635,6 +2635,62 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_decision_log: {
+        Row: {
+          calculated_lot_size: number | null
+          created_at: string
+          decision: string
+          decision_reason: string
+          expected_entry: number | null
+          expected_sl: number | null
+          expected_tp: number | null
+          id: string
+          market_conditions: Json | null
+          metadata: Json | null
+          quality_score: number | null
+          rejection_filters: Json | null
+          signal_id: string | null
+        }
+        Insert: {
+          calculated_lot_size?: number | null
+          created_at?: string
+          decision: string
+          decision_reason: string
+          expected_entry?: number | null
+          expected_sl?: number | null
+          expected_tp?: number | null
+          id?: string
+          market_conditions?: Json | null
+          metadata?: Json | null
+          quality_score?: number | null
+          rejection_filters?: Json | null
+          signal_id?: string | null
+        }
+        Update: {
+          calculated_lot_size?: number | null
+          created_at?: string
+          decision?: string
+          decision_reason?: string
+          expected_entry?: number | null
+          expected_sl?: number | null
+          expected_tp?: number | null
+          id?: string
+          market_conditions?: Json | null
+          metadata?: Json | null
+          quality_score?: number | null
+          rejection_filters?: Json | null
+          signal_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_decision_log_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_history: {
         Row: {
           action_type: string
@@ -3066,9 +3122,42 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      trade_performance_summary: {
+        Row: {
+          avg_loss_amount: number | null
+          avg_loss_pips: number | null
+          avg_trade_duration_hours: number | null
+          avg_win_amount: number | null
+          avg_win_pips: number | null
+          distinct_exit_reasons: number | null
+          largest_loss: number | null
+          largest_win: number | null
+          losing_trades: number | null
+          total_closed_trades: number | null
+          total_open_trades: number | null
+          total_realized_pnl: number | null
+          total_unrealized_pnl: number | null
+          win_rate_percent: number | null
+          winning_trades: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
+      analyze_trade_performance: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          avg_profit: number
+          pattern_type: string
+          recommendation: string
+          sample_size: number
+          win_rate: number
+        }[]
+      }
+      apply_intelligent_trailing_stop: {
+        Args: { p_current_price: number; p_trade_id: string }
+        Returns: Json
+      }
       archive_old_trades: {
         Args: Record<PropertyKey, never>
         Returns: undefined
@@ -3201,6 +3290,17 @@ export type Database = {
           win_rate: number
           winning_trades: number
         }[]
+      }
+      log_trade_decision: {
+        Args: {
+          p_decision: string
+          p_market_conditions?: Json
+          p_metadata?: Json
+          p_quality_score?: number
+          p_reason: string
+          p_signal_id: string
+        }
+        Returns: string
       }
       manage_break_even: {
         Args: Record<PropertyKey, never>

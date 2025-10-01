@@ -5,6 +5,7 @@ import ShadowTradingDashboardUnified from '@/components/ShadowTradingDashboardUn
 import MasterSignalDashboard from '@/components/MasterSignalDashboard';
 import SignalOutcomeTracker from '@/components/SignalOutcomeTracker';
 import ModulePerformanceTracker from '@/components/ModulePerformanceTracker';
+import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
 
 const ShadowTrading: React.FC = () => {
   return (
@@ -12,11 +13,12 @@ const ShadowTrading: React.FC = () => {
       <NavigationBar />
       <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="trading">Shadow Trading</TabsTrigger>
             <TabsTrigger value="signals">Master Signals</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
             <TabsTrigger value="modules">Modules</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
@@ -33,6 +35,10 @@ const ShadowTrading: React.FC = () => {
           
           <TabsContent value="modules" className="space-y-6">
             <ModulePerformanceTracker />
+          </TabsContent>
+          
+          <TabsContent value="analytics" className="space-y-6">
+            <TradePerformanceAnalytics />
           </TabsContent>
         </Tabs>
       </div>
