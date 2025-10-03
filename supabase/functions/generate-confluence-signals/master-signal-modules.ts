@@ -131,8 +131,20 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     }
   }
 
-  // MACD Analysis with histogram
+  // ===== CRITICAL TREND DETERMINATION =====
+  // Calculate moving averages for trend filtering
   const closes = candles.map(c => c.close);
+  const sma20 = calculateSMA(closes, 20);
+  const sma50 = calculateSMA(closes, 50);
+  
+  // Determine trend direction (CRITICAL FOR SIGNAL FILTERING)
+  const isTrendingUp = sma20 && sma50 && sma20.length > 0 && sma50.length > 0 && sma20[sma20.length - 1] > sma50[sma50.length - 1];
+  const isTrendingDown = sma20 && sma50 && sma20.length > 0 && sma50.length > 0 && sma20[sma20.length - 1] < sma50[sma50.length - 1];
+  const trendDirection = isTrendingUp ? 'up' : isTrendingDown ? 'down' : 'sideways';
+  
+  console.log(`📈 Trend Direction: ${trendDirection} (SMA20: ${sma20?.[sma20.length - 1]?.toFixed(5)}, SMA50: ${sma50?.[sma50.length - 1]?.toFixed(5)})`);
+
+  // MACD Analysis with histogram (WITH TREND FILTER)
   const macd = calculateMACD(closes);
   if (macd && macd.length > 1) {
     const latestMACD = macd[macd.length - 1];
@@ -142,7 +154,10 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     const macdCrossover = (latestMACD.macd - latestMACD.signal) * (previousMACD.macd - previousMACD.signal) < 0;
     const histogramTrend = latestMACD.histogram > previousMACD.histogram ? 'bullish' : 'bearish';
     
-    if (macdCrossover || Math.abs(latestMACD.histogram) > 0.0001) {
+    // CRITICAL: Only generate signal if aligned with trend
+    const isTrendAligned = (macdSignal === 'buy' && isTrendingUp) || (macdSignal === 'sell' && isTrendingDown);
+    
+    if ((macdCrossover || Math.abs(latestMACD.histogram) > 0.0001) && isTrendAligned) {
       const macdStrength = Math.min(1, Math.abs(latestMACD.histogram) * 10000);
       
       signals.push({
@@ -151,7 +166,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
         pair,
         timeframe,
         signal: macdSignal,
-        confidence: macdCrossover ? 0.8 : 0.6,
+        confidence: macdCrossover ? 0.85 : 0.65, // Boosted for trend-aligned signals
         strength: macdStrength,
         entryPrice: currentPrice,
         stopLoss: currentPrice * (macdSignal === 'buy' ? 0.995 : 1.005),
@@ -162,6 +177,9 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           { name: 'histogram', value: latestMACD.histogram, weight: 0.3, contribution: Math.abs(latestMACD.histogram) * 10000 * 0.3 }
         ]
       });
+      console.log(`✅ MACD ${macdSignal} signal (trend-aligned)`);
+    } else if (!isTrendAligned) {
+      console.log(`❌ REJECTED: MACD ${macdSignal} signal (counter-trend)`);
     }
   }
 
@@ -197,23 +215,24 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     }
   }
 
-  // Moving Average Confluence
-  const sma20 = calculateSMA(closes, 20);
-  const sma50 = calculateSMA(closes, 50);
+  // Moving Average Confluence (WITH TREND FILTER)
   const ema12 = calculateEMA(closes, 12);
   const ema26 = calculateEMA(closes, 26);
   
   if (sma20 && sma50 && ema12 && ema26) {
     const maAlignment = calculateMAAlignment(currentPrice, sma20[sma20.length - 1], sma50[sma50.length - 1], ema12[ema12.length - 1], ema26[ema26.length - 1]);
     
-    if (maAlignment.strength > 0.4) {
+    // CRITICAL: Only generate signal if aligned with trend
+    const isTrendAligned = (maAlignment.signal === 'buy' && isTrendingUp) || (maAlignment.signal === 'sell' && isTrendingDown);
+    
+    if (maAlignment.strength > 0.4 && isTrendAligned) {
       signals.push({
         source: 'technical_ma_confluence',
         timestamp: new Date(),
         pair,
         timeframe,
         signal: maAlignment.signal,
-        confidence: maAlignment.strength,
+        confidence: maAlignment.strength * 1.1, // Boosted for trend-aligned signals
         strength: maAlignment.strength,
         entryPrice: currentPrice,
         stopLoss: currentPrice * (maAlignment.signal === 'buy' ? 0.996 : 1.004),
@@ -224,6 +243,9 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           { name: 'price_position', value: maAlignment.pricePosition, weight: 0.4, contribution: maAlignment.pricePosition * 0.4 }
         ]
       });
+      console.log(`✅ MA Confluence ${maAlignment.signal} signal (trend-aligned)`);
+    } else if (!isTrendAligned) {
+      console.log(`❌ REJECTED: MA Confluence ${maAlignment.signal} signal (counter-trend)`);
     }
   }
 

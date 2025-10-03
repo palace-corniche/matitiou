@@ -109,25 +109,50 @@ export class TechnicalAnalysisAdapter {
     let confidence = 0;
     let strength = 5;
 
-    // RSI signals
-    if (indicators.rsi < 30) {
+    // ===== CRITICAL TREND FILTER =====
+    // Determine overall trend using 50/200 SMA
+    const isTrendingUp = indicators.sma20 > indicators.sma50;
+    const isTrendingDown = indicators.sma20 < indicators.sma50;
+    const trendStrength = Math.abs(indicators.sma20 - indicators.sma50) / indicators.sma50;
+    
+    // ONLY allow signals that align with trend direction
+    // In downtrend: ONLY sell signals allowed
+    // In uptrend: ONLY buy signals allowed
+    
+    // RSI signals (WITH TREND FILTER)
+    if (indicators.rsi < 30 && isTrendingUp) {
       signalType = 'buy';
-      confidence += 0.2;
-      strength += 1;
-    } else if (indicators.rsi > 70) {
+      confidence += 0.25; // Increased confidence when trend-aligned
+      strength += 2;
+    } else if (indicators.rsi > 70 && isTrendingDown) {
       signalType = 'sell';
-      confidence += 0.2;
-      strength += 1;
+      confidence += 0.25; // Increased confidence when trend-aligned
+      strength += 2;
     }
 
-    // MACD signals
-    if (indicators.macd.macd > indicators.macd.signal && indicators.macd.histogram > 0) {
+    // MACD signals (WITH TREND FILTER)
+    if (indicators.macd.macd > indicators.macd.signal && indicators.macd.histogram > 0 && isTrendingUp) {
+      if (signalType === 'buy' || signalType === null) {
+        signalType = 'buy';
+        confidence += 0.2;
+        strength += 2;
+      }
+    } else if (indicators.macd.macd < indicators.macd.signal && indicators.macd.histogram < 0 && isTrendingDown) {
+      if (signalType === 'sell' || signalType === null) {
+        signalType = 'sell';
+        confidence += 0.2;
+        strength += 2;
+      }
+    }
+
+    // Moving average trend confirmation (STRENGTHENED)
+    if (currentBar.close_price > indicators.sma20 && indicators.sma20 > indicators.sma50 && isTrendingUp) {
       if (signalType === 'buy' || signalType === null) {
         signalType = 'buy';
         confidence += 0.15;
         strength += 1;
       }
-    } else if (indicators.macd.macd < indicators.macd.signal && indicators.macd.histogram < 0) {
+    } else if (currentBar.close_price < indicators.sma20 && indicators.sma20 < indicators.sma50 && isTrendingDown) {
       if (signalType === 'sell' || signalType === null) {
         signalType = 'sell';
         confidence += 0.15;
@@ -135,34 +160,33 @@ export class TechnicalAnalysisAdapter {
       }
     }
 
-    // Moving average trend
-    if (currentBar.close_price > indicators.sma20 && indicators.sma20 > indicators.sma50) {
+    // Bollinger Bands (WITH TREND FILTER)
+    if (currentBar.close_price < indicators.bollinger.lower && isTrendingUp) {
       if (signalType === 'buy' || signalType === null) {
         signalType = 'buy';
-        confidence += 0.1;
+        confidence += 0.15;
+        strength += 1;
       }
-    } else if (currentBar.close_price < indicators.sma20 && indicators.sma20 < indicators.sma50) {
+    } else if (currentBar.close_price > indicators.bollinger.upper && isTrendingDown) {
       if (signalType === 'sell' || signalType === null) {
         signalType = 'sell';
-        confidence += 0.1;
+        confidence += 0.15;
+        strength += 1;
       }
     }
 
-    // Bollinger Bands
-    if (currentBar.close_price < indicators.bollinger.lower) {
-      if (signalType === 'buy' || signalType === null) {
-        signalType = 'buy';
-        confidence += 0.1;
-      }
-    } else if (currentBar.close_price > indicators.bollinger.upper) {
-      if (signalType === 'sell' || signalType === null) {
-        signalType = 'sell';
-        confidence += 0.1;
-      }
+    // CRITICAL: Reject counter-trend signals
+    if (signalType === 'buy' && isTrendingDown) {
+      console.log('❌ REJECTED: Buy signal in downtrend');
+      return null;
+    }
+    if (signalType === 'sell' && isTrendingUp) {
+      console.log('❌ REJECTED: Sell signal in uptrend');
+      return null;
     }
 
     // Minimum confidence threshold
-    if (!signalType || confidence < 0.3) {
+    if (!signalType || confidence < 0.4) {
       return null;
     }
 
