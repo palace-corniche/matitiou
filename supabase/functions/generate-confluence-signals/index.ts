@@ -481,29 +481,39 @@ serve(async (req) => {
           console.log(`🎯 Generated ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
           processedItems = 1;
 
-          // **CRITICAL FIX: Store master signal and fusion data**
+          // **CRITICAL FIX: Use new helper function for master signals**
           try {
-            // Store complete master signal
-            await supabase.from('master_signals').insert({
-              analysis_id: confluenceSignal.signal_id,
-              signal_type: confluenceSignal.signal_type,
-              confidence_score: confluenceSignal.confidence,
-              strength: confluenceSignal.strength,
-              entry_price: confluenceSignal.entry_price,
-              stop_loss: confluenceSignal.stop_loss,
-              take_profit: confluenceSignal.take_profit,
-              risk_reward_ratio: confluenceSignal.risk_reward_ratio,
-              contributing_signals: confluenceSignal.factors || [],
-              reasoning: confluenceSignal.description,
-              market_conditions: {
+            // Store complete master signal using safe helper function
+            const masterSignalId = await supabase.rpc('insert_master_signal', {
+              p_analysis_id: confluenceSignal.signal_id,
+              p_signal_type: confluenceSignal.signal_type,
+              p_confidence: confluenceSignal.confidence,
+              p_strength: confluenceSignal.strength,
+              p_confluence_score: confluenceSignal.confluence_score,
+              p_entry: confluenceSignal.entry_price,
+              p_sl: confluenceSignal.stop_loss,
+              p_tp: confluenceSignal.take_profit,
+              p_lot_size: 0.01,
+              p_timeframe: '15m',
+              p_modules: confluenceSignal.factors?.map((f: any) => f.name) || [],
+              p_modular_ids: [], // Will be populated later
+              p_fusion_params: {
+                reasoning: confluenceSignal.description,
+                risk_reward_ratio: confluenceSignal.risk_reward_ratio
+              },
+              p_market_snapshot: {
                 price: confluenceSignal.entry_price,
                 volatility: 'normal',
                 trend: confluenceSignal.signal_type,
                 session: 'london'
-              },
-              symbol: confluenceSignal.pair,
-              timeframe: '15m'
+              }
             });
+
+            if (!masterSignalId?.data) {
+              console.error('❌ Master signal INSERT failed - check function logs');
+            } else {
+              console.log(`✅ Master signal stored: ${masterSignalId.data}`);
+            }
 
             // Store fusion analytics
             await supabase.from('master_signals_fusion').insert({

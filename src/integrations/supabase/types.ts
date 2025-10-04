@@ -1208,7 +1208,7 @@ export type Database = {
           recommended_stop_loss: number
           recommended_take_profit: number
           risk_reward_ratio: number | null
-          signal_hash: string
+          signal_hash: string | null
           signal_quality_score: number | null
           signal_type: string
           status: string
@@ -1248,7 +1248,7 @@ export type Database = {
           recommended_stop_loss: number
           recommended_take_profit: number
           risk_reward_ratio?: number | null
-          signal_hash: string
+          signal_hash?: string | null
           signal_quality_score?: number | null
           signal_type: string
           status?: string
@@ -1288,7 +1288,7 @@ export type Database = {
           recommended_stop_loss?: number
           recommended_take_profit?: number
           risk_reward_ratio?: number | null
-          signal_hash?: string
+          signal_hash?: string | null
           signal_quality_score?: number | null
           signal_type?: string
           status?: string
@@ -3294,6 +3294,25 @@ export type Database = {
           win_rate: number
           winning_trades: number
         }[]
+      }
+      insert_master_signal: {
+        Args: {
+          p_analysis_id: string
+          p_confidence: number
+          p_confluence_score: number
+          p_entry: number
+          p_fusion_params: Json
+          p_lot_size: number
+          p_market_snapshot: Json
+          p_modular_ids: string[]
+          p_modules: string[]
+          p_signal_type: string
+          p_sl: number
+          p_strength: number
+          p_timeframe: string
+          p_tp: number
+        }
+        Returns: string
       }
       log_trade_decision: {
         Args: {
