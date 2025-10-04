@@ -17,3 +17,6 @@ verify_jwt = false
 
 [functions.tick-diagnostics-cleanup]
 verify_jwt = false
+
+[functions.auto-detect-sr]
+verify_jwt = false

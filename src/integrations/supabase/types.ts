@@ -3162,6 +3162,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      auto_detect_support_resistance: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       calculate_dynamic_lot_size: {
         Args: {
           p_account_balance?: number
