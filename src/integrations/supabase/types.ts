@@ -3301,11 +3301,11 @@ export type Database = {
           p_confidence: number
           p_confluence_score: number
           p_entry: number
-          p_fusion_params: Json
+          p_fusion_params?: Json
           p_lot_size: number
-          p_market_snapshot: Json
-          p_modular_ids: string[]
-          p_modules: string[]
+          p_market_snapshot?: Json
+          p_modular_ids?: string[]
+          p_modules?: string[]
           p_signal_type: string
           p_sl: number
           p_strength: number
