@@ -34,13 +34,10 @@ serve(async (req) => {
       console.error('Failed to clear old events:', deleteError);
     }
 
-    // Insert new events
+    // Insert new events (delete old first to avoid duplicates)
     const { data: insertedEvents, error: insertError } = await supabase
       .from('economic_events')
-      .upsert(events, { 
-        onConflict: 'event_name,event_time',
-        ignoreDuplicates: false 
-      });
+      .insert(events);
 
     if (insertError) {
       console.error('Failed to insert events:', insertError);
@@ -49,15 +46,17 @@ serve(async (req) => {
 
     console.log(`✅ Inserted ${events.length} economic events`);
 
-    // Also populate news_events
+    // Also populate news_events (delete old first)
+    await supabase
+      .from('news_events')
+      .delete()
+      .lt('published_at', new Date(Date.now() - 172800000).toISOString()); // Delete older than 2 days
+    
     const newsEvents = generateNewsEvents();
     
     const { error: newsError } = await supabase
       .from('news_events')
-      .upsert(newsEvents, {
-        onConflict: 'title,published_at',
-        ignoreDuplicates: false
-      });
+      .insert(newsEvents);
 
     if (newsError) {
       console.error('Failed to insert news:', newsError);
