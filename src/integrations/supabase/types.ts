@@ -221,6 +221,54 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_recommendations: {
+        Row: {
+          action: string
+          confidence_score: number
+          created_at: string
+          data_sources: Json
+          executed_at: string | null
+          expires_at: string | null
+          id: string
+          metrics: Json | null
+          priority: string
+          reasoning: string
+          recommendation_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          confidence_score: number
+          created_at?: string
+          data_sources?: Json
+          executed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          metrics?: Json | null
+          priority?: string
+          reasoning: string
+          recommendation_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          confidence_score?: number
+          created_at?: string
+          data_sources?: Json
+          executed_at?: string | null
+          expires_at?: string | null
+          id?: string
+          metrics?: Json | null
+          priority?: string
+          reasoning?: string
+          recommendation_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       analysis_jobs: {
         Row: {
           completed_at: string | null
@@ -3348,6 +3396,16 @@ export type Database = {
       }
       update_eurusd_pnl: {
         Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      update_module_performance_from_trade: {
+        Args: {
+          p_confidence: number
+          p_module_id: string
+          p_return: number
+          p_signal_successful: boolean
+          p_strength: number
+        }
         Returns: undefined
       }
       update_trailing_stops: {

@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.calculate-correlations]
 verify_jwt = false
+
+[functions.generate-ai-recommendations]
+verify_jwt = false
