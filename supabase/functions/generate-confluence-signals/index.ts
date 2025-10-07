@@ -468,52 +468,53 @@ serve(async (req) => {
         confluenceSignal.confluence_score > (recentSignals[0].confluence_score + 10));
 
       if (shouldCreateSignal) {
-        // **PHASE 1: FIX MASTER SIGNALS STORAGE** - Insert into both tables
-        const { error: insertError } = await supabase
-          .from('trading_signals')
-          .insert(confluenceSignal);
-
-        if (insertError) {
-          console.error('Error inserting signal:', insertError);
-          status = 'error';
-          errorMessage = insertError.message;
-        } else {
-          console.log(`🎯 Generated ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
-          processedItems = 1;
-
-          // **CRITICAL FIX: Use new helper function for master signals**
-          try {
-            // Store complete master signal using safe helper function
-            const masterSignalId = await supabase.rpc('insert_master_signal', {
-              p_analysis_id: confluenceSignal.signal_id,
-              p_signal_type: confluenceSignal.signal_type,
-              p_confidence: confluenceSignal.confidence,
-              p_strength: confluenceSignal.strength,
-              p_confluence_score: confluenceSignal.confluence_score,
-              p_entry: confluenceSignal.entry_price,
-              p_sl: confluenceSignal.stop_loss,
-              p_tp: confluenceSignal.take_profit,
-              p_lot_size: 0.01,
-              p_timeframe: '15m',
-              p_modules: confluenceSignal.factors?.map((f: any) => f.name) || [],
-              p_modular_ids: [], // Will be populated later
-              p_fusion_params: {
+        // **PHASE 1 FIX: Store directly into master_signals table**
+        console.log(`🎯 Storing ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
+        
+        try {
+          // Insert master signal directly into master_signals table
+          const { data: masterSignalData, error: masterSignalError } = await supabase
+            .from('master_signals')
+            .insert({
+              analysis_id: confluenceSignal.signal_id,
+              symbol: confluenceSignal.pair,
+              timeframe: '15m',
+              signal_type: confluenceSignal.signal_type,
+              final_confidence: confluenceSignal.confidence,
+              final_strength: confluenceSignal.strength,
+              confluence_score: confluenceSignal.confluence_score,
+              recommended_entry: confluenceSignal.entry_price,
+              recommended_stop_loss: confluenceSignal.stop_loss,
+              recommended_take_profit: confluenceSignal.take_profit,
+              recommended_lot_size: 0.01,
+              risk_reward_ratio: confluenceSignal.risk_reward_ratio,
+              contributing_modules: confluenceSignal.factors?.map((f: any) => f.name) || [],
+              modular_signal_ids: [],
+              fusion_algorithm: 'bayesian_hierarchical',
+              fusion_parameters: {
                 reasoning: confluenceSignal.description,
-                risk_reward_ratio: confluenceSignal.risk_reward_ratio
+                risk_reward_ratio: confluenceSignal.risk_reward_ratio,
+                factors: confluenceSignal.factors
               },
-              p_market_snapshot: {
+              market_data_snapshot: {
                 price: confluenceSignal.entry_price,
                 volatility: 'normal',
                 trend: confluenceSignal.signal_type,
-                session: 'london'
-              }
-            });
+                session: 'london',
+                timestamp: new Date().toISOString()
+              },
+              status: 'pending'
+            })
+            .select()
+            .single();
 
-            if (!masterSignalId?.data) {
-              console.error('❌ Master signal INSERT failed - check function logs');
-            } else {
-              console.log(`✅ Master signal stored: ${masterSignalId.data}`);
-            }
+          if (masterSignalError) {
+            console.error('❌ Master signal INSERT failed:', masterSignalError);
+            status = 'error';
+            errorMessage = masterSignalError.message;
+          } else {
+            console.log(`✅ Master signal stored: ${masterSignalData.id}`);
+            processedItems = 1;
 
             // Store fusion analytics
             await supabase.from('master_signals_fusion').insert({
