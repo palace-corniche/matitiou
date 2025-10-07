@@ -452,12 +452,12 @@ serve(async (req) => {
         confluenceSignal = null;
       }
       
-      // Check if similar signal was generated recently (last 30 minutes)
+      // **FIX 1: Check master_signals instead of trading_signals for duplicates**
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: recentSignals } = await supabase
-        .from('trading_signals')
+        .from('master_signals')
         .select('signal_type, confluence_score')
-        .eq('pair', 'EUR/USD')
+        .eq('symbol', 'EUR/USD')
         .eq('signal_type', confluenceSignal.signal_type)
         .gte('created_at', thirtyMinutesAgo)
         .order('created_at', { ascending: false })

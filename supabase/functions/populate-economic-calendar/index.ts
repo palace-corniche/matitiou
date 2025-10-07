@@ -21,36 +21,41 @@ serve(async (req) => {
     // Generate realistic economic events for the next 7 days
     const events = generateEconomicEvents();
 
-    // Clear old events (older than 2 days)
-    const twoDaysAgo = new Date();
-    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
-    
-    const { error: deleteError } = await supabase
+    // **FIX 3: Clear ALL old events first (no date filtering to avoid conflicts)**
+    const { error: deleteAllEventsError } = await supabase
       .from('economic_events')
       .delete()
-      .lt('event_time', twoDaysAgo.toISOString());
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
 
-    if (deleteError) {
-      console.error('Failed to clear old events:', deleteError);
+    if (deleteAllEventsError) {
+      console.error('Failed to clear events:', deleteAllEventsError);
+    } else {
+      console.log('🗑️ Cleared all old economic events');
     }
 
-    // Insert new events (delete old first to avoid duplicates)
+    // Insert new events
     const { data: insertedEvents, error: insertError } = await supabase
       .from('economic_events')
       .insert(events);
 
     if (insertError) {
-      console.error('Failed to insert events:', insertError);
+      console.error('❌ Failed to insert events:', insertError);
       throw insertError;
     }
 
     console.log(`✅ Inserted ${events.length} economic events`);
 
-    // Also populate news_events (delete old first)
-    await supabase
+    // Clear ALL old news events
+    const { error: deleteAllNewsError } = await supabase
       .from('news_events')
       .delete()
-      .lt('published_at', new Date(Date.now() - 172800000).toISOString()); // Delete older than 2 days
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all
+    
+    if (deleteAllNewsError) {
+      console.error('Failed to clear news:', deleteAllNewsError);
+    } else {
+      console.log('🗑️ Cleared all old news events');
+    }
     
     const newsEvents = generateNewsEvents();
     
@@ -59,7 +64,7 @@ serve(async (req) => {
       .insert(newsEvents);
 
     if (newsError) {
-      console.error('Failed to insert news:', newsError);
+      console.error('❌ Failed to insert news:', newsError);
     } else {
       console.log(`✅ Inserted ${newsEvents.length} news events`);
     }

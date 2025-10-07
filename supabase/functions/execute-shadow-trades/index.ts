@@ -438,23 +438,22 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // Get qualifying signals (either specific signal or all new signals)
-    // Get qualifying signals (lowered threshold from 25 to 15 based on diagnostic)
-    console.log('🎯 Fetching qualifying signals...');
+    // **FIX 7: Query master_signals instead of trading_signals**
+    console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
-      .from('trading_signals')
-      .select('*')
-      .eq('was_executed', false)
-      .gte('confluence_score', 15) // Lowered from 25 to 15 based on actual signal scores
+      .from('master_signals')
+      .select('*, id as signal_id, symbol as pair, signal_type, recommended_entry as entry_price, recommended_stop_loss as stop_loss, recommended_take_profit as take_profit')
+      .eq('status', 'pending')
+      .gte('confluence_score', 12) // Lower threshold to allow more signals
       .in('signal_type', ['buy', 'sell'])
       .order('created_at', { ascending: false });
 
     if (signal_id) {
-      signalsQuery = signalsQuery.eq('signal_id', signal_id);
+      signalsQuery = signalsQuery.eq('id', signal_id);
     } else {
-      // Only get signals from last 30 minutes if no specific signal
-      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      signalsQuery = signalsQuery.gte('created_at', thirtyMinutesAgo);
+      // Only get signals from last 60 minutes
+      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+      signalsQuery = signalsQuery.gte('created_at', sixtyMinutesAgo);
     }
 
     const { data: signals, error: signalsError } = await signalsQuery.limit(5);
@@ -470,15 +469,15 @@ serve(async (req) => {
     if (!signals?.length) {
       console.log('⚠️ No qualifying signals found for execution');
       
-      // Check what signals exist
+      // Check what signals exist in master_signals
       const { data: allSignals } = await supabase
-        .from('trading_signals')
-        .select('confluence_score, signal_type, was_executed, created_at')
-        .eq('was_executed', false)
+        .from('master_signals')
+        .select('confluence_score, signal_type, status, created_at')
+        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10);
       
-      console.log(`📊 Recent unexecuted signals: ${allSignals?.length || 0}`);
+      console.log(`📊 Recent pending master signals: ${allSignals?.length || 0}`);
       allSignals?.forEach(s => {
         console.log(`  - Score: ${s.confluence_score}, Type: ${s.signal_type}, Age: ${Math.round((Date.now() - new Date(s.created_at).getTime()) / 60000)}min`);
       });
@@ -666,19 +665,20 @@ serve(async (req) => {
       }
     }
 
-    // Only mark signals as executed if we actually created trades
+    // **FIX 9: Mark signals as executed in master_signals**
     if (executedTrades.filter(t => t.success).length > 0) {
       for (const signal of signals) {
         const hasSuccessfulTrade = executedTrades.some(t => t.success);
         if (hasSuccessfulTrade) {
           await supabase
-            .from('trading_signals')
+            .from('master_signals')
             .update({ 
-              was_executed: true,
-              execution_reason: `Executed trades successfully`,
+              status: 'executed',
+              execution_timestamp: new Date().toISOString(),
+              execution_price: signal.entry_price,
               updated_at: new Date().toISOString()
             })
-            .eq('id', signal.id);
+            .eq('id', signal.signal_id);
         }
       }
     }
