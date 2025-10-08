@@ -549,7 +549,8 @@ serve(async (req) => {
             });
 
             console.log('✅ Master signal and fusion data stored successfully');
-          } catch (storageError) {
+          }
+        } catch (storageError) {
             console.error('⚠️ Failed to store master signal data:', storageError);
           }
 
