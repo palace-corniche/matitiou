@@ -575,7 +575,7 @@ serve(async (req) => {
             }
           }
         }
-      } else {
+      else {
         console.log(`⏭️ Skipping signal - similar recent signal exists`);
       }
     } else if (signalAnalysis?.rejectionReason) {
