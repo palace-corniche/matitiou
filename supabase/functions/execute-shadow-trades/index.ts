@@ -576,25 +576,10 @@ serve(async (req) => {
             }
           }
 
-          // Calculate position size based on risk management  
-          let positionSize = calculatePositionSize(
-            parseFloat(portfolio.balance.toString()),
-            signal.entry_price,
-            signal.stop_loss || signal.entry_price * 0.98, // Default stop loss if none
-            0.02 // 2% risk per trade
-          );
-
-          // **PHASE 2 FIX: Cap lot size at 0.01 for global account**
-          if (portfolio.id === '00000000-0000-0000-0000-000000000001') {
-            positionSize = Math.min(positionSize, 0.01);
-            console.log(`🔒 Global account lot size capped at 0.01`);
-          }
-
-          // Validate position size
-          if (!positionSize || positionSize <= 0) {
-            console.error(`❌ Invalid position size: ${positionSize} for signal ${signal.signal_id}`);
-            continue;
-          }
+          // **PHASE 1: Fixed lot size for all trades - simple and predictable**
+          const positionSize = 0.01; // Fixed 0.01 lot for consistency across all accounts
+          
+          console.log(`🔒 Using fixed lot size: ${positionSize} (Phase 1 simplification)`);
 
           console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
 
