@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.generate-ai-recommendations]
 verify_jwt = false
+
+[functions.recover-missed-signals]
+verify_jwt = false
