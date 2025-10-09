@@ -2231,12 +2231,15 @@ export type Database = {
           entry_price: number
           entry_time: string
           execution_price: number | null
+          exit_factors: Json | null
+          exit_intelligence_score: number | null
           exit_price: number | null
           exit_reason: string | null
           exit_time: string | null
           expert_advisor: string | null
           holding_time_minutes: number | null
           id: string
+          intelligence_exit_triggered: boolean | null
           lot_size: number
           magic_number: number | null
           margin_required: number | null
@@ -2286,12 +2289,15 @@ export type Database = {
           entry_price: number
           entry_time?: string
           execution_price?: number | null
+          exit_factors?: Json | null
+          exit_intelligence_score?: number | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
           expert_advisor?: string | null
           holding_time_minutes?: number | null
           id?: string
+          intelligence_exit_triggered?: boolean | null
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null
@@ -2341,12 +2347,15 @@ export type Database = {
           entry_price?: number
           entry_time?: string
           execution_price?: number | null
+          exit_factors?: Json | null
+          exit_intelligence_score?: number | null
           exit_price?: number | null
           exit_reason?: string | null
           exit_time?: string | null
           expert_advisor?: string | null
           holding_time_minutes?: number | null
           id?: string
+          intelligence_exit_triggered?: boolean | null
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null

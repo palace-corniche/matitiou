@@ -32,3 +32,6 @@ verify_jwt = false
 
 [functions.recover-missed-signals]
 verify_jwt = false
+
+[functions.intelligent-exit-engine]
+verify_jwt = false

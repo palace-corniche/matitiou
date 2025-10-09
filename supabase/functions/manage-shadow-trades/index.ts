@@ -69,7 +69,8 @@ serve(async (req) => {
     const closedTrades = [];
     const portfolioUpdates = new Map();
 
-    // Check each trade for exit conditions
+    // **PHASE 4: INTELLIGENT EXIT INTEGRATION**
+    // Check each trade for exit conditions using holistic intelligence
     for (const trade of openTrades) {
       try {
         const entryPrice = parseFloat(trade.entry_price.toString());
@@ -79,8 +80,9 @@ serve(async (req) => {
         
         let shouldClose = false;
         let exitReason = '';
+        let exitIntelligence = null;
 
-        // Check SL/TP conditions
+        // **ALWAYS RESPECT HARD SL/TP LIMITS (Priority 1)**
         if (trade.trade_type === 'buy') {
           if (currentPrice <= stopLoss) {
             shouldClose = true;
@@ -99,13 +101,64 @@ serve(async (req) => {
           }
         }
 
-        // Check time-based exit (24 hours)
-        const entryTime = new Date(trade.entry_time).getTime();
-        const hoursOpen = (Date.now() - entryTime) / (1000 * 60 * 60);
-        
-        if (hoursOpen >= 24) {
-          shouldClose = true;
-          exitReason = 'time';
+        // **INTELLIGENT EXIT SYSTEM (Priority 2 - Only if SL/TP not hit)**
+        if (!shouldClose) {
+          try {
+            // Call intelligent-exit-engine
+            const exitEngineResponse = await fetch(
+              `${supabaseUrl}/functions/v1/intelligent-exit-engine`,
+              {
+                method: 'POST',
+                headers: {
+                  'Authorization': `Bearer ${supabaseKey}`,
+                  'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                  tradeId: trade.id,
+                  currentPrice
+                })
+              }
+            );
+
+            if (exitEngineResponse.ok) {
+              const exitData = await exitEngineResponse.json();
+              exitIntelligence = exitData.exitIntelligence;
+
+              // Store intelligence in trade record
+              await supabase
+                .from('shadow_trades')
+                .update({
+                  exit_intelligence_score: exitIntelligence.overallExitScore,
+                  exit_factors: exitIntelligence.factors
+                })
+                .eq('id', trade.id);
+
+              // Decision based on intelligence score
+              if (exitIntelligence.recommendation === 'FORCE_EXIT') {
+                shouldClose = true;
+                exitReason = 'intelligence_exit';
+                console.log(`🧠 Intelligence EXIT for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+              } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
+                console.log(`✅ Intelligence HOLD for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+              } else {
+                console.log(`⚠️ Intelligence CAUTION for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+              }
+            }
+          } catch (intelligenceError) {
+            console.error(`Error calling intelligent-exit-engine for trade ${trade.id}:`, intelligenceError);
+            // Continue with fallback logic if intelligence fails
+          }
+        }
+
+        // **FALLBACK: Time-based exit (24 hours) - Only if no other exit triggered**
+        if (!shouldClose) {
+          const entryTime = new Date(trade.entry_time).getTime();
+          const hoursOpen = (Date.now() - entryTime) / (1000 * 60 * 60);
+          
+          if (hoursOpen >= 24) {
+            shouldClose = true;
+            exitReason = 'time';
+          }
         }
 
         if (shouldClose) {
@@ -113,7 +166,7 @@ serve(async (req) => {
           const pnlResult = calculatePnL(trade, currentPrice);
           const holdingTimeMinutes = Math.round((Date.now() - entryTime) / 60000);
 
-          // Update trade record
+          // Update trade record with intelligence data
           const { error: updateError } = await supabase
             .from('shadow_trades')
             .update({
@@ -124,6 +177,7 @@ serve(async (req) => {
               pnl: pnlResult.pnl,
               pnl_percent: pnlResult.pnlPercent,
               holding_time_minutes: holdingTimeMinutes,
+              intelligence_exit_triggered: exitReason === 'intelligence_exit',
               updated_at: new Date().toISOString()
             })
             .eq('id', trade.id);
