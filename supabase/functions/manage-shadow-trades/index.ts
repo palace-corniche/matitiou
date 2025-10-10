@@ -103,8 +103,11 @@ serve(async (req) => {
 
         // **INTELLIGENT EXIT SYSTEM (Priority 2 - Only if SL/TP not hit)**
         if (!shouldClose) {
+          console.log(`🧠 Checking intelligence exit for trade ${trade.id.slice(0, 8)}...`);
           try {
-            // Call intelligent-exit-engine
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+            
             const exitEngineResponse = await fetch(
               `${supabaseUrl}/functions/v1/intelligent-exit-engine`,
               {
@@ -116,13 +119,22 @@ serve(async (req) => {
                 body: JSON.stringify({
                   tradeId: trade.id,
                   currentPrice
-                })
+                }),
+                signal: controller.signal
               }
             );
+            
+            clearTimeout(timeoutId);
+            
+            if (!exitEngineResponse.ok) {
+              const errorText = await exitEngineResponse.text();
+              console.error(`❌ Intelligence engine HTTP error ${exitEngineResponse.status}:`, errorText);
+              throw new Error(`HTTP ${exitEngineResponse.status}: ${errorText}`);
+            }
 
-            if (exitEngineResponse.ok) {
-              const exitData = await exitEngineResponse.json();
-              exitIntelligence = exitData.exitIntelligence;
+            const exitData = await exitEngineResponse.json();
+            exitIntelligence = exitData.exitIntelligence;
+            console.log(`✅ Intelligence score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
 
               // Store intelligence in trade record
               await supabase
@@ -133,11 +145,23 @@ serve(async (req) => {
                 })
                 .eq('id', trade.id);
 
-              // Decision based on intelligence score
+              // Decision based on intelligence score with minimum requirements
               if (exitIntelligence.recommendation === 'FORCE_EXIT') {
-                shouldClose = true;
-                exitReason = 'intelligence_exit';
-                console.log(`🧠 Intelligence EXIT for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+                // PHASE 3: Apply minimum profit/time requirements
+                const profitPips = calculateProfitPips(trade, currentPrice);
+                const holdingTimeMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
+                
+                const MIN_PROFIT_PIPS = 5;
+                const MIN_HOLD_TIME_MINUTES = 10;
+                
+                if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
+                  shouldClose = true;
+                  exitReason = 'intelligence_exit';
+                  console.log(`🧠 Intelligence EXIT approved for ${trade.id}: ${profitPips.toFixed(1)} pips profit, ${holdingTimeMinutes.toFixed(0)}min hold`);
+                  console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
+                } else {
+                  console.log(`⏳ Intelligence wants exit but requirements not met: ${profitPips.toFixed(1)} pips (min ${MIN_PROFIT_PIPS}), ${holdingTimeMinutes.toFixed(0)}min (min ${MIN_HOLD_TIME_MINUTES})`);
+                }
               } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
                 console.log(`✅ Intelligence HOLD for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
               } else {
@@ -145,7 +169,12 @@ serve(async (req) => {
               }
             }
           } catch (intelligenceError) {
-            console.error(`Error calling intelligent-exit-engine for trade ${trade.id}:`, intelligenceError);
+            console.error(`❌ Intelligence exit engine failed for trade ${trade.id}:`, intelligenceError);
+            console.error('Error details:', {
+              name: (intelligenceError as Error).name,
+              message: (intelligenceError as Error).message,
+              stack: (intelligenceError as Error).stack
+            });
             // Continue with fallback logic if intelligence fails
           }
         }
@@ -373,6 +402,17 @@ serve(async (req) => {
     );
   }
 });
+
+// PHASE 3: Helper function to calculate profit in pips
+function calculateProfitPips(trade: any, currentPrice: number): number {
+  const entryPrice = parseFloat(trade.entry_price.toString());
+  
+  if (trade.trade_type === 'buy') {
+    return (currentPrice - entryPrice) / 0.0001;
+  } else {
+    return (entryPrice - currentPrice) / 0.0001;
+  }
+}
 
 function calculatePnL(trade: any, exitPrice: number) {
   const entryPrice = parseFloat(trade.entry_price.toString());

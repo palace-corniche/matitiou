@@ -30,13 +30,17 @@ serve(async (req) => {
   }
 
   try {
+    const startTime = Date.now();
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { tradeId, currentPrice } = await req.json();
+    
+    console.log(`🔍 [Exit Engine] Called for trade ${tradeId?.slice(0, 8)} at price ${currentPrice}`);
 
     if (!tradeId || !currentPrice) {
+      console.error('❌ [Exit Engine] Missing required parameters');
       return new Response(
         JSON.stringify({ error: 'Missing tradeId or currentPrice' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -44,6 +48,7 @@ serve(async (req) => {
     }
 
     // Get trade details
+    console.log(`📊 [Exit Engine] Fetching trade details...`);
     const { data: trade, error: tradeError } = await supabase
       .from('shadow_trades')
       .select('*')
@@ -51,11 +56,14 @@ serve(async (req) => {
       .single();
 
     if (tradeError || !trade) {
+      console.error('❌ [Exit Engine] Trade not found:', tradeError);
       return new Response(
-        JSON.stringify({ error: 'Trade not found' }),
+        JSON.stringify({ error: 'Trade not found', details: tradeError }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+    
+    console.log(`✅ [Exit Engine] Trade found: ${trade.symbol} ${trade.trade_type} @ ${trade.entry_price}`);
 
     // Get latest master signal for this trade (if exists)
     const { data: masterSignal } = await supabase
@@ -101,6 +109,7 @@ serve(async (req) => {
       .limit(5);
 
     // **PHASE 2: HOLISTIC EXIT SCORING ALGORITHM**
+    console.log(`🧠 [Exit Engine] Calculating exit intelligence...`);
     const exitIntelligence = calculateExitIntelligence(
       trade,
       currentPrice,
@@ -112,16 +121,24 @@ serve(async (req) => {
     );
 
     console.log(`📊 Exit Intelligence for ${tradeId}:`, exitIntelligence);
+    
+    const executionTime = Date.now() - startTime;
+    console.log(`✅ [Exit Engine] Completed in ${executionTime}ms - Score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
 
     return new Response(
-      JSON.stringify({ success: true, exitIntelligence }),
+      JSON.stringify({ success: true, exitIntelligence, executionTimeMs: executionTime }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('❌ Error in intelligent-exit-engine:', error);
+    console.error('❌ [Exit Engine] Fatal error:', error);
+    console.error('Stack trace:', (error as Error).stack);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: (error as Error).message,
+        stack: (error as Error).stack,
+        timestamp: new Date().toISOString()
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

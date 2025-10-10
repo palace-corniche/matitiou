@@ -576,10 +576,37 @@ serve(async (req) => {
             }
           }
 
+          // **PHASE 4: Dynamic SL/TP based on ATR**
+          // Calculate ATR from recent market data
+          const { data: recentCandles } = await supabase
+            .from('market_data_feed')
+            .select('*')
+            .eq('symbol', signal.pair)
+            .order('timestamp', { ascending: false })
+            .limit(14);
+          
+          const atr = calculateATR(recentCandles || []);
+          console.log(`📊 Calculated ATR: ${atr.toFixed(5)} for ${signal.pair}`);
+          
+          // Dynamic SL/TP based on ATR
+          let dynamicStopLoss = signal.stop_loss;
+          let dynamicTakeProfit = signal.take_profit;
+          
+          if (atr > 0) {
+            if (signal.signal_type === 'buy') {
+              dynamicStopLoss = signal.entry_price - (2 * atr); // 2x ATR for SL
+              dynamicTakeProfit = signal.entry_price + (4 * atr); // 4x ATR for TP (2:1 R:R)
+            } else {
+              dynamicStopLoss = signal.entry_price + (2 * atr);
+              dynamicTakeProfit = signal.entry_price - (4 * atr);
+            }
+            console.log(`🎯 Dynamic SL/TP: SL=${dynamicStopLoss.toFixed(5)}, TP=${dynamicTakeProfit.toFixed(5)} (ATR-based)`);
+          }
+          
           // **PHASE 1: Fixed lot size for all trades - simple and predictable**
           const positionSize = 0.01; // Fixed 0.01 lot for consistency across all accounts
           
-          console.log(`🔒 Using fixed lot size: ${positionSize} (Phase 1 simplification)`);
+          console.log(`🔒 Using fixed lot size: ${positionSize}`);
 
           console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
 
@@ -591,15 +618,17 @@ serve(async (req) => {
             portfolio_id: portfolio.id,
             symbol: signal.pair,
             trade_type: signal.signal_type,
-            lot_size: positionSize, // Now properly calculated as forex lots (0.01-1.0)
-            position_size: positionSize, // Required field
+            lot_size: positionSize,
+            position_size: positionSize,
+            remaining_lot_size: positionSize, // NEW: Track remaining size for partial closes
             entry_price: signal.entry_price,
-            stop_loss: signal.stop_loss || 0,
-            take_profit: signal.take_profit || 0,
+            stop_loss: dynamicStopLoss || signal.stop_loss || 0,
+            take_profit: dynamicTakeProfit || signal.take_profit || 0,
+            trailing_stop_distance: Math.round(atr / 0.0001), // NEW: Store trailing stop in pips
             contract_size: contractSize,
             margin_required: marginRequiredLots,
-            confluence_score: signal.confluence_score, // Required field
-            comment: `AI Signal ${signal.signal_id} (Lot: ${positionSize})`,
+            confluence_score: signal.confluence_score,
+            comment: `Signal ${signal.signal_id.slice(0, 8)} | ATR: ${atr.toFixed(5)}`,
             status: 'open'
           };
 
@@ -770,6 +799,32 @@ function calculatePositionSize(
   console.log(`📊 Position Sizing: Risk=$${riskAmount}, SL Pips=${maxRiskPips}, Lot Size=${lotSize}`);
   
   return lotSize;
+}
+
+// PHASE 4: Calculate ATR (Average True Range) for dynamic SL/TP
+function calculateATR(candles: any[]): number {
+  if (!candles || candles.length < 2) return 0.0003; // Default 3 pips if no data
+  
+  const trueRanges: number[] = [];
+  
+  for (let i = 1; i < Math.min(candles.length, 14); i++) {
+    const high = parseFloat(candles[i].high_price?.toString() || candles[i].price?.toString() || '0');
+    const low = parseFloat(candles[i].low_price?.toString() || candles[i].price?.toString() || '0');
+    const prevClose = parseFloat(candles[i - 1].price?.toString() || '0');
+    
+    const tr = Math.max(
+      high - low,
+      Math.abs(high - prevClose),
+      Math.abs(low - prevClose)
+    );
+    
+    trueRanges.push(tr);
+  }
+  
+  if (trueRanges.length === 0) return 0.0003;
+  
+  const atr = trueRanges.reduce((sum, tr) => sum + tr, 0) / trueRanges.length;
+  return Math.max(atr, 0.0001); // Minimum 1 pip ATR
 }
 
 function calculatePnL(trade: any, exitPrice: number) {
