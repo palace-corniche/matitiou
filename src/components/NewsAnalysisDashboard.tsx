@@ -131,6 +131,13 @@ export const NewsAnalysisDashboard: React.FC<NewsAnalysisDashboardProps> = ({
                   ⏱️ Last fetch timed out
                 </span>
               )}
+            <div className="flex items-center gap-2">
+              {lastFetchStatus === 'timeout' && (
+                <Badge variant="outline" className="text-yellow-600">
+                  <Clock className="h-3 w-3 mr-1" />
+                  Last fetch timed out
+                </Badge>
+              )}
               <Button
                 variant="outline"
                 size="sm"
@@ -139,6 +146,7 @@ export const NewsAnalysisDashboard: React.FC<NewsAnalysisDashboardProps> = ({
                 <Activity className={`h-4 w-4 ${autoRefresh ? 'animate-pulse' : ''}`} />
                 {autoRefresh ? 'Live' : 'Paused'}
               </Button>
+            </div>
             </div>
           </div>
         </CardHeader>
