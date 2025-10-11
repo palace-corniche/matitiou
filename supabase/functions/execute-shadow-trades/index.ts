@@ -662,19 +662,34 @@ serve(async (req) => {
           const atr = calculateATR(recentCandles || []);
           console.log(`📊 Calculated ATR: ${atr.toFixed(5)} for ${signal.pair}`);
           
-          // Dynamic SL/TP based on ATR
+          // Dynamic SL/TP based on ATR with MINIMUM 30 PIPS constraint
           let dynamicStopLoss = signal.stop_loss;
           let dynamicTakeProfit = signal.take_profit;
           
           if (atr > 0) {
+            // Calculate ATR-based stops
+            const atrStopDistance = 1.5 * atr;
+            const atrTakeProfitDistance = 4 * atr;
+            
+            // CRITICAL FIX: Ensure minimum 30 pips (0.0030 for EUR/USD)
+            const MIN_STOP_DISTANCE = 0.0030; // 30 pips minimum
+            const MIN_TP_DISTANCE = 0.0050; // 50 pips minimum for TP
+            
+            const actualStopDistance = Math.max(atrStopDistance, MIN_STOP_DISTANCE);
+            const actualTpDistance = Math.max(atrTakeProfitDistance, MIN_TP_DISTANCE);
+            
             if (signal.signal_type === 'buy') {
-              dynamicStopLoss = signal.entry_price - (1.5 * atr); // 1.5x ATR for SL (wider stop)
-              dynamicTakeProfit = signal.entry_price + (4 * atr); // 4x ATR for TP (2.67:1 R:R)
+              dynamicStopLoss = signal.entry_price - actualStopDistance;
+              dynamicTakeProfit = signal.entry_price + actualTpDistance;
             } else {
-              dynamicStopLoss = signal.entry_price + (1.5 * atr);
-              dynamicTakeProfit = signal.entry_price - (4 * atr);
+              dynamicStopLoss = signal.entry_price + actualStopDistance;
+              dynamicTakeProfit = signal.entry_price - actualTpDistance;
             }
-            console.log(`🎯 Dynamic SL/TP: SL=${dynamicStopLoss.toFixed(5)}, TP=${dynamicTakeProfit.toFixed(5)} (ATR-based)`);
+            
+            const stopPips = Math.round(actualStopDistance / 0.0001);
+            const tpPips = Math.round(actualTpDistance / 0.0001);
+            
+            console.log(`🎯 Optimized SL/TP: SL=${dynamicStopLoss.toFixed(5)} (${stopPips} pips), TP=${dynamicTakeProfit.toFixed(5)} (${tpPips} pips)`);
           }
           
           // **PHASE 1: Fixed lot size for all trades - simple and predictable**
@@ -698,7 +713,7 @@ serve(async (req) => {
             entry_price: signal.entry_price,
             stop_loss: dynamicStopLoss || signal.stop_loss || 0,
             take_profit: dynamicTakeProfit || signal.take_profit || 0,
-            trailing_stop_distance: Math.round(atr / 0.0001), // NEW: Store trailing stop in pips
+            trailing_stop_distance: Math.round(Math.max(atr / 0.0001, 15)), // Minimum 15 pips trailing distance
             contract_size: contractSize,
             margin_required: marginRequiredLots,
             confluence_score: signal.confluence_score,

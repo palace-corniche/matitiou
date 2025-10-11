@@ -86,18 +86,87 @@ serve(async (req) => {
         if (trade.trade_type === 'buy') {
           if (currentPrice <= stopLoss) {
             shouldClose = true;
-            exitReason = 'sl';
+            exitReason = 'stop_loss';
           } else if (currentPrice >= takeProfit) {
             shouldClose = true;
-            exitReason = 'tp';
+            exitReason = 'take_profit';
           }
         } else { // sell
           if (currentPrice >= stopLoss) {
             shouldClose = true;
-            exitReason = 'sl';
+            exitReason = 'stop_loss';
           } else if (currentPrice <= takeProfit) {
             shouldClose = true;
-            exitReason = 'tp';
+            exitReason = 'take_profit';
+          }
+        }
+
+        // **TRAILING STOP LOGIC (Priority 1.5 - Before intelligence check)**
+        if (!shouldClose && trade.trailing_stop_distance && trade.trailing_stop_distance > 0) {
+          const profitPips = calculateProfitPips(trade, currentPrice);
+          const trailingDistance = parseFloat(trade.trailing_stop_distance.toString());
+          
+          // Activate trailing stop after 20 pips profit
+          if (profitPips >= 20) {
+            let newStopLoss = stopLoss;
+            
+            if (trade.trade_type === 'buy') {
+              // For BUY: move SL up as price moves up
+              const potentialNewSL = currentPrice - (trailingDistance * 0.0001);
+              
+              if (potentialNewSL > stopLoss) {
+                newStopLoss = potentialNewSL;
+                
+                // Update the trade's stop loss in database
+                await supabase
+                  .from('shadow_trades')
+                  .update({ 
+                    stop_loss: newStopLoss,
+                    trailing_stop_triggered: true,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', trade.id);
+                
+                console.log(`📈 Trailing stop activated for BUY trade ${trade.id.slice(0, 8)}: SL moved from ${stopLoss.toFixed(5)} to ${newStopLoss.toFixed(5)} (+${profitPips.toFixed(1)} pips profit)`);
+                
+                // Update local variable for immediate check
+                trade.stop_loss = newStopLoss;
+                
+                // Check if new SL was hit
+                if (currentPrice <= newStopLoss) {
+                  shouldClose = true;
+                  exitReason = 'trailing_stop';
+                }
+              }
+            } else {
+              // For SELL: move SL down as price moves down
+              const potentialNewSL = currentPrice + (trailingDistance * 0.0001);
+              
+              if (potentialNewSL < stopLoss) {
+                newStopLoss = potentialNewSL;
+                
+                // Update the trade's stop loss in database
+                await supabase
+                  .from('shadow_trades')
+                  .update({ 
+                    stop_loss: newStopLoss,
+                    trailing_stop_triggered: true,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', trade.id);
+                
+                console.log(`📉 Trailing stop activated for SELL trade ${trade.id.slice(0, 8)}: SL moved from ${stopLoss.toFixed(5)} to ${newStopLoss.toFixed(5)} (+${profitPips.toFixed(1)} pips profit)`);
+                
+                // Update local variable for immediate check
+                trade.stop_loss = newStopLoss;
+                
+                // Check if new SL was hit
+                if (currentPrice >= newStopLoss) {
+                  shouldClose = true;
+                  exitReason = 'trailing_stop';
+                }
+              }
+            }
           }
         }
 

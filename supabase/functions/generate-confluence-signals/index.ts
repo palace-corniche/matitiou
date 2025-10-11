@@ -472,11 +472,14 @@ serve(async (req) => {
         console.log(`🎯 Storing ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
         
         try {
+          // **CRITICAL FIX: Generate proper UUID instead of using string ID**
+          const analysisId = crypto.randomUUID();
+          
           // Insert master signal directly into master_signals table
           const { data: masterSignalData, error: masterSignalError } = await supabase
             .from('master_signals')
             .insert({
-              analysis_id: confluenceSignal.signal_id,
+              analysis_id: analysisId,
               symbol: confluenceSignal.pair,
               timeframe: '15m',
               signal_type: confluenceSignal.signal_type,
@@ -518,7 +521,7 @@ serve(async (req) => {
 
             // Store fusion analytics
             await supabase.from('master_signals_fusion').insert({
-              analysis_id: confluenceSignal.signal_id,
+              analysis_id: analysisId,
               confidence_score: confluenceSignal.confidence,
               contributing_signals: confluenceSignal.factors || [],
               weighted_score: confluenceSignal.confluence_score,
