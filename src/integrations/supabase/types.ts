@@ -2386,6 +2386,7 @@ export type Database = {
           lot_size: number
           magic_number: number | null
           margin_required: number | null
+          master_signal_id: string | null
           max_loss: number | null
           max_profit: number | null
           order_type: string | null
@@ -2444,6 +2445,7 @@ export type Database = {
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null
+          master_signal_id?: string | null
           max_loss?: number | null
           max_profit?: number | null
           order_type?: string | null
@@ -2502,6 +2504,7 @@ export type Database = {
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null
+          master_signal_id?: string | null
           max_loss?: number | null
           max_profit?: number | null
           order_type?: string | null
@@ -2536,7 +2539,15 @@ export type Database = {
           unrealized_pnl?: number | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "shadow_trades_master_signal_id_fkey"
+            columns: ["master_signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       signal_audit: {
         Row: {
@@ -3474,6 +3485,10 @@ export type Database = {
         }[]
       }
       calculate_global_performance_metrics: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      calculate_module_performance: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
