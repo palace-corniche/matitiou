@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { 
   Activity, AlertTriangle, CheckCircle, Clock, Zap, 
-  TrendingUp, BarChart3, Wifi, WifiOff, RefreshCw 
+  TrendingUp, BarChart3, Wifi, WifiOff, RefreshCw, Database, Trash2 
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { marketDataService } from '@/services/realTimeMarketData';
@@ -70,6 +70,63 @@ const DiagnosticsPanel: React.FC = () => {
 
     return unsubscribe;
   }, []);
+
+  const handleBackfillOrphans = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Backfilling orphan trades...');
+      
+      const { data, error } = await supabase.functions.invoke('backfill-trade-history');
+      
+      if (error) throw error;
+      
+      toast.success(`Backfilled ${data?.backfilled_count || 0} trades`);
+      await runDiagnostics();
+    } catch (error) {
+      console.error('Backfill error:', error);
+      toast.error('Failed to backfill trades');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSyncGlobalAccount = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Syncing global account metrics...');
+      
+      const { data, error } = await supabase.functions.invoke('admin-sync-global-account');
+      
+      if (error) throw error;
+      
+      toast.success('Global account synced successfully');
+      await runDiagnostics();
+    } catch (error) {
+      console.error('Sync error:', error);
+      toast.error('Failed to sync account');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleCleanupDuplicates = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Cleaning duplicate trades...');
+      
+      const { error } = await supabase.functions.invoke('cleanup-duplicate-trades');
+      
+      if (error) throw error;
+      
+      toast.success('Duplicates cleaned successfully');
+      await runDiagnostics();
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      toast.error('Failed to cleanup duplicates');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const runDiagnostics = async () => {
     try {
@@ -284,6 +341,43 @@ const DiagnosticsPanel: React.FC = () => {
               <span>{diagnostics.connectionStatus ? '100' : '0'}%</span>
             </div>
             <Progress value={diagnostics.connectionStatus ? 100 : 0} className="h-2" />
+          </div>
+        </div>
+
+        {/* Admin Actions */}
+        <div className="space-y-2 pt-2 border-t">
+          <h4 className="text-sm font-medium">Data Management</h4>
+          <div className="grid grid-cols-1 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleBackfillOrphans}
+              disabled={isLoading}
+              className="w-full justify-start"
+            >
+              <Database className="h-4 w-4 mr-2" />
+              Backfill Trade History
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncGlobalAccount}
+              disabled={isLoading}
+              className="w-full justify-start"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Sync Account Metrics
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleCleanupDuplicates}
+              disabled={isLoading}
+              className="w-full justify-start"
+            >
+              <Trash2 className="h-4 w-4 mr-2" />
+              Cleanup Duplicates
+            </Button>
           </div>
         </div>
 
