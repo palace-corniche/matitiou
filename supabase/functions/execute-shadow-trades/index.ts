@@ -499,6 +499,39 @@ serve(async (req) => {
 
     // Execute trades for each qualifying signal and portfolio
     for (const signal of signals) {
+      // **PHASE 5: CONFLUENCE VALIDATION BEFORE EXECUTION**
+      // Check market conditions using should_trade_now() function
+      console.log(`🔍 Validating trading conditions for ${signal.pair}...`);
+      const { data: tradingConditions, error: conditionsError } = await supabase
+        .rpc('should_trade_now', { 
+          p_symbol: signal.pair,
+          p_min_quality_score: 50 
+        });
+      
+      if (conditionsError) {
+        console.error(`❌ Error checking trading conditions:`, conditionsError);
+      } else if (tradingConditions && !tradingConditions.allowed) {
+        console.log(`🚫 Trading blocked for ${signal.pair}: ${tradingConditions.reason}`);
+        console.log(`   Hour: ${tradingConditions.current_hour}, Volatility: ${tradingConditions.volatility_percent?.toFixed(3)}%`);
+        continue; // Skip this signal
+      }
+      
+      // Additional validation: Confluence score >= 12
+      if (signal.confluence_score < 12) {
+        console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} confluence too low: ${signal.confluence_score} < 12`);
+        continue;
+      }
+      
+      // Additional validation: Quality score >= 50 (if available)
+      if (signal.signal_quality_score && signal.signal_quality_score < 50) {
+        console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} quality too low: ${signal.signal_quality_score} < 50`);
+        continue;
+      }
+      
+      console.log(`✅ Trading conditions validated for ${signal.pair}:`);
+      console.log(`   Confluence: ${signal.confluence_score}, Quality: ${signal.signal_quality_score || 'N/A'}`);
+      console.log(`   Volatility: ${tradingConditions?.volatility_percent?.toFixed(3)}%`);
+      
       for (const portfolio of portfolios) {
         try {
           // Reconcile portfolio state first

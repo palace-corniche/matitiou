@@ -217,7 +217,8 @@ serve(async (req) => {
         }
 
         if (shouldClose) {
-          // Calculate P&L
+          // Calculate P&L and holding time
+          const entryTime = new Date(trade.entry_time).getTime();
           const pnlResult = calculatePnL(trade, currentPrice);
           const holdingTimeMinutes = Math.round((Date.now() - entryTime) / 60000);
 
