@@ -137,13 +137,21 @@ serve(async (req) => {
             console.log(`✅ Intelligence score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
 
             // Store intelligence in trade record
-            await supabase
+            console.log(`💾 Storing intelligence score in database...`);
+            const { error: updateError } = await supabase
               .from('shadow_trades')
               .update({
                 exit_intelligence_score: exitIntelligence.overallExitScore,
-                exit_factors: exitIntelligence.factors
+                exit_factors: exitIntelligence.factors,
+                intelligence_exit_triggered: exitIntelligence.recommendation === 'FORCE_EXIT'
               })
               .eq('id', trade.id);
+            
+            if (updateError) {
+              console.error(`❌ Failed to update intelligence score:`, updateError);
+            } else {
+              console.log(`✅ Intelligence score ${exitIntelligence.overallExitScore.toFixed(2)} stored, trigger: ${exitIntelligence.recommendation === 'FORCE_EXIT'}`);
+            }
 
             // Decision based on intelligence score with minimum requirements
             if (exitIntelligence.recommendation === 'FORCE_EXIT') {
@@ -154,26 +162,45 @@ serve(async (req) => {
               const MIN_PROFIT_PIPS = 5;
               const MIN_HOLD_TIME_MINUTES = 10;
               
+              console.log(`⚠️ FORCE_EXIT recommendation - Checking minimums:`);
+              console.log(`   Current profit: ${profitPips.toFixed(1)} pips (min: ${MIN_PROFIT_PIPS})`);
+              console.log(`   Holding time: ${holdingTimeMinutes.toFixed(0)}min (min: ${MIN_HOLD_TIME_MINUTES})`);
+              
               if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
                 shouldClose = true;
                 exitReason = 'intelligence_exit';
-                console.log(`🧠 Intelligence EXIT approved for ${trade.id}: ${profitPips.toFixed(1)} pips profit, ${holdingTimeMinutes.toFixed(0)}min hold`);
+                console.log(`🧠 ✅ Intelligence EXIT APPROVED for ${trade.id.slice(0, 8)}`);
+                console.log(`   Profit: ${profitPips.toFixed(1)} pips | Hold: ${holdingTimeMinutes.toFixed(0)}min`);
                 console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
+                console.log(`   Score: ${exitIntelligence.overallExitScore.toFixed(2)}/100`);
               } else {
-                console.log(`⏳ Intelligence wants exit but requirements not met: ${profitPips.toFixed(1)} pips (min ${MIN_PROFIT_PIPS}), ${holdingTimeMinutes.toFixed(0)}min (min ${MIN_HOLD_TIME_MINUTES})`);
+                console.log(`⏳ Intelligence wants exit but BLOCKED by minimums:`);
+                console.log(`   Need: ${MIN_PROFIT_PIPS} pips & ${MIN_HOLD_TIME_MINUTES}min`);
+                console.log(`   Have: ${profitPips.toFixed(1)} pips & ${holdingTimeMinutes.toFixed(0)}min`);
               }
             } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
-              console.log(`✅ Intelligence HOLD for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+              console.log(`✅ Intelligence HOLD_CONFIDENT for ${trade.id.slice(0, 8)}`);
+              console.log(`   Score: ${exitIntelligence.overallExitScore.toFixed(2)}/100 - ${exitIntelligence.reasoning}`);
             } else {
-              console.log(`⚠️ Intelligence CAUTION for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+              console.log(`⚠️ Intelligence HOLD_CAUTION for ${trade.id.slice(0, 8)}`);
+              console.log(`   Score: ${exitIntelligence.overallExitScore.toFixed(2)}/100 - ${exitIntelligence.reasoning}`);
             }
           } catch (intelligenceError) {
-            console.error(`❌ Intelligence exit engine failed for trade ${trade.id}:`, intelligenceError);
-            console.error('Error details:', {
-              name: (intelligenceError as Error).name,
-              message: (intelligenceError as Error).message,
-              stack: (intelligenceError as Error).stack
-            });
+            console.error(`❌ ====== INTELLIGENCE EXIT ENGINE FAILED ======`);
+            console.error(`Trade ID: ${trade.id.slice(0, 8)}`);
+            console.error(`Error Type: ${(intelligenceError as Error).name}`);
+            console.error(`Error Message: ${(intelligenceError as Error).message}`);
+            
+            if ((intelligenceError as Error).name === 'AbortError') {
+              console.error(`⏱️ TIMEOUT: Exit engine took >10 seconds - check engine performance`);
+            } else if ((intelligenceError as any).cause?.code === 'ECONNREFUSED') {
+              console.error(`🔌 CONNECTION REFUSED: Exit engine not deployed or not accessible`);
+            } else {
+              console.error(`Stack trace:`, (intelligenceError as Error).stack);
+            }
+            
+            console.error(`Attempted URL: ${supabaseUrl}/functions/v1/intelligent-exit-engine`);
+            console.error(`========================================`);
             // Continue with fallback logic if intelligence fails
           }
         }

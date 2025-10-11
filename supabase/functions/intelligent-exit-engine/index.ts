@@ -48,7 +48,7 @@ serve(async (req) => {
     }
 
     // Get trade details
-    console.log(`📊 [Exit Engine] Fetching trade details...`);
+    console.log(`📊 [Exit Engine] Fetching trade details for ${tradeId.slice(0, 8)}...`);
     const { data: trade, error: tradeError } = await supabase
       .from('shadow_trades')
       .select('*')
@@ -63,9 +63,11 @@ serve(async (req) => {
       );
     }
     
-    console.log(`✅ [Exit Engine] Trade found: ${trade.symbol} ${trade.trade_type} @ ${trade.entry_price}`);
+    const holdingMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
+    console.log(`✅ [Exit Engine] Trade: ${trade.symbol} ${trade.trade_type} @ ${trade.entry_price}, Entry: ${trade.entry_time}, Holding: ${holdingMinutes.toFixed(0)}min`);
 
     // Get latest master signal for this trade (if exists)
+    console.log(`🔍 [Exit Engine] Fetching master signal for ${trade.symbol}...`);
     const { data: masterSignal } = await supabase
       .from('master_signals')
       .select('*')
@@ -73,8 +75,10 @@ serve(async (req) => {
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
+    console.log(`   Master signal: ${masterSignal ? `Found (conf: ${masterSignal.final_confidence}, regime: ${masterSignal.market_regime})` : 'Not found'}`);
 
     // Get latest modular signals
+    console.log(`🔍 [Exit Engine] Fetching modular signals for ${trade.symbol}...`);
     const { data: modularSignals } = await supabase
       .from('modular_signals')
       .select('*')
@@ -82,24 +86,30 @@ serve(async (req) => {
       .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(20);
+    console.log(`   Modular signals: ${modularSignals?.length || 0} found`);
 
     // Get latest market data
+    console.log(`🔍 [Exit Engine] Fetching market data for ${trade.symbol}...`);
     const { data: marketData } = await supabase
       .from('market_data_feed')
       .select('*')
       .eq('symbol', trade.symbol)
       .order('timestamp', { ascending: false })
       .limit(30);
+    console.log(`   Market data: ${marketData?.length || 0} candles found`);
 
     // Get correlation data
+    console.log(`🔍 [Exit Engine] Fetching correlation data...`);
     const { data: correlations } = await supabase
       .from('correlations')
       .select('*')
       .or(`asset_a.eq.${trade.symbol},asset_b.eq.${trade.symbol}`)
       .order('calculation_date', { ascending: false })
       .limit(5);
+    console.log(`   Correlations: ${correlations?.length || 0} found`);
 
     // Get economic events
+    console.log(`🔍 [Exit Engine] Fetching economic events...`);
     const { data: economicEvents } = await supabase
       .from('economic_events')
       .select('*')
@@ -107,9 +117,16 @@ serve(async (req) => {
       .gte('event_time', new Date().toISOString())
       .order('event_time', { ascending: true })
       .limit(5);
+    console.log(`   Economic events: ${economicEvents?.length || 0} upcoming events`);
 
     // **PHASE 2: HOLISTIC EXIT SCORING ALGORITHM**
-    console.log(`🧠 [Exit Engine] Calculating exit intelligence...`);
+    console.log(`🧠 [Exit Engine] Calculating exit intelligence with:`);
+    console.log(`   - Master Signal: ${masterSignal ? 'Yes' : 'No'}`);
+    console.log(`   - Modular Signals: ${modularSignals?.length || 0}`);
+    console.log(`   - Market Data: ${marketData?.length || 0} candles`);
+    console.log(`   - Correlations: ${correlations?.length || 0}`);
+    console.log(`   - Economic Events: ${economicEvents?.length || 0}`);
+    
     const exitIntelligence = calculateExitIntelligence(
       trade,
       currentPrice,
@@ -120,10 +137,17 @@ serve(async (req) => {
       economicEvents || []
     );
 
-    console.log(`📊 Exit Intelligence for ${tradeId}:`, exitIntelligence);
+    console.log(`📊 [Exit Engine] EXIT INTELLIGENCE RESULT:`);
+    console.log(`   Score: ${exitIntelligence.overallExitScore.toFixed(2)}/100`);
+    console.log(`   Recommendation: ${exitIntelligence.recommendation}`);
+    console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
+    console.log(`   Top Factors:`);
+    console.log(`     - Confluence: ${exitIntelligence.factors.confluenceScore.toFixed(1)}`);
+    console.log(`     - Trend Alignment: ${exitIntelligence.factors.trendAlignment.toFixed(1)}`);
+    console.log(`     - Fundamental: ${exitIntelligence.factors.fundamentalBias.toFixed(1)}`);
     
     const executionTime = Date.now() - startTime;
-    console.log(`✅ [Exit Engine] Completed in ${executionTime}ms - Score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
+    console.log(`✅ [Exit Engine] Completed in ${executionTime}ms`);
 
     return new Response(
       JSON.stringify({ success: true, exitIntelligence, executionTimeMs: executionTime }),
