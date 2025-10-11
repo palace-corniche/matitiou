@@ -206,8 +206,8 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
         errors.push(`${history.length} history records still exist`);
       }
       
-      if (account?.balance !== 100000) {
-        errors.push(`Account balance is ${account?.balance} instead of 100000`);
+      if (account?.balance !== 100) {
+        errors.push(`Account balance is ${account?.balance} instead of 100`);
       }
       
       if (account?.total_trades !== 0) {
@@ -219,7 +219,7 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
       return {
         success,
         message: success ? 
-          'All data cleared and account reset to initial state (100K balance)' : 
+          'All data cleared and account reset to initial state ($100 balance)' : 
           'Reset incomplete - validation failed',
         errors,
         stats: {

@@ -134,7 +134,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
   }
 
   const dailyPnL = account?.floating_pnl || 0;
-  const totalReturn = account ? ((account.balance - 100000) / 100000) * 100 : 0;
+  const totalReturn = account ? ((account.balance - 100) / 100) * 100 : 0;
   const marginLevel = account?.margin_level || 0;
   const openPositionsCount = openTrades.length;
 
@@ -339,7 +339,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
                   `This will:\n` +
                   `• Delete ALL open positions\n` +
                   `• Clear ALL trade history\n` +
-                  `• Reset balance to $100,000\n` +
+                  `• Reset balance to $100\n` +
                   `• Reset all metrics to zero\n\n` +
                   `This action cannot be undone!\n\n` +
                   `Continue with reset?`
