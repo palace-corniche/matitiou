@@ -3425,6 +3425,10 @@ export type Database = {
           pnl_usd: number
         }[]
       }
+      calculate_global_performance_metrics: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       calculate_optimal_lot_size: {
         Args: {
           p_entry_price: number

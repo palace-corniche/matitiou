@@ -36,13 +36,28 @@ export const PerformanceMetricsPanel: React.FC<PerformanceMetricsPanelProps> = (
     return (isPositive ? value > 0 : value < 0) ? "text-green-500" : "text-red-500";
   };
 
-  const getRiskLevel = (drawdown: number) => {
-    if (drawdown < 5) return { level: "Low", color: "bg-green-500", variant: "default" as const };
-    if (drawdown < 15) return { level: "Medium", color: "bg-yellow-500", variant: "secondary" as const };
-    return { level: "High", color: "bg-red-500", variant: "destructive" as const };
+  // Phase 4: Enhanced Risk Level Calculation
+  const getRiskLevel = (drawdown: number, marginLevel: number) => {
+    // Critical risk: High drawdown OR low margin
+    if (drawdown > 20 || marginLevel < 100) {
+      return { level: "Critical", color: "bg-red-600", variant: "destructive" as const };
+    }
+    // High risk: Moderate drawdown OR concerning margin
+    if (drawdown > 10 || marginLevel < 200) {
+      return { level: "High", color: "bg-red-500", variant: "destructive" as const };
+    }
+    // Medium risk: Some drawdown OR moderate margin pressure
+    if (drawdown > 5 || marginLevel < 500) {
+      return { level: "Medium", color: "bg-yellow-500", variant: "secondary" as const };
+    }
+    // Low risk: Healthy metrics
+    return { level: "Low", color: "bg-green-500", variant: "default" as const };
   };
 
-  const riskLevel = getRiskLevel(account.max_drawdown || 0);
+  const riskLevel = getRiskLevel(
+    account.current_drawdown || account.max_drawdown || 0,
+    account.margin_level || 0
+  );
   const dailyPnL = account.floating_pnl || 0;
   const totalReturn = ((account.balance - 100000) / 100000) * 100;
   const marginUtilization = ((account.used_margin || 0) / (account.balance || 1)) * 100;

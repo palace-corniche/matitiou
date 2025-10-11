@@ -575,6 +575,70 @@ serve(async (req) => {
       }
     }
 
+    // === PHASE 1: UPDATE GLOBAL ACCOUNT BALANCE ===
+    if (closedTrades.length > 0) {
+      try {
+        // Get latest balance from trade_history
+        const { data: latestHistory, error: historyError } = await supabase
+          .from('trade_history')
+          .select('balance_after, equity_after')
+          .eq('portfolio_id', '00000000-0000-0000-0000-000000000001')
+          .order('execution_time', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (historyError) {
+          console.error('Error fetching trade history:', historyError);
+        } else if (latestHistory) {
+          const newBalance = parseFloat(latestHistory.balance_after.toString());
+          
+          // Calculate equity (balance + floating P&L)
+          const { data: openTrades, error: openTradesError } = await supabase
+            .from('shadow_trades')
+            .select('unrealized_pnl')
+            .eq('portfolio_id', '00000000-0000-0000-0000-000000000001')
+            .eq('status', 'open');
+          
+          if (openTradesError) {
+            console.error('Error fetching open trades for P&L:', openTradesError);
+          }
+          
+          const floatingPnl = openTrades?.reduce((sum, t) => 
+            sum + parseFloat(t.unrealized_pnl?.toString() || '0'), 0) || 0;
+          
+          const newEquity = newBalance + floatingPnl;
+          
+          // Update global account balance and equity
+          const { error: updateError } = await supabase
+            .from('global_trading_account')
+            .update({
+              balance: newBalance,
+              equity: newEquity,
+              floating_pnl: floatingPnl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', '00000000-0000-0000-0000-000000000001');
+          
+          if (updateError) {
+            console.error('Error updating global account:', updateError);
+          } else {
+            console.log(`💰 Global account updated: Balance $${newBalance.toFixed(2)}, Equity $${newEquity.toFixed(2)}`);
+            
+            // === PHASE 3: CALCULATE PERFORMANCE METRICS ===
+            const { error: metricsError } = await supabase.rpc('calculate_global_performance_metrics');
+            
+            if (metricsError) {
+              console.error('Error calculating performance metrics:', metricsError);
+            } else {
+              console.log('📊 Performance metrics recalculated');
+            }
+          }
+        }
+      } catch (globalAccountError) {
+        console.error('Error updating global account:', globalAccountError);
+      }
+    }
+
     // Update portfolio equity for all active portfolios (for real-time display)
     await updatePortfolioEquities(supabase, currentPrice);
 
