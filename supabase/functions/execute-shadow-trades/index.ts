@@ -564,6 +564,53 @@ serve(async (req) => {
             continue;
           }
 
+          // **PHASE 2 OPTIMIZATION: Time-based filter (avoid Asian session, prefer London/NY overlap)**
+          const currentHour = new Date().getUTCHours();
+          const isAsianSession = currentHour >= 22 || currentHour < 8; // 22:00-08:00 UTC
+          const isLondonNYOverlap = currentHour >= 12 && currentHour <= 16; // 12:00-16:00 UTC (London/NY overlap)
+          
+          if (isAsianSession) {
+            console.log(`🌙 Asian session detected (${currentHour}:00 UTC) - skipping low-liquidity period`);
+            continue;
+          }
+          
+          if (isLondonNYOverlap) {
+            console.log(`🌟 London/NY overlap detected (${currentHour}:00 UTC) - optimal trading window`);
+          }
+
+          // **PHASE 2 OPTIMIZATION: Volume confirmation (require 1.5x avg volume)**
+          const { data: recentVolumes } = await supabase
+            .from('market_data_feed')
+            .select('volume')
+            .eq('symbol', signal.pair)
+            .not('volume', 'is', null)
+            .order('timestamp', { ascending: false })
+            .limit(20);
+          
+          if (recentVolumes && recentVolumes.length > 0) {
+            const avgVolume = recentVolumes.reduce((sum, v) => sum + (Number(v.volume) || 0), 0) / recentVolumes.length;
+            
+            // Get current candle volume
+            const { data: currentCandle } = await supabase
+              .from('market_data_feed')
+              .select('volume')
+              .eq('symbol', signal.pair)
+              .not('volume', 'is', null)
+              .order('timestamp', { ascending: false })
+              .limit(1)
+              .single();
+            
+            const currentVolume = Number(currentCandle?.volume) || 0;
+            const volumeRatio = avgVolume > 0 ? currentVolume / avgVolume : 0;
+            
+            if (volumeRatio < 1.5) {
+              console.log(`📊 Volume too low: ${currentVolume.toFixed(0)} vs avg ${avgVolume.toFixed(0)} (${volumeRatio.toFixed(2)}x < 1.5x required) - skipping low-probability trade`);
+              continue;
+            }
+            
+            console.log(`✅ Volume confirmed: ${currentVolume.toFixed(0)} vs avg ${avgVolume.toFixed(0)} (${volumeRatio.toFixed(2)}x >= 1.5x)`);
+          }
+
           // Rate limit: prevent >1 trade per 5 min per signal type per symbol
           const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
           const { data: recentExec } = await supabase

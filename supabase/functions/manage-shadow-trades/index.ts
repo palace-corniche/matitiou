@@ -101,6 +101,69 @@ serve(async (req) => {
           }
         }
 
+        // **PHASE 2: PARTIAL CLOSE AT 75 PIPS (Secondary TP)**
+        const profitPips = calculateProfitPips(trade, currentPrice);
+        const partialCloseThreshold = 75; // 75 pips for 50% partial close
+        
+        if (!shouldClose && profitPips >= partialCloseThreshold && !trade.partial_close_triggered) {
+          // Close 50% of position at 75 pips
+          const closeSize = parseFloat(trade.remaining_lot_size.toString()) * 0.5;
+          
+          if (closeSize >= 0.01) { // Only if remaining size is sufficient
+            console.log(`💰 PARTIAL CLOSE triggered at ${profitPips.toFixed(1)} pips profit - closing 50% (${closeSize} lots)`);
+            
+            // Calculate partial P&L
+            const partialPnl = calculatePnL({ ...trade, position_size: closeSize }, currentPrice);
+            
+            // Update trade with partial close
+            await supabase
+              .from('shadow_trades')
+              .update({
+                remaining_lot_size: parseFloat(trade.remaining_lot_size.toString()) - closeSize,
+                partial_close_triggered: true,
+                realized_pnl: (parseFloat(trade.realized_pnl?.toString() || '0')) + partialPnl.pnl,
+                partial_close_count: (trade.partial_close_count || 0) + 1,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', trade.id);
+            
+            // Update portfolio balance with partial profits
+            const portfolioId = trade.portfolio_id;
+            await supabase
+              .from('shadow_portfolios')
+              .update({
+                balance: parseFloat(trade.shadow_portfolios.balance.toString()) + partialPnl.pnl,
+                equity: parseFloat(trade.shadow_portfolios.equity.toString()) + partialPnl.pnl,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', portfolioId);
+            
+            // Log to trade history
+            await supabase
+              .from('trade_history')
+              .insert({
+                portfolio_id: portfolioId,
+                original_trade_id: trade.id,
+                action_type: 'partial_close',
+                symbol: trade.symbol,
+                trade_type: trade.trade_type,
+                lot_size: closeSize,
+                execution_price: currentPrice,
+                profit: partialPnl.pnl,
+                profit_pips: profitPips,
+                balance_before: parseFloat(trade.shadow_portfolios.balance.toString()),
+                balance_after: parseFloat(trade.shadow_portfolios.balance.toString()) + partialPnl.pnl,
+                execution_time: new Date().toISOString()
+              });
+            
+            console.log(`✅ Partial close completed: $${partialPnl.pnl.toFixed(2)} realized, ${(parseFloat(trade.remaining_lot_size.toString()) - closeSize).toFixed(2)} lots remaining`);
+            
+            // Update local trade object for trailing stop logic
+            trade.remaining_lot_size = parseFloat(trade.remaining_lot_size.toString()) - closeSize;
+            trade.partial_close_triggered = true;
+          }
+        }
+
         // **TRAILING STOP LOGIC (Priority 1.5 - Before intelligence check)**
         if (!shouldClose && trade.trailing_stop_distance && trade.trailing_stop_distance > 0) {
           const profitPips = calculateProfitPips(trade, currentPrice);
