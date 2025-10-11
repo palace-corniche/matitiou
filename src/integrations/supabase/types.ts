@@ -1882,6 +1882,54 @@ export type Database = {
         }
         Relationships: []
       }
+      news_sentiment: {
+        Row: {
+          created_at: string | null
+          headline: string
+          id: string
+          published_at: string
+          relevance_score: number | null
+          sentiment_label: string
+          sentiment_score: number
+          source: string
+          summary: string | null
+          symbol: string
+          ticker_sentiment: Json | null
+          topics: Json | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          headline: string
+          id?: string
+          published_at: string
+          relevance_score?: number | null
+          sentiment_label: string
+          sentiment_score: number
+          source: string
+          summary?: string | null
+          symbol?: string
+          ticker_sentiment?: Json | null
+          topics?: Json | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          headline?: string
+          id?: string
+          published_at?: string
+          relevance_score?: number | null
+          sentiment_label?: string
+          sentiment_score?: number
+          source?: string
+          summary?: string | null
+          symbol?: string
+          ticker_sentiment?: Json | null
+          topics?: Json | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       order_types: {
         Row: {
           created_at: string | null
