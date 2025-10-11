@@ -136,37 +136,36 @@ serve(async (req) => {
             exitIntelligence = exitData.exitIntelligence;
             console.log(`✅ Intelligence score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
 
-              // Store intelligence in trade record
-              await supabase
-                .from('shadow_trades')
-                .update({
-                  exit_intelligence_score: exitIntelligence.overallExitScore,
-                  exit_factors: exitIntelligence.factors
-                })
-                .eq('id', trade.id);
+            // Store intelligence in trade record
+            await supabase
+              .from('shadow_trades')
+              .update({
+                exit_intelligence_score: exitIntelligence.overallExitScore,
+                exit_factors: exitIntelligence.factors
+              })
+              .eq('id', trade.id);
 
-              // Decision based on intelligence score with minimum requirements
-              if (exitIntelligence.recommendation === 'FORCE_EXIT') {
-                // PHASE 3: Apply minimum profit/time requirements
-                const profitPips = calculateProfitPips(trade, currentPrice);
-                const holdingTimeMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
-                
-                const MIN_PROFIT_PIPS = 5;
-                const MIN_HOLD_TIME_MINUTES = 10;
-                
-                if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
-                  shouldClose = true;
-                  exitReason = 'intelligence_exit';
-                  console.log(`🧠 Intelligence EXIT approved for ${trade.id}: ${profitPips.toFixed(1)} pips profit, ${holdingTimeMinutes.toFixed(0)}min hold`);
-                  console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
-                } else {
-                  console.log(`⏳ Intelligence wants exit but requirements not met: ${profitPips.toFixed(1)} pips (min ${MIN_PROFIT_PIPS}), ${holdingTimeMinutes.toFixed(0)}min (min ${MIN_HOLD_TIME_MINUTES})`);
-                }
-              } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
-                console.log(`✅ Intelligence HOLD for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+            // Decision based on intelligence score with minimum requirements
+            if (exitIntelligence.recommendation === 'FORCE_EXIT') {
+              // PHASE 3: Apply minimum profit/time requirements
+              const profitPips = calculateProfitPips(trade, currentPrice);
+              const holdingTimeMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
+              
+              const MIN_PROFIT_PIPS = 5;
+              const MIN_HOLD_TIME_MINUTES = 10;
+              
+              if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
+                shouldClose = true;
+                exitReason = 'intelligence_exit';
+                console.log(`🧠 Intelligence EXIT approved for ${trade.id}: ${profitPips.toFixed(1)} pips profit, ${holdingTimeMinutes.toFixed(0)}min hold`);
+                console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
               } else {
-                console.log(`⚠️ Intelligence CAUTION for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+                console.log(`⏳ Intelligence wants exit but requirements not met: ${profitPips.toFixed(1)} pips (min ${MIN_PROFIT_PIPS}), ${holdingTimeMinutes.toFixed(0)}min (min ${MIN_HOLD_TIME_MINUTES})`);
               }
+            } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
+              console.log(`✅ Intelligence HOLD for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
+            } else {
+              console.log(`⚠️ Intelligence CAUTION for ${trade.id}: Score ${exitIntelligence.overallExitScore} - ${exitIntelligence.reasoning}`);
             }
           } catch (intelligenceError) {
             console.error(`❌ Intelligence exit engine failed for trade ${trade.id}:`, intelligenceError);
