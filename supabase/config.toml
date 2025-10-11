@@ -35,3 +35,6 @@ verify_jwt = false
 
 [functions.intelligent-exit-engine]
 verify_jwt = false
+
+[functions.train-exit-model]
+verify_jwt = false

@@ -69,6 +69,22 @@ serve(async (req) => {
     const closedTrades = [];
     const portfolioUpdates = new Map();
 
+    // **PHASE 3: ML EXIT MODEL INTEGRATION**
+    // Fetch active ML model for exit optimization
+    const { data: activeModel } = await supabase
+      .from('ml_exit_models')
+      .select('*')
+      .eq('is_active', true)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeModel) {
+      console.log(`🤖 ML Model ${activeModel.model_version} active - Win Rate: ${(activeModel.accuracy_score * 100).toFixed(2)}%`);
+    } else {
+      console.log(`ℹ️ No active ML model found - train one using /train-exit-model`);
+    }
+
     // **PHASE 4: INTELLIGENT EXIT INTEGRATION**
     // Check each trade for exit conditions using holistic intelligence
     for (const trade of openTrades) {
@@ -161,6 +177,69 @@ serve(async (req) => {
             // Update local trade object for trailing stop logic
             trade.remaining_lot_size = parseFloat(trade.remaining_lot_size.toString()) - closeSize;
             trade.partial_close_triggered = true;
+          }
+        }
+
+        // **ML-BASED EXIT OPTIMIZATION (Priority 1.75 - After partial close, before trailing)**
+        if (!shouldClose && activeModel) {
+          const entryTime = new Date(trade.entry_time).getTime();
+          const currentTime = Date.now();
+          const holdingMinutes = (currentTime - entryTime) / (1000 * 60);
+          const currentProfitPips = calculateProfitPips(trade, currentPrice);
+          
+          const modelParams = activeModel.model_parameters as any;
+          
+          // Extract ML features
+          const features = {
+            profitPips: currentProfitPips,
+            slDistance: Math.abs(parseFloat(trade.entry_price.toString()) - parseFloat(trade.stop_loss.toString())) * 10000,
+            tpDistance: Math.abs(parseFloat(trade.take_profit.toString()) - parseFloat(trade.entry_price.toString())) * 10000,
+            confidenceScore: trade.confidence_score || 0.5,
+            lotSize: parseFloat(trade.lot_size.toString()),
+            holdingMinutes,
+            tradeType: trade.trade_type
+          };
+
+          // Calculate ML-based exit prediction
+          const optimalExitThreshold = modelParams.optimalExitThreshold || 30;
+          const maxHoldingTime = modelParams.maxHoldingTime || 240; // 4 hours default
+          
+          // Confidence calculation based on learned patterns
+          let mlConfidence = 0.5;
+          
+          // Profit meets optimal threshold from training
+          if (currentProfitPips >= optimalExitThreshold) {
+            mlConfidence += 0.3;
+          }
+          
+          // Holding time approaching optimal exit time
+          if (holdingMinutes >= maxHoldingTime * 0.7) {
+            mlConfidence += 0.2;
+          }
+
+          // Store ML prediction
+          const { error: predError } = await supabase.from('ml_exit_predictions').insert({
+            trade_id: trade.id,
+            model_version: activeModel.model_version,
+            predicted_exit_price: currentPrice,
+            predicted_profit_pips: currentProfitPips,
+            confidence_score: mlConfidence,
+            feature_values: features
+          });
+
+          if (predError) {
+            console.error(`❌ Failed to store ML prediction:`, predError);
+          }
+
+          // ML recommends exit if confidence > 0.7 and profit meets threshold
+          if (mlConfidence >= 0.7 && currentProfitPips >= optimalExitThreshold) {
+            console.log(`🤖 ML EXIT SIGNAL - Trade ${trade.id.slice(0, 8)}:`);
+            console.log(`   Profit: ${currentProfitPips.toFixed(2)} pips (threshold: ${optimalExitThreshold.toFixed(2)})`);
+            console.log(`   Confidence: ${(mlConfidence * 100).toFixed(0)}%`);
+            console.log(`   Holding: ${holdingMinutes.toFixed(0)}min`);
+            
+            shouldClose = true;
+            exitReason = 'ml_optimized_exit';
           }
         }
 

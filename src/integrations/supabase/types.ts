@@ -1422,6 +1422,101 @@ export type Database = {
         }
         Relationships: []
       }
+      ml_exit_models: {
+        Row: {
+          accuracy_score: number
+          created_at: string
+          feature_importance: Json
+          id: string
+          is_active: boolean
+          model_parameters: Json
+          model_type: string
+          model_version: string
+          training_period: Json
+          training_samples: number
+        }
+        Insert: {
+          accuracy_score?: number
+          created_at?: string
+          feature_importance?: Json
+          id?: string
+          is_active?: boolean
+          model_parameters?: Json
+          model_type?: string
+          model_version: string
+          training_period: Json
+          training_samples?: number
+        }
+        Update: {
+          accuracy_score?: number
+          created_at?: string
+          feature_importance?: Json
+          id?: string
+          is_active?: boolean
+          model_parameters?: Json
+          model_type?: string
+          model_version?: string
+          training_period?: Json
+          training_samples?: number
+        }
+        Relationships: []
+      }
+      ml_exit_predictions: {
+        Row: {
+          actual_exit_price: number | null
+          actual_exit_time: string | null
+          actual_profit_pips: number | null
+          confidence_score: number
+          created_at: string
+          feature_values: Json
+          id: string
+          model_version: string
+          predicted_exit_price: number | null
+          predicted_exit_time: string | null
+          predicted_profit_pips: number | null
+          prediction_error: number | null
+          trade_id: string
+        }
+        Insert: {
+          actual_exit_price?: number | null
+          actual_exit_time?: string | null
+          actual_profit_pips?: number | null
+          confidence_score: number
+          created_at?: string
+          feature_values: Json
+          id?: string
+          model_version: string
+          predicted_exit_price?: number | null
+          predicted_exit_time?: string | null
+          predicted_profit_pips?: number | null
+          prediction_error?: number | null
+          trade_id: string
+        }
+        Update: {
+          actual_exit_price?: number | null
+          actual_exit_time?: string | null
+          actual_profit_pips?: number | null
+          confidence_score?: number
+          created_at?: string
+          feature_values?: Json
+          id?: string
+          model_version?: string
+          predicted_exit_price?: number | null
+          predicted_exit_time?: string | null
+          predicted_profit_pips?: number | null
+          prediction_error?: number | null
+          trade_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ml_exit_predictions_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       models: {
         Row: {
           analysis_job_id: string
