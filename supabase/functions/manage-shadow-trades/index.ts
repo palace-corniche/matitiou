@@ -340,17 +340,8 @@ serve(async (req) => {
     // Update portfolio equity for all active portfolios (for real-time display)
     await updatePortfolioEquities(supabase, currentPrice);
 
-    // Log system health
+    // Log execution
     const executionTime = Date.now() - startTime;
-    await supabase.from('system_health').insert({
-      function_name: 'manage-shadow-trades',
-      execution_time_ms: executionTime,
-      status,
-      error_message: errorMessage || null,
-      processed_items: processedItems,
-      memory_usage_mb: (performance as any).memory?.usedJSHeapSize ? 
-        Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) : null
-    });
 
     console.log(`🎉 Trade management completed: ${processedItems} trades closed in ${executionTime}ms`);
 
@@ -373,21 +364,7 @@ serve(async (req) => {
     const executionTime = Date.now() - startTime;
     console.error('❌ Error in manage-shadow-trades:', error);
 
-    try {
-      const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-      const supabase = createClient(supabaseUrl, supabaseKey);
-      
-      await supabase.from('system_health').insert({
-        function_name: 'manage-shadow-trades',
-        execution_time_ms: executionTime,
-        status: 'error',
-        error_message: (error as Error).message,
-        processed_items: processedItems
-      });
-    } catch (logError) {
-      console.error('Failed to log error:', logError);
-    }
+    // Error logged to console
 
     return new Response(
       JSON.stringify({ 
