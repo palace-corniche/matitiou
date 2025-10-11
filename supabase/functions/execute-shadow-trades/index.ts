@@ -610,10 +610,10 @@ serve(async (req) => {
           
           if (atr > 0) {
             if (signal.signal_type === 'buy') {
-              dynamicStopLoss = signal.entry_price - (2 * atr); // 2x ATR for SL
-              dynamicTakeProfit = signal.entry_price + (4 * atr); // 4x ATR for TP (2:1 R:R)
+              dynamicStopLoss = signal.entry_price - (1.5 * atr); // 1.5x ATR for SL (wider stop)
+              dynamicTakeProfit = signal.entry_price + (4 * atr); // 4x ATR for TP (2.67:1 R:R)
             } else {
-              dynamicStopLoss = signal.entry_price + (2 * atr);
+              dynamicStopLoss = signal.entry_price + (1.5 * atr);
               dynamicTakeProfit = signal.entry_price - (4 * atr);
             }
             console.log(`🎯 Dynamic SL/TP: SL=${dynamicStopLoss.toFixed(5)}, TP=${dynamicTakeProfit.toFixed(5)} (ATR-based)`);
