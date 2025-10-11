@@ -592,83 +592,142 @@ export async function generateMultiTimeframeSignals(candles: any[], pair: string
   const currentPrice = candles[candles.length - 1]?.close || 1.17065;
 
   try {
-    // Get multi-timeframe analysis
-    const { data: mtfSignals } = await supabase
-      .from('multi_timeframe_signals')
-      .select('*')
-      .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
-      .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
-      .order('created_at', { ascending: false })
-      .limit(3);
-
-    if (mtfSignals && mtfSignals.length > 0) {
-      for (const signal of mtfSignals) {
-        const signalData = signal.signal_data || {};
-        const agreementRatio = signal.timeframe_agreement_count / signal.timeframes.length;
-        
-        signals.push({
-          source: 'multitimeframe_analysis',
-          timestamp: new Date(),
-          pair,
-          timeframe,
-          signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confluence_score / 100 * 1.2),
-          strength: Math.min(1, signal.cascade_strength),
-          entryPrice: currentPrice,
-          stopLoss: currentPrice * (signal.signal_type === 'buy' ? 0.995 : 1.005),
-          takeProfit: currentPrice * (signal.signal_type === 'buy' ? 1.02 : 0.98),
-          factors: [
-            { name: 'timeframe_agreement', value: agreementRatio, weight: 0.4, contribution: agreementRatio * 0.4 },
-            { name: 'cascade_strength', value: signal.cascade_strength, weight: 0.3, contribution: signal.cascade_strength * 0.3 },
-            { name: 'confluence_score', value: signal.confluence_score / 100, weight: 0.3, contribution: (signal.confluence_score / 100) * 0.3 }
-          ]
-        });
+    console.log('⏰ Fetching H1, H4, D1 timeframe data for', pair);
+    
+    // Fetch data for H1, H4, D1 timeframes from market_data_feed
+    const timeframes = ['1h', '4h', '1d'];
+    const timeframeData: { [key: string]: any[] } = {};
+    
+    for (const tf of timeframes) {
+      const { data } = await supabase
+        .from('market_data_feed')
+        .select('*')
+        .eq('symbol', pair)
+        .eq('timeframe', tf)
+        .order('timestamp', { ascending: false })
+        .limit(50);
+      
+      if (data && data.length > 0) {
+        timeframeData[tf] = data.reverse(); // Oldest to newest
       }
     }
+
+    // Check if we have data for all timeframes
+    if (!timeframeData['1h'] || !timeframeData['4h'] || !timeframeData['1d']) {
+      console.log('⚠️ Insufficient multi-timeframe data - missing H1/H4/D1');
+      return signals;
+    }
+
+    // Analyze trend for each timeframe
+    const h1Trend = detectTrend(timeframeData['1h']);
+    const h4Trend = detectTrend(timeframeData['4h']);
+    const d1Trend = detectTrend(timeframeData['1d']);
+
+    console.log('📊 Multi-timeframe trends:', {
+      H1: h1Trend.direction,
+      H4: h4Trend.direction,
+      D1: d1Trend.direction
+    });
+
+    // Check alignment
+    const trends = [h1Trend, h4Trend, d1Trend];
+    const bullishCount = trends.filter(t => t.direction === 'uptrend').length;
+    const bearishCount = trends.filter(t => t.direction === 'downtrend').length;
+    
+    // Determine overall alignment
+    let alignment: 'perfect' | 'strong' | 'weak' | 'conflicting' = 'conflicting';
+    let signal: 'buy' | 'sell' | 'hold' = 'hold';
+    let confidence = 0;
+
+    if (bullishCount === 3) {
+      alignment = 'perfect';
+      signal = 'buy';
+      confidence = 0.95;
+    } else if (bearishCount === 3) {
+      alignment = 'perfect';
+      signal = 'sell';
+      confidence = 0.95;
+    } else if (bullishCount === 2 && bearishCount === 0) {
+      alignment = 'strong';
+      signal = 'buy';
+      confidence = 0.75;
+    } else if (bearishCount === 2 && bullishCount === 0) {
+      alignment = 'strong';
+      signal = 'sell';
+      confidence = 0.75;
+    } else if (bullishCount >= 1 || bearishCount >= 1) {
+      alignment = 'weak';
+      signal = bullishCount > bearishCount ? 'buy' : 'sell';
+      confidence = 0.5;
+    }
+
+    // Only generate signal if we have at least weak alignment
+    if (alignment === 'conflicting') {
+      console.log('❌ Multi-timeframe analysis: Conflicting signals - no trade');
+      return signals;
+    }
+
+    const avgStrength = (h1Trend.strength + h4Trend.strength + d1Trend.strength) / 3;
+    
+    // Create multi-timeframe signal
+    signals.push({
+      source: 'multi_timeframe_consensus',
+      timestamp: new Date(),
+      pair,
+      timeframe,
+      signal,
+      confidence,
+      strength: avgStrength,
+      entryPrice: currentPrice,
+      stopLoss: signal === 'buy' ? currentPrice * 0.985 : currentPrice * 1.015,
+      takeProfit: signal === 'buy' ? currentPrice * 1.04 : currentPrice * 0.96,
+      factors: [
+        {
+          name: 'h1_trend',
+          value: h1Trend.strength * (h1Trend.direction === 'uptrend' ? 1 : -1),
+          weight: 0.3,
+          contribution: h1Trend.strength * 0.3
+        },
+        {
+          name: 'h4_trend',
+          value: h4Trend.strength * (h4Trend.direction === 'uptrend' ? 1 : -1),
+          weight: 0.4,
+          contribution: h4Trend.strength * 0.4
+        },
+        {
+          name: 'd1_trend',
+          value: d1Trend.strength * (d1Trend.direction === 'uptrend' ? 1 : -1),
+          weight: 0.3,
+          contribution: d1Trend.strength * 0.3
+        },
+        {
+          name: 'timeframe_alignment',
+          value: alignment === 'perfect' ? 1.0 : alignment === 'strong' ? 0.75 : 0.5,
+          weight: 0.5,
+          contribution: (alignment === 'perfect' ? 1.0 : alignment === 'strong' ? 0.75 : 0.5) * 0.5
+        }
+      ]
+    });
+
+    // Store intermediate values for the fusion engine to use
+    (signals[0] as any).intermediateValues = {
+      h1_trend: h1Trend.direction,
+      h4_trend: h4Trend.direction,
+      d1_trend: d1Trend.direction,
+      alignment,
+      h1_strength: h1Trend.strength,
+      h4_strength: h4Trend.strength,
+      d1_strength: d1Trend.strength
+    };
+
+    console.log(`✅ Multi-timeframe signal generated: ${alignment} ${signal} alignment`);
 
   } catch (error) {
     console.error('Error generating multi-timeframe signals:', error);
   }
 
-  // Advanced multi-timeframe trend analysis
-  const timeframes = ['m5', 'm15', 'm30', 'h1', 'h4', 'd1'];
-  const trends: any = {};
-  const strengths: any = {};
-  
-  // Simulate trend analysis for each timeframe with varying strengths
-  timeframes.forEach(tf => {
-    const trendDirection = Math.random();
-    trends[tf] = trendDirection > 0.6 ? 'up' : trendDirection < 0.4 ? 'down' : 'sideways';
-    strengths[tf] = Math.abs(trendDirection - 0.5) * 2; // 0 to 1
-  });
-  
-  const upTrends = Object.values(trends).filter(t => t === 'up').length;
-  const downTrends = Object.values(trends).filter(t => t === 'down').length;
-  const alignment = Math.max(upTrends, downTrends) / timeframes.length;
-  const alignmentDirection = upTrends > downTrends ? 'buy' : 'sell';
-  
-  // Weight higher timeframes more heavily
-  const weightedAlignment = calculateWeightedAlignment(trends, strengths);
-  
-  if (alignment > 0.5 && weightedAlignment > 0.4) {
-    signals.push({
-      source: 'multi_timeframe_trend',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: alignmentDirection,
-      confidence: weightedAlignment,
-      strength: weightedAlignment,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (alignmentDirection === 'buy' ? 0.995 : 1.005),
-      takeProfit: currentPrice * (alignmentDirection === 'buy' ? 1.025 : 0.975),
-      factors: [
-        { name: 'trend_alignment_score', value: alignment, weight: 0.4, contribution: alignment * 0.4 },
-        { name: 'weighted_alignment', value: weightedAlignment, weight: 0.3, contribution: weightedAlignment * 0.3 },
-        { name: 'higher_tf_dominance', value: calculateHigherTfDominance(trends, strengths), weight: 0.3, contribution: calculateHigherTfDominance(trends, strengths) * 0.3 }
-      ]
-    });
-  }
+  return signals;
+}
   
   // Support/Resistance confluence across timeframes
   const srLevels = calculateMultiTimeframeSR(candles, timeframes);
@@ -1757,4 +1816,58 @@ function calculateSignalEntropy(signals: StandardSignal[]): number {
                    (pHold > 0 ? pHold * Math.log2(pHold) : 0));
   
   return entropy / Math.log2(3); // Normalize to 0-1
+}
+
+// Helper function for multi-timeframe trend detection
+function detectTrend(candles: any[]): { direction: 'uptrend' | 'downtrend' | 'ranging'; strength: number } {
+  if (candles.length < 20) {
+    return { direction: 'ranging', strength: 0 };
+  }
+
+  // Calculate SMAs
+  const prices = candles.map(c => c.price || c.close_price || c.close);
+  const sma20 = calculateSMA(prices, 20);
+  const sma50 = candles.length >= 50 ? calculateSMA(prices, 50) : null;
+  
+  const currentPrice = prices[prices.length - 1];
+  const currentSMA20 = sma20[sma20.length - 1];
+  const prevSMA20 = sma20[sma20.length - 2];
+
+  // Price position relative to SMA
+  const priceAboveSMA = currentPrice > currentSMA20;
+  const smaSlope = (currentSMA20 - prevSMA20) / prevSMA20;
+
+  // Determine trend direction
+  let direction: 'uptrend' | 'downtrend' | 'ranging' = 'ranging';
+  let strength = 0;
+
+  if (priceAboveSMA && smaSlope > 0.0001) {
+    direction = 'uptrend';
+    strength = Math.min(Math.abs(smaSlope) * 10000, 1.0); // Normalize to 0-1
+  } else if (!priceAboveSMA && smaSlope < -0.0001) {
+    direction = 'downtrend';
+    strength = Math.min(Math.abs(smaSlope) * 10000, 1.0);
+  } else {
+    direction = 'ranging';
+    strength = 0.3;
+  }
+
+  // Boost strength if price is strongly above/below SMA
+  const priceDistance = Math.abs((currentPrice - currentSMA20) / currentSMA20);
+  if (priceDistance > 0.01) {
+    strength = Math.min(strength + 0.2, 1.0);
+  }
+
+  // Additional confirmation from SMA50 if available
+  if (sma50 && sma50.length > 0) {
+    const currentSMA50 = sma50[sma50.length - 1];
+    const goldenCross = currentSMA20 > currentSMA50;
+    const deathCross = currentSMA20 < currentSMA50;
+    
+    if ((direction === 'uptrend' && goldenCross) || (direction === 'downtrend' && deathCross)) {
+      strength = Math.min(strength + 0.15, 1.0);
+    }
+  }
+
+  return { direction, strength };
 }

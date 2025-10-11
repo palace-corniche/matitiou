@@ -247,9 +247,15 @@ export class AdvancedFusionEngine {
   private applyHistoricalWeighting(signals: Array<StandardSignal & { logOdds: number; correlationAdjustment: number }>): Array<StandardSignal & { logOdds: number; correlationAdjustment: number; historicalWeight: number }> {
     return signals.map(signal => {
       const moduleKey = `${signal.module}_${signal.id.split('_')[0]}`;
-      const performance = this.config.historicalWeights.get(moduleKey);
+      const performance = this.config.historicalWeights.get(signal.module); // Use module name directly
       
-      let historicalWeight = 1.0;
+      // Multi-timeframe gets 0.15 weight (significant but not dominant)
+      let baseWeight = 0.10; // Default for other modules
+      if (signal.module === 'multiTimeframe') {
+        baseWeight = 0.15; // 15% weight for multi-timeframe
+      }
+      
+      let historicalWeight = baseWeight; // Start with base weight
       
       if (performance && performance.totalSignals >= 10) {
         // Weight based on win rate, Sharpe ratio, and reliability
@@ -257,7 +263,7 @@ export class AdvancedFusionEngine {
         const sharpeWeight = Math.min(2.0, Math.max(0.1, (performance.sharpeRatio + 1) / 2));
         const reliabilityWeight = performance.reliability;
         
-        historicalWeight = (winRateWeight * 0.4 + sharpeWeight * 0.4 + reliabilityWeight * 0.2);
+        historicalWeight = baseWeight * (winRateWeight * 0.4 + sharpeWeight * 0.4 + reliabilityWeight * 0.2);
       }
 
       return {
@@ -388,7 +394,39 @@ export class AdvancedFusionEngine {
     // Calculate quality metrics
     const diversityIndex = Object.keys(moduleGroups).length / 6; // 6 total modules
     const consensusLevel = this.calculateConsensusLevel(allSignals);
-    const signalQuality = (1 - fusionResult.entropy) * diversityIndex * consensusLevel;
+    let signalQuality = (1 - fusionResult.entropy) * diversityIndex * consensusLevel;
+
+    // **NEW: Multi-Timeframe Alignment Bonus/Penalty**
+    let baseConfidence = 1 - fusionResult.entropy;
+    let multiTimeframeBonus = 0;
+    let multiTimeframeNote = '';
+
+    // Find multi-timeframe signal if present
+    const mtfSignal = allSignals.find(s => s.module === 'multiTimeframe');
+    if (mtfSignal && (mtfSignal as any).intermediateValues) {
+      const alignment = (mtfSignal as any).intermediateValues.alignment;
+      
+      if (alignment === 'perfect') {
+        // +10% confidence bonus for perfect alignment
+        multiTimeframeBonus = 0.10;
+        multiTimeframeNote = 'All timeframes aligned - confidence boosted +10%';
+        console.log('✨ Multi-timeframe PERFECT alignment - applying +10% confidence bonus');
+      } else if (alignment === 'strong') {
+        // +5% confidence bonus for strong alignment
+        multiTimeframeBonus = 0.05;
+        multiTimeframeNote = 'Strong timeframe alignment - confidence boosted +5%';
+        console.log('✨ Multi-timeframe STRONG alignment - applying +5% confidence bonus');
+      } else if (alignment === 'conflicting') {
+        // -20% confidence penalty for conflicting signals
+        multiTimeframeBonus = -0.20;
+        multiTimeframeNote = 'Conflicting timeframes - confidence reduced -20%';
+        console.log('⚠️ Multi-timeframe CONFLICTING - applying -20% confidence penalty');
+      }
+
+      // Apply bonus/penalty to confidence
+      baseConfidence = Math.max(0, Math.min(1, baseConfidence + multiTimeframeBonus));
+      signalQuality = Math.max(0, Math.min(1, signalQuality + multiTimeframeBonus));
+    }
 
     // Generate reasoning
     const topContributors = Object.entries(moduleContributions)
@@ -396,9 +434,14 @@ export class AdvancedFusionEngine {
       .slice(0, 3)
       .map(([module, contrib]) => `${module}: ${(contrib * 100).toFixed(0)}%`);
 
-    const reasoning = `${signalType.toUpperCase()} signal generated from ${allSignals.length} factors across ${Object.keys(moduleGroups).length} modules. ` +
+    let reasoning = `${signalType.toUpperCase()} signal generated from ${allSignals.length} factors across ${Object.keys(moduleGroups).length} modules. ` +
       `Top contributors: ${topContributors.join(', ')}. ` +
       `Fusion probability: ${(fusionResult.probability * 100).toFixed(1)}%, Entropy: ${fusionResult.entropy.toFixed(3)}`;
+    
+    // Add multi-timeframe note to reasoning if applicable
+    if (multiTimeframeNote) {
+      reasoning += `. ${multiTimeframeNote}`;
+    }
 
     return {
       id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -407,7 +450,7 @@ export class AdvancedFusionEngine {
       timeframe: allSignals[0]?.timeframe || '15m',
       signal: signalType,
       fusedProbability: fusionResult.probability,
-      confidence: 1 - fusionResult.entropy,
+      confidence: baseConfidence, // Use adjusted confidence
       strength: Math.round(Math.abs(fusionResult.probability - 0.5) * 20),
       entry: currentPrice,
       stopLoss: riskLevels.stopLoss,
@@ -482,6 +525,7 @@ export class AdvancedFusionEngine {
 
   private initializeDefaultPerformance(): void {
     // Initialize with default performance metrics for each module
+    // Multi-timeframe gets higher initial weight (0.15 vs 0.10 for others)
     const defaultMetrics: ModulePerformance = {
       totalSignals: 0,
       winRate: 0.5,
@@ -493,10 +537,18 @@ export class AdvancedFusionEngine {
       lastUpdated: new Date()
     };
 
-    const modules = ['technical', 'fundamental', 'sentiment', 'multiTimeframe', 'patterns', 'strategies'];
+    const multiTimeframeMetrics: ModulePerformance = {
+      ...defaultMetrics,
+      reliability: 0.85, // Higher reliability for multi-timeframe
+    };
+
+    const modules = ['technical', 'fundamental', 'sentiment', 'patterns', 'strategies'];
     modules.forEach(module => {
       this.config.historicalWeights.set(module, { ...defaultMetrics });
     });
+
+    // Multi-timeframe gets special treatment with 0.15 weight (15% contribution)
+    this.config.historicalWeights.set('multiTimeframe', multiTimeframeMetrics);
   }
 
   // Performance tracking methods
