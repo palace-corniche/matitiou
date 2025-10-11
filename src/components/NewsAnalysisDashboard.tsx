@@ -32,6 +32,7 @@ export const NewsAnalysisDashboard: React.FC<NewsAnalysisDashboardProps> = ({
   const [analysis, setAnalysis] = useState<NewsAnalysisResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [lastFetchStatus, setLastFetchStatus] = useState<'success' | 'timeout' | 'error'>('success');
 
   useEffect(() => {
     const fetchNewsAnalysis = async () => {
@@ -39,9 +40,11 @@ export const NewsAnalysisDashboard: React.FC<NewsAnalysisDashboardProps> = ({
         setLoading(true);
         const result = await newsAnalysisEngine.analyzeNewsImpact(pair, 12);
         setAnalysis(result);
+        setLastFetchStatus('success');
         onNewsImpact?.(result.overallSentiment);
       } catch (error) {
         console.error('Failed to fetch news analysis:', error);
+        setLastFetchStatus('error');
       } finally {
         setLoading(false);
       }
@@ -122,14 +125,21 @@ export const NewsAnalysisDashboard: React.FC<NewsAnalysisDashboardProps> = ({
               <Globe className="h-5 w-5" />
               Live Fundamental Analysis - {pair}
             </CardTitle>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setAutoRefresh(!autoRefresh)}
-            >
-              <Activity className={`h-4 w-4 ${autoRefresh ? 'animate-pulse' : ''}`} />
-              {autoRefresh ? 'Live' : 'Paused'}
-            </Button>
+            <div className="flex items-center gap-2">
+              {lastFetchStatus === 'timeout' && (
+                <span className="text-xs text-yellow-600 dark:text-yellow-400">
+                  ⏱️ Last fetch timed out
+                </span>
+              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAutoRefresh(!autoRefresh)}
+              >
+                <Activity className={`h-4 w-4 ${autoRefresh ? 'animate-pulse' : ''}`} />
+                {autoRefresh ? 'Live' : 'Paused'}
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

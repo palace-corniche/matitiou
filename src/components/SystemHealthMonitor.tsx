@@ -26,11 +26,31 @@ export const SystemHealthMonitor: React.FC = () => {
   const [moduleHealth, setModuleHealth] = useState<ModuleHealth[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [lastAutoRun, setLastAutoRun] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchModuleHealth();
-    const interval = setInterval(fetchModuleHealth, 30000); // Update every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Subscribe to module_health changes to detect auto-runs
+    const subscription = supabase
+      .channel('module_health_changes')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'module_health' },
+        () => {
+          setLastAutoRun(new Date());
+          fetchModuleHealth();
+        }
+      )
+      .subscribe();
+    
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchModuleHealth, 30000);
+    
+    return () => {
+      subscription.unsubscribe();
+      clearInterval(interval);
+    };
   }, []);
 
   const fetchModuleHealth = async () => {
@@ -123,6 +143,10 @@ export const SystemHealthMonitor: React.FC = () => {
             </CardTitle>
             <CardDescription>
               Real-time status of analysis modules and data pipelines
+              <span className="text-green-600 dark:text-green-400 text-xs ml-2">
+                ● Auto-running every 5 minutes
+                {lastAutoRun && ` (Last: ${lastAutoRun.toLocaleTimeString()})`}
+              </span>
             </CardDescription>
           </div>
           <div className="flex items-center gap-2">

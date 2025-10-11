@@ -24,15 +24,48 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Fetch news from Alpha Vantage News Sentiment API
-    // Topics: forex (for currency news)
+    // Fetch news from Alpha Vantage News Sentiment API with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+    
     const newsUrl = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=forex&apikey=${ALPHA_VANTAGE_API_KEY}&limit=50`;
     
     console.log('📰 Fetching news from Alpha Vantage...');
-    const newsResponse = await fetch(newsUrl);
+    let newsResponse;
     
-    if (!newsResponse.ok) {
-      throw new Error(`Alpha Vantage API error: ${newsResponse.status}`);
+    try {
+      newsResponse = await fetch(newsUrl, { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!newsResponse.ok) {
+        throw new Error(`Alpha Vantage API error: ${newsResponse.status}`);
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      
+      if (error.name === 'AbortError') {
+        console.error('⏱️ News fetch timeout after 15 seconds');
+        
+        // Update module health to reflect timeout (don't increment error count)
+        await supabaseClient
+          .from('module_health')
+          .update({
+            last_error: 'News API timeout - will retry next cycle',
+            last_run: new Date().toISOString()
+          })
+          .eq('module_name', 'sentiment_analysis');
+        
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Timeout',
+            message: 'News fetch timed out - will retry on next cycle'
+          }),
+          { status: 408, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      throw error;
     }
 
     const newsData = await newsResponse.json();
