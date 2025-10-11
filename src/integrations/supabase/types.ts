@@ -2748,6 +2748,36 @@ export type Database = {
           },
         ]
       }
+      trade_execution_rate_limit: {
+        Row: {
+          created_at: string | null
+          execution_count: number | null
+          id: string
+          last_execution_time: string
+          portfolio_id: string
+          signal_type: string
+          symbol: string
+        }
+        Insert: {
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          last_execution_time?: string
+          portfolio_id: string
+          signal_type: string
+          symbol: string
+        }
+        Update: {
+          created_at?: string | null
+          execution_count?: number | null
+          id?: string
+          last_execution_time?: string
+          portfolio_id?: string
+          signal_type?: string
+          symbol?: string
+        }
+        Relationships: []
+      }
       trade_history: {
         Row: {
           action_type: string
@@ -3274,6 +3304,10 @@ export type Database = {
         Returns: number
       }
       cleanup_anonymous_data: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
+      cleanup_old_rate_limits: {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }

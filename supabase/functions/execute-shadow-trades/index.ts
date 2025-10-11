@@ -531,6 +531,22 @@ serve(async (req) => {
             continue;
           }
 
+          // Rate limit: prevent >1 trade per 5 min per signal type per symbol
+          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+          const { data: recentExec } = await supabase
+            .from('trade_execution_rate_limit')
+            .select('*')
+            .eq('portfolio_id', portfolio.id)
+            .eq('signal_type', signal.signal_type)
+            .eq('symbol', signal.pair)
+            .gte('last_execution_time', fiveMinutesAgo)
+            .limit(1);
+
+          if (recentExec && recentExec.length > 0) {
+            console.log(`⏱️ Rate limit hit for ${signal.pair} ${signal.signal_type} on portfolio ${portfolio.id.slice(0,8)} - skipping`);
+            continue;
+          }
+
           // Check for opposing trades
           const { data: opposingTrades } = await supabase
             .from('shadow_trades')
@@ -647,6 +663,43 @@ serve(async (req) => {
           }
 
           console.log(`✅ Successfully created trade ${insertedTrade.id} for signal ${signal.signal_id}`);
+
+          // Immediately mark signal as executed to prevent reprocessing
+          await supabase
+            .from('master_signals')
+            .update({ 
+              status: 'executed',
+              execution_timestamp: new Date().toISOString(),
+              execution_price: signal.entry_price,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', signal.signal_id);
+
+          // Upsert/update rate limit record
+          const { data: existingRate } = await supabase
+            .from('trade_execution_rate_limit')
+            .select('id')
+            .eq('portfolio_id', portfolio.id)
+            .eq('signal_type', signal.signal_type)
+            .eq('symbol', signal.pair)
+            .limit(1);
+
+          if (existingRate && existingRate.length > 0) {
+            await supabase
+              .from('trade_execution_rate_limit')
+              .update({ last_execution_time: new Date().toISOString(), execution_count: 1 })
+              .eq('id', existingRate[0].id);
+          } else {
+            await supabase
+              .from('trade_execution_rate_limit')
+              .insert({
+                portfolio_id: portfolio.id,
+                signal_type: signal.signal_type,
+                symbol: signal.pair,
+                last_execution_time: new Date().toISOString(),
+                execution_count: 1
+              });
+          }
 
           // Update portfolio metrics
           const margin = newTrade.margin_required;
