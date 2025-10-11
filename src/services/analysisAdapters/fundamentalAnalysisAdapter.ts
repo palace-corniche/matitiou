@@ -56,11 +56,12 @@ export class FundamentalAnalysisAdapter {
       // Get market intelligence data
       const marketIntelligence = await marketIntelligenceEngine.getMarketIntelligence(symbol);
       
-      // Get economic events 
+      // Get economic events and real news sentiment
       const economicEvents = await this.getEconomicEvents(symbol);
+      const newsSentiment = await this.getNewsSentiment(symbol);
       
-      // Enhanced analysis with market intelligence
-      const analysis = this.analyzeWithIntelligence(economicEvents, symbol, marketIntelligence);
+      // Enhanced analysis with market intelligence and news sentiment
+      const analysis = this.analyzeWithIntelligence(economicEvents, symbol, marketIntelligence, newsSentiment);
       
       if (analysis.signalStrength > 0.25) { // Lower threshold with intelligence
         const signal = this.generateEnhancedSignal(marketData[0], analysis, economicEvents, symbol, timeframe, marketIntelligence);
@@ -78,44 +79,102 @@ export class FundamentalAnalysisAdapter {
   }
 
   private async getEconomicEvents(symbol: string): Promise<EconomicEvent[]> {
-    // In a real implementation, this would fetch from an economic calendar API
-    // For now, we'll simulate some events
-    const [baseCurrency, quoteCurrency] = symbol.split('/');
-    
-    const events: EconomicEvent[] = [
-      {
-        time: new Date().toISOString(),
-        currency: baseCurrency,
-        event: 'CPI (Consumer Price Index)',
-        importance: 'high',
-        actual: 2.1,
-        forecast: 2.0,
-        previous: 1.9
-      },
-      {
-        time: new Date(Date.now() - 3600000).toISOString(),
-        currency: quoteCurrency,
-        event: 'Federal Reserve Interest Rate Decision',
-        importance: 'high',
-        actual: 5.25,
-        forecast: 5.25,
-        previous: 5.00
-      },
-      {
-        time: new Date(Date.now() - 7200000).toISOString(),
-        currency: baseCurrency,
-        event: 'GDP Growth Rate',
-        importance: 'medium',
-        actual: 0.4,
-        forecast: 0.3,
-        previous: 0.2
-      }
-    ];
+    // Fetch real economic events from database
+    const { data: calendarEvents } = await supabase
+      .from('economic_calendar')
+      .select('*')
+      .contains('affected_instruments', [symbol])
+      .gte('event_time', new Date(Date.now() - 86400000).toISOString()) // Last 24 hours
+      .order('event_time', { ascending: false })
+      .limit(10);
 
-    return events;
+    if (!calendarEvents || calendarEvents.length === 0) {
+      return [];
+    }
+
+    return calendarEvents.map(event => ({
+      time: event.event_time,
+      currency: event.currency,
+      event: event.event_name,
+      importance: event.impact_level as 'low' | 'medium' | 'high',
+      actual: event.actual_value ? parseFloat(event.actual_value) : undefined,
+      forecast: event.forecast_value ? parseFloat(event.forecast_value) : undefined,
+      previous: event.previous_value ? parseFloat(event.previous_value) : undefined
+    }));
   }
 
-  private analyzeWithIntelligence(events: EconomicEvent[], symbol: string, intelligence: MarketIntelligence): {
+  private async getNewsSentiment(symbol: string): Promise<{
+    overallSentiment: number;
+    recentNews: any[];
+    bullishCount: number;
+    bearishCount: number;
+    neutralCount: number;
+  }> {
+    // Fetch real news sentiment from database
+    const { data: newsData } = await supabase
+      .from('news_sentiment')
+      .select('*')
+      .eq('symbol', symbol)
+      .gte('published_at', new Date(Date.now() - 86400000 * 2).toISOString()) // Last 48 hours
+      .order('published_at', { ascending: false })
+      .limit(50);
+
+    if (!newsData || newsData.length === 0) {
+      return {
+        overallSentiment: 0,
+        recentNews: [],
+        bullishCount: 0,
+        bearishCount: 0,
+        neutralCount: 0
+      };
+    }
+
+    // Calculate weighted sentiment (more recent = higher weight)
+    let weightedSum = 0;
+    let totalWeight = 0;
+    let bullishCount = 0;
+    let bearishCount = 0;
+    let neutralCount = 0;
+
+    const now = Date.now();
+    for (const news of newsData) {
+      const ageHours = (now - new Date(news.published_at).getTime()) / (1000 * 60 * 60);
+      const timeWeight = Math.exp(-ageHours / 24); // Exponential decay over 24 hours
+      const relevanceWeight = news.relevance_score || 0.5;
+      const weight = timeWeight * relevanceWeight;
+
+      weightedSum += news.sentiment_score * weight;
+      totalWeight += weight;
+
+      // Count sentiment categories
+      if (news.sentiment_label === 'Bullish') bullishCount++;
+      else if (news.sentiment_label === 'Bearish') bearishCount++;
+      else neutralCount++;
+    }
+
+    const overallSentiment = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+    return {
+      overallSentiment,
+      recentNews: newsData.slice(0, 10),
+      bullishCount,
+      bearishCount,
+      neutralCount
+    };
+  }
+
+  private analyzeWithIntelligence(
+    events: EconomicEvent[], 
+    symbol: string, 
+    intelligence: MarketIntelligence,
+    newsSentiment: {
+      overallSentiment: number;
+      recentNews: any[];
+      bullishCount: number;
+      bearishCount: number;
+      neutralCount: number;
+    }
+  ): {
     signalType: 'buy' | 'sell' | null;
     signalStrength: number;
     centralBankSentiment: string;
@@ -132,6 +191,26 @@ export class FundamentalAnalysisAdapter {
     let gdpGrowth = 'stable';
 
     const [baseCurrency] = symbol.split('/');
+
+    // **NEW: Apply real news sentiment boost**
+    // News sentiment ranges from -1 (bearish) to +1 (bullish)
+    const newsSentimentBoost = newsSentiment.overallSentiment * 0.4; // 40% weight on news
+    if (newsSentimentBoost > 0) {
+      bullishScore += newsSentimentBoost;
+    } else {
+      bearishScore += Math.abs(newsSentimentBoost);
+    }
+
+    // Log news sentiment for visibility
+    if (newsSentiment.recentNews.length > 0) {
+      console.log(`📰 News sentiment for ${symbol}:`, {
+        overall: newsSentiment.overallSentiment.toFixed(3),
+        bullish: newsSentiment.bullishCount,
+        bearish: newsSentiment.bearishCount,
+        neutral: newsSentiment.neutralCount,
+        newsCount: newsSentiment.recentNews.length
+      });
+    }
 
     for (const event of events) {
       if (event.currency === baseCurrency) {

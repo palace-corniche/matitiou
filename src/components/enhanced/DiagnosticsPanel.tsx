@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Progress } from '@/components/ui/progress';
 import { 
   Activity, AlertTriangle, CheckCircle, Clock, Zap, 
-  TrendingUp, BarChart3, Wifi, WifiOff, RefreshCw, Database, Trash2 
+  TrendingUp, BarChart3, Wifi, WifiOff, RefreshCw, Database, Trash2, Newspaper 
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { marketDataService } from '@/services/realTimeMarketData';
@@ -123,6 +123,25 @@ const DiagnosticsPanel: React.FC = () => {
     } catch (error) {
       console.error('Cleanup error:', error);
       toast.error('Failed to cleanup duplicates');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleFetchNewsSentiment = async () => {
+    try {
+      setIsLoading(true);
+      toast.info('Fetching latest news sentiment...');
+      
+      const { data, error } = await supabase.functions.invoke('fetch-news-sentiment');
+      
+      if (error) throw error;
+      
+      toast.success(`Processed ${data?.processed || 0} news articles`);
+      await runDiagnostics();
+    } catch (error) {
+      console.error('News fetch error:', error);
+      toast.error('Failed to fetch news sentiment');
     } finally {
       setIsLoading(false);
     }
@@ -377,6 +396,16 @@ const DiagnosticsPanel: React.FC = () => {
             >
               <Trash2 className="h-4 w-4 mr-2" />
               Cleanup Duplicates
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleFetchNewsSentiment}
+              disabled={isLoading}
+              className="w-full justify-start"
+            >
+              <Newspaper className="h-4 w-4 mr-2" />
+              Fetch News Sentiment
             </Button>
           </div>
         </div>

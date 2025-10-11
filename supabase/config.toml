@@ -3,6 +3,9 @@ project_id = "gmpmpbuzlybajzrapdrr"
 [functions.fetch-market-data]
 verify_jwt = false
 
+[functions.fetch-news-sentiment]
+verify_jwt = false
+
 [functions.generate-confluence-signals]
 verify_jwt = false
 
