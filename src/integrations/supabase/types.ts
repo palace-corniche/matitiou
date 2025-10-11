@@ -2748,6 +2748,60 @@ export type Database = {
           },
         ]
       }
+      trade_execution_audit: {
+        Row: {
+          analysis_id: string | null
+          created_at: string | null
+          execution_timestamp: string | null
+          id: string
+          metadata: Json | null
+          portfolio_id: string | null
+          reason: string | null
+          result: string
+          signal_id: string | null
+          trade_id: string | null
+        }
+        Insert: {
+          analysis_id?: string | null
+          created_at?: string | null
+          execution_timestamp?: string | null
+          id?: string
+          metadata?: Json | null
+          portfolio_id?: string | null
+          reason?: string | null
+          result: string
+          signal_id?: string | null
+          trade_id?: string | null
+        }
+        Update: {
+          analysis_id?: string | null
+          created_at?: string | null
+          execution_timestamp?: string | null
+          id?: string
+          metadata?: Json | null
+          portfolio_id?: string | null
+          reason?: string | null
+          result?: string
+          signal_id?: string | null
+          trade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_execution_audit_portfolio_id_fkey"
+            columns: ["portfolio_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_portfolios"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_execution_audit_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       trade_execution_rate_limit: {
         Row: {
           created_at: string | null
@@ -3302,6 +3356,16 @@ export type Database = {
           p_volatility_percentile?: number
         }
         Returns: number
+      }
+      check_trade_integrity: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          actual_count: number
+          check_name: string
+          details: string
+          expected_count: number
+          status: string
+        }[]
       }
       cleanup_anonymous_data: {
         Args: Record<PropertyKey, never>

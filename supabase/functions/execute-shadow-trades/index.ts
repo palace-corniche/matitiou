@@ -580,6 +580,31 @@ serve(async (req) => {
             continue;
           }
 
+          // **ENHANCED DUPLICATE DETECTION**: Check by signal_id/analysis_id
+          const signalRef = signal.signal_id || signal.id || signal.analysis_id;
+          const { data: existingSignalTrade } = await supabase
+            .from('shadow_trades')
+            .select('id')
+            .eq('portfolio_id', portfolio.id)
+            .eq('status', 'open')
+            .ilike('comment', `%${signalRef}%`)
+            .limit(1);
+          
+          if (existingSignalTrade) {
+            console.log(`🚫 Duplicate: Signal ${String(signalRef).slice(0, 8)} already executed`);
+            
+            // Log to audit table
+            await supabase.from('trade_execution_audit').insert({
+              signal_id: String(signalRef),
+              analysis_id: signal.analysis_id,
+              portfolio_id: portfolio.id,
+              result: 'skipped_duplicate',
+              reason: `Signal already has open trade: ${existingSignalTrade.id}`,
+              metadata: { signal_type: signal.signal_type, symbol: signal.pair }
+            });
+            continue;
+          }
+
           // Check for opposing trades
           const { data: opposingTrades } = await supabase
             .from('shadow_trades')

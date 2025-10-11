@@ -46,18 +46,24 @@ export const TradingHistory: React.FC<TradingHistoryProps> = ({ portfolioId }) =
     
     setLoading(true);
     try {
+      // **PHASE 3 FIX**: Query shadow_trades directly, excluding duplicate_cleanup
       let query = supabase
-        .from('trade_history')
+        .from('shadow_trades')
         .select('*')
         .eq('portfolio_id', portfolioId)
-        .order('execution_time', { ascending: false });
+        .eq('status', 'closed')
+        .neq('exit_reason', 'duplicate_cleanup')
+        .order('exit_time', { ascending: false });
 
-      // Apply filters
-      if (filter !== 'all') {
-        query = query.eq('action_type', filter);
+      // Apply filters (adapt to shadow_trades columns)
+      if (filter === 'close') {
+        query = query.in('exit_reason', ['stop_loss', 'take_profit', 'manual', 'trailing_stop', 'ai_exit']);
+      } else if (filter === 'open') {
+        // Show only recently closed trades that were market entries
+        query = query.eq('order_type', 'market');
       }
 
-      // Apply date range
+      // Apply date range using exit_time
       const now = new Date();
       let startDate = new Date();
       switch (dateRange) {
@@ -76,13 +82,30 @@ export const TradingHistory: React.FC<TradingHistoryProps> = ({ portfolioId }) =
       }
       
       if (dateRange !== 'all') {
-        query = query.gte('execution_time', startDate.toISOString());
+        query = query.gte('exit_time', startDate.toISOString());
       }
 
       const { data, error } = await query.limit(100);
 
       if (error) throw error;
-      setHistory(data || []);
+      
+      // Transform shadow_trades to match TradeHistoryItem interface
+      const transformedData: TradeHistoryItem[] = (data || []).map(trade => ({
+        id: trade.id,
+        symbol: trade.symbol,
+        trade_type: trade.trade_type,
+        action_type: 'close',
+        lot_size: trade.lot_size,
+        execution_price: trade.exit_price || trade.entry_price,
+        profit: trade.pnl || 0,
+        profit_pips: trade.profit_pips || 0,
+        commission: trade.commission || 0,
+        swap: trade.swap || 0,
+        execution_time: trade.exit_time || trade.created_at,
+        balance_after: 0
+      }));
+      
+      setHistory(transformedData);
     } catch (error) {
       console.error('Error loading trading history:', error);
       setHistory([]);
