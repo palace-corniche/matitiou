@@ -728,33 +728,6 @@ export async function generateMultiTimeframeSignals(candles: any[], pair: string
 
   return signals;
 }
-  
-  // Support/Resistance confluence across timeframes
-  const srLevels = calculateMultiTimeframeSR(candles, timeframes);
-  const srStrength = calculateSRStrength(currentPrice, srLevels);
-  
-  if (srStrength.strength > 0.4) {
-    signals.push({
-      source: 'multi_timeframe_sr',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: srStrength.direction,
-      confidence: srStrength.strength,
-      strength: srStrength.strength,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (srStrength.direction === 'buy' ? 0.997 : 1.003),
-      takeProfit: currentPrice * (srStrength.direction === 'buy' ? 1.018 : 0.982),
-      factors: [
-        { name: 'sr_confluence', value: srStrength.confluence, weight: 0.5, contribution: srStrength.confluence * 0.5 },
-        { name: 'sr_proximity', value: srStrength.proximity, weight: 0.3, contribution: srStrength.proximity * 0.3 },
-        { name: 'sr_test_count', value: srStrength.testCount, weight: 0.2, contribution: srStrength.testCount * 0.2 }
-      ]
-    });
-  }
-
-  return signals;
-}
 
 // ===================== ENHANCED PATTERN SIGNALS =====================
 export async function generatePatternSignals(candles: any[], pair: string, timeframe: string, supabase: any): Promise<StandardSignal[]> {
