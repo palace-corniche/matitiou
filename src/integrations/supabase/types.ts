@@ -3448,6 +3448,15 @@ export type Database = {
         Args: { p_analysis_id: string; p_signal_table?: string }
         Returns: Json
       }
+      validate_trade_preflight: {
+        Args: {
+          p_confluence_score: number
+          p_entry_price: number
+          p_signal_type: string
+          p_symbol: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
