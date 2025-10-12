@@ -3,6 +3,7 @@
 
 import { CandleData } from './technicalAnalysis';
 import { unifiedMarketData, UnifiedTick } from './unifiedMarketData';
+import { AdvancedTrendIndicators } from './advancedIndicators';
 
 export interface IndicatorValue {
   name: string;
@@ -72,6 +73,9 @@ export class AdvancedTechnicalIndicators {
 
       // Parabolic SAR
       indicators.push(this.calculateParabolicSAR(candles, 0.02, 0.2, timestamp));
+
+      // SuperTrend
+      indicators.push(this.calculateSuperTrend(candles, 10, 3, timestamp));
 
       // Ichimoku Components
       const ichimoku = this.calculateIchimoku(candles, timestamp);
@@ -533,14 +537,124 @@ export class AdvancedTechnicalIndicators {
   }
 
   private static calculateParabolicSAR(candles: CandleData[], step: number, max: number, timestamp: number): IndicatorValue {
-    return { name: 'Parabolic SAR', value: candles[candles.length - 1]?.close || 0, signal: 'neutral', strength: 3, category: 'trend', timestamp };
+    if (candles.length < 5) {
+      return { name: 'Parabolic SAR', value: 0, signal: 'neutral', strength: 0, category: 'trend', timestamp };
+    }
+    
+    const sarValues = AdvancedTrendIndicators.calculateParabolicSAR(candles, step, max);
+    const currentSar = sarValues[sarValues.length - 1];
+    const currentPrice = candles[candles.length - 1].close;
+    
+    // Determine signal based on SAR position relative to price
+    let signal: 'buy' | 'sell' | 'neutral' = 'neutral';
+    let strength = 5;
+    
+    if (currentPrice > currentSar) {
+      signal = 'buy'; // Price above SAR = uptrend
+    } else if (currentPrice < currentSar) {
+      signal = 'sell'; // Price below SAR = downtrend
+    }
+    
+    // Check for recent trend change
+    if (sarValues.length > 2) {
+      const prevSar = sarValues[sarValues.length - 2];
+      const prevPrice = candles[candles.length - 2].close;
+      const trendChange = (prevPrice > prevSar && currentPrice < currentSar) || 
+                          (prevPrice < prevSar && currentPrice > currentSar);
+      if (trendChange) {
+        strength = 8; // Strong signal on trend reversal
+      }
+    }
+    
+    return { name: 'Parabolic SAR', value: currentSar, signal, strength, category: 'trend', timestamp };
   }
 
   private static calculateIchimoku(candles: CandleData[], timestamp: number): IndicatorValue[] {
+    if (candles.length < 52) {
+      return [
+        { name: 'Tenkan-sen', value: 0, signal: 'neutral', strength: 0, category: 'trend', timestamp },
+        { name: 'Kijun-sen', value: 0, signal: 'neutral', strength: 0, category: 'trend', timestamp }
+      ];
+    }
+    
+    const ichimoku = AdvancedTrendIndicators.calculateIchimoku(candles);
+    
+    const currentPrice = candles[candles.length - 1].close;
+    const tenkan = ichimoku.tenkanSen[ichimoku.tenkanSen.length - 1];
+    const kijun = ichimoku.kijunSen[ichimoku.kijunSen.length - 1];
+    const senkouA = ichimoku.senkouSpanA[ichimoku.senkouSpanA.length - 1];
+    const senkouB = ichimoku.senkouSpanB[ichimoku.senkouSpanB.length - 1];
+    const kumoTop = Math.max(senkouA, senkouB);
+    const kumoBottom = Math.min(senkouA, senkouB);
+    
+    // Determine signals
+    let tenkanSignal: 'buy' | 'sell' | 'neutral' = 'neutral';
+    let kijunSignal: 'buy' | 'sell' | 'neutral' = 'neutral';
+    let tenkanStrength = 3;
+    let kijunStrength = 3;
+    
+    // Tenkan-sen vs Kijun-sen crossover
+    if (tenkan > kijun) {
+      tenkanSignal = 'buy';
+      tenkanStrength = 6;
+    } else if (tenkan < kijun) {
+      tenkanSignal = 'sell';
+      tenkanStrength = 6;
+    }
+    
+    // Price vs Kumo (cloud)
+    if (currentPrice > kumoTop) {
+      kijunSignal = 'buy'; // Price above cloud = strong uptrend
+      kijunStrength = 8;
+    } else if (currentPrice < kumoBottom) {
+      kijunSignal = 'sell'; // Price below cloud = strong downtrend
+      kijunStrength = 8;
+    } else {
+      kijunSignal = 'neutral'; // Price inside cloud = consolidation
+      kijunStrength = 3;
+    }
+    
     return [
-      { name: 'Tenkan-sen', value: candles[candles.length - 1]?.close || 0, signal: 'neutral', strength: 3, category: 'trend', timestamp },
-      { name: 'Kijun-sen', value: candles[candles.length - 1]?.close || 0, signal: 'neutral', strength: 3, category: 'trend', timestamp }
+      { name: 'Tenkan-sen', value: tenkan, signal: tenkanSignal, strength: tenkanStrength, category: 'trend', timestamp },
+      { name: 'Kijun-sen', value: kijun, signal: kijunSignal, strength: kijunStrength, category: 'trend', timestamp },
+      { name: 'Senkou Span A', value: senkouA, signal: kijunSignal, strength: kijunStrength, category: 'trend', timestamp },
+      { name: 'Kumo Cloud', value: (kumoTop + kumoBottom) / 2, signal: kijunSignal, strength: kijunStrength, category: 'trend', timestamp }
     ];
+  }
+
+  private static calculateSuperTrend(candles: CandleData[], period: number, multiplier: number, timestamp: number): IndicatorValue {
+    if (candles.length < period + 1) {
+      return { name: 'SuperTrend', value: 0, signal: 'neutral', strength: 0, category: 'trend', timestamp };
+    }
+    
+    const superTrendValues = AdvancedTrendIndicators.calculateSuperTrend(candles, period, multiplier);
+    const currentSuperTrend = superTrendValues[superTrendValues.length - 1];
+    const currentPrice = candles[candles.length - 1].close;
+    
+    // Determine signal based on SuperTrend position
+    let signal: 'buy' | 'sell' | 'neutral' = 'neutral';
+    let strength = 6;
+    
+    if (currentPrice > currentSuperTrend) {
+      signal = 'buy'; // Price above SuperTrend = uptrend
+      strength = 7;
+    } else if (currentPrice < currentSuperTrend) {
+      signal = 'sell'; // Price below SuperTrend = downtrend
+      strength = 7;
+    }
+    
+    // Check for trend change (stronger signal)
+    if (superTrendValues.length > 2) {
+      const prevSuperTrend = superTrendValues[superTrendValues.length - 2];
+      const prevPrice = candles[candles.length - 2].close;
+      const trendChange = (prevPrice > prevSuperTrend && currentPrice < currentSuperTrend) || 
+                          (prevPrice < prevSuperTrend && currentPrice > currentSuperTrend);
+      if (trendChange) {
+        strength = 9; // Very strong signal on trend reversal
+      }
+    }
+    
+    return { name: 'SuperTrend', value: currentSuperTrend, signal, strength, category: 'trend', timestamp };
   }
 
   private static calculateADX(candles: CandleData[], period: number, timestamp: number): IndicatorValue {
