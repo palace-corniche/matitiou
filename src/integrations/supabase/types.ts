@@ -2660,6 +2660,63 @@ export type Database = {
         }
         Relationships: []
       }
+      social_sentiment_cache: {
+        Row: {
+          cached_at: string | null
+          created_at: string | null
+          sentiment_data: Json
+          symbol: string
+          ttl_minutes: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          cached_at?: string | null
+          created_at?: string | null
+          sentiment_data: Json
+          symbol: string
+          ttl_minutes?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          cached_at?: string | null
+          created_at?: string | null
+          sentiment_data?: Json
+          symbol?: string
+          ttl_minutes?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      social_sentiment_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          response_time_ms: number | null
+          source: string
+          success: boolean
+          symbol: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          response_time_ms?: number | null
+          source: string
+          success: boolean
+          symbol: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          response_time_ms?: number | null
+          source?: string
+          success?: boolean
+          symbol?: string
+        }
+        Relationships: []
+      }
       support_resistance: {
         Row: {
           created_at: string | null
