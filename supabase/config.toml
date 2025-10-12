@@ -41,3 +41,6 @@ verify_jwt = false
 
 [functions.train-exit-model]
 verify_jwt = false
+
+[functions.fetch-social-sentiment]
+verify_jwt = false

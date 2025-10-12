@@ -669,15 +669,36 @@ export class ConfluenceEngine {
     }
   }
 
-  // **PHASE 4: Social Sentiment Fetcher (placeholder)**
+  // **PHASE 4: Social Sentiment Fetcher - Multi-Source Integration**
   private async fetchSocialSentiment(pair: string): Promise<{
     score: number;
     confidence: number;
     volume: number;
   } | null> {
-    // TODO: Integrate with social media APIs (Twitter API, Reddit API, etc.)
-    // For now, return null (can be enhanced with real API integration)
-    return null;
+    try {
+      const { data, error } = await supabase.functions.invoke('fetch-social-sentiment', {
+        body: { symbol: pair, timeframe: '1h' }
+      });
+
+      if (error) {
+        console.warn('Social sentiment fetch failed:', error);
+        return null;
+      }
+
+      if (!data || typeof data.sentiment_score !== 'number') {
+        console.warn('Invalid social sentiment response');
+        return null;
+      }
+
+      return {
+        score: data.sentiment_score,      // -1 to +1
+        confidence: data.confidence,       // 0 to 1
+        volume: data.message_volume        // Number of mentions
+      };
+    } catch (error) {
+      console.error('Social sentiment error:', error);
+      return null;
+    }
   }
 
   // **PHASE 3: Apply regime-adaptive weight multiplier**
