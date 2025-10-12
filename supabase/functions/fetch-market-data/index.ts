@@ -42,7 +42,7 @@ serve(async (req) => {
     const TWELVE_DATA_API_KEY = 'demo';
     const BASE_URL = 'https://api.twelvedata.com';
     const symbol = 'EUR/USD';
-    const timeframes = ['15min', '1h'];
+    const timeframes = ['15min', '1h', '4h', '1day'];
 
     const marketData: MarketDataPoint[] = [];
 
@@ -72,9 +72,16 @@ serve(async (req) => {
         const recentCandles = data.values.slice(0, 10);
         
         for (const candle of recentCandles) {
+          // Map API timeframes to database format
+          let dbTimeframe = timeframe;
+          if (timeframe === '15min') dbTimeframe = '15m';
+          else if (timeframe === '1h') dbTimeframe = 'H1';
+          else if (timeframe === '4h') dbTimeframe = 'H4';
+          else if (timeframe === '1day') dbTimeframe = 'D1';
+          
           marketData.push({
             symbol,
-            timeframe: timeframe === '15min' ? '15m' : timeframe,
+            timeframe: dbTimeframe,
             price: parseFloat(candle.close),
             open_price: parseFloat(candle.open),
             high_price: parseFloat(candle.high),
@@ -216,7 +223,33 @@ serve(async (req) => {
 // Generate realistic mock data as fallback
 function generateMockData(symbol: string, timeframe: string): MarketDataPoint[] {
   const now = new Date();
-  const intervalMinutes = timeframe === '15min' ? 15 : 60;
+  
+  // Calculate interval in minutes
+  let intervalMinutes: number;
+  let dbTimeframe: string;
+  
+  switch (timeframe) {
+    case '15min':
+      intervalMinutes = 15;
+      dbTimeframe = '15m';
+      break;
+    case '1h':
+      intervalMinutes = 60;
+      dbTimeframe = 'H1';
+      break;
+    case '4h':
+      intervalMinutes = 240;
+      dbTimeframe = 'H4';
+      break;
+    case '1day':
+      intervalMinutes = 1440;
+      dbTimeframe = 'D1';
+      break;
+    default:
+      intervalMinutes = 60;
+      dbTimeframe = timeframe;
+  }
+  
   const mockData: MarketDataPoint[] = [];
   
   // Generate 5 recent candles
@@ -225,7 +258,7 @@ function generateMockData(symbol: string, timeframe: string): MarketDataPoint[] 
     
     // Realistic EUR/USD mock prices with small variations
     const basePrice = 1.0890 + (Math.sin(Date.now() / 100000) * 0.001);
-    const volatility = 0.0005;
+    const volatility = 0.0005 * (intervalMinutes / 60); // Scale volatility by timeframe
     
     const open = basePrice + (Math.random() - 0.5) * volatility;
     const close = open + (Math.random() - 0.5) * volatility;
@@ -234,7 +267,7 @@ function generateMockData(symbol: string, timeframe: string): MarketDataPoint[] 
     
     mockData.push({
       symbol,
-      timeframe: timeframe === '15min' ? '15m' : timeframe,
+      timeframe: dbTimeframe,
       price: parseFloat(close.toFixed(5)),
       open_price: parseFloat(open.toFixed(5)),
       high_price: parseFloat(high.toFixed(5)),
