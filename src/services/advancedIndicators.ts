@@ -3,14 +3,17 @@ import { CandleData } from './technicalAnalysis';
 export interface FibonacciLevel {
   level: number;
   price: number;
-  type: 'retracement' | 'extension' | 'projection';
+  type: 'retracement' | 'extension' | 'projection' | 'time_zone' | 'fan';
+  time?: Date; // For time zones
+  angle?: number; // For fans
 }
 
 export interface GannLevel {
   angle: number;
   price: number;
   time: string;
-  type: 'support' | 'resistance';
+  type: 'support' | 'resistance' | 'square_of_9' | 'time_cycle';
+  strength?: number; // 1-10 scale for confluence integration
 }
 
 export interface IchimokuComponents {
@@ -268,6 +271,46 @@ export class FibonacciTools {
       lower: high - (difference * 0.65)
     };
   }
+  
+  // **PHASE 5: Fibonacci Time Zones** - Predict future reversal times
+  static calculateTimeZones(startIndex: number, startTime: Date, candleIntervalMinutes: number): FibonacciLevel[] {
+    const fibSequence = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144];
+    
+    return fibSequence.map(fib => {
+      const timeZoneDate = new Date(startTime.getTime() + (fib * candleIntervalMinutes * 60 * 1000));
+      
+      return {
+        level: fib,
+        price: 0, // Time zones are vertical lines, no price
+        type: 'time_zone' as const,
+        time: timeZoneDate
+      };
+    });
+  }
+  
+  // **PHASE 5: Fibonacci Fans** - Dynamic support/resistance based on angle
+  static calculateFans(point1: { price: number; index: number }, point2: { price: number; index: number }, currentIndex: number): FibonacciLevel[] {
+    const priceChange = point2.price - point1.price;
+    const timeChange = point2.index - point1.index;
+    const fanLevels = [0.382, 0.5, 0.618];
+    
+    return fanLevels.map(level => {
+      // Calculate fan line price at current index
+      const timeElapsed = currentIndex - point1.index;
+      const fanPrice = point1.price + (priceChange * level) + 
+                      ((priceChange / timeChange) * timeElapsed * (1 - level));
+      
+      // Calculate angle for the fan line
+      const angle = Math.atan2(priceChange * level, timeChange) * (180 / Math.PI);
+      
+      return {
+        level,
+        price: fanPrice,
+        type: 'fan' as const,
+        angle: angle
+      };
+    });
+  }
 }
 
 // Gann Analysis Tools
@@ -301,26 +344,92 @@ export class GannAnalysis {
     });
   }
   
-  // Gann Time Cycles
-  static calculateTimeCycles(startDate: Date): Date[] {
-    const cycles = [30, 60, 90, 120, 144, 180, 240, 360];
+  // **PHASE 5: Enhanced Gann Time Cycles** - Predict reversal dates with strength
+  static calculateTimeCycles(startDate: Date): GannLevel[] {
+    const cycles = [
+      { days: 30, strength: 5 },
+      { days: 60, strength: 6 },
+      { days: 90, strength: 8 },
+      { days: 120, strength: 6 },
+      { days: 144, strength: 9 }, // Fibonacci number
+      { days: 180, strength: 7 },
+      { days: 240, strength: 6 },
+      { days: 360, strength: 10 } // Full year cycle
+    ];
     
-    return cycles.map(days => {
+    return cycles.map(({ days, strength }) => {
       const cycleDate = new Date(startDate);
       cycleDate.setDate(cycleDate.getDate() + days);
-      return cycleDate;
+      
+      return {
+        angle: days, // Use days as angle for identification
+        price: 0, // Time cycles are vertical, no price
+        time: cycleDate.toISOString(),
+        type: 'time_cycle' as const,
+        strength
+      };
     });
   }
   
-  // Square of 9
-  static calculateSquareOf9(centerPrice: number): number[] {
-    const levels: number[] = [];
+  // **PHASE 5: Enhanced Gann Square of 9** - Calculate support/resistance levels with strength
+  static calculateSquareOf9(centerPrice: number, currentPrice: number): GannLevel[] {
+    const levels: GannLevel[] = [];
     const sqrtCenter = Math.sqrt(centerPrice);
     
+    // Calculate resistance levels (above current price)
     for (let i = 1; i <= 8; i++) {
-      const level = Math.pow(sqrtCenter + (i * 0.125), 2);
-      levels.push(level);
+      const priceLevel = Math.pow(sqrtCenter + (i * 0.125), 2);
+      const distance = Math.abs(priceLevel - currentPrice);
+      const strength = Math.max(1, 10 - Math.floor(distance / centerPrice * 100)); // Closer = stronger
+      
+      levels.push({
+        angle: 45 + (i * 5), // Symbolic angle
+        price: priceLevel,
+        time: new Date().toISOString(),
+        type: priceLevel > currentPrice ? 'resistance' as const : 'support' as const,
+        strength: Math.min(10, strength)
+      });
     }
+    
+    // Calculate support levels (below current price)
+    for (let i = 1; i <= 8; i++) {
+      const priceLevel = Math.pow(sqrtCenter - (i * 0.125), 2);
+      if (priceLevel > 0) {
+        const distance = Math.abs(priceLevel - currentPrice);
+        const strength = Math.max(1, 10 - Math.floor(distance / centerPrice * 100));
+        
+        levels.push({
+          angle: 45 - (i * 5), // Symbolic angle
+          price: priceLevel,
+          time: new Date().toISOString(),
+          type: priceLevel > currentPrice ? 'resistance' as const : 'support' as const,
+          strength: Math.min(10, strength)
+        });
+      }
+    }
+    
+    return levels;
+  }
+  
+  // **PHASE 5: Gann Square of 9 Cardinal Points** - Key reversal levels
+  static calculateSquareOf9Cardinals(centerPrice: number): GannLevel[] {
+    const cardinals = [0, 90, 180, 270]; // Degrees
+    const levels: GannLevel[] = [];
+    const sqrtCenter = Math.sqrt(centerPrice);
+    
+    cardinals.forEach(degree => {
+      // Each 90-degree rotation represents a significant level
+      const rotation = degree / 360;
+      const priceLevel = Math.pow(sqrtCenter + rotation, 2);
+      
+      levels.push({
+        angle: degree,
+        price: priceLevel,
+        time: new Date().toISOString(),
+        type: priceLevel > centerPrice ? 'resistance' as const : 'support' as const,
+        strength: 9 // Cardinal points are strong
+      });
+    });
     
     return levels;
   }

@@ -5,6 +5,8 @@
 
 import { RegimeDetectionEngine, type MarketRegime } from './regimeDetection';
 import { supabase } from '@/integrations/supabase/client';
+import { FibonacciTools, GannAnalysis, type FibonacciLevel, type GannLevel } from './advancedIndicators';
+
 export interface ConfluenceSignal {
   id: string;
   timestamp: Date;
@@ -25,7 +27,7 @@ export interface ConfluenceSignal {
 }
 
 export interface ConfluenceFactor {
-  type: 'technical' | 'pattern' | 'volume' | 'momentum' | 'trend' | 'support_resistance' | 'fibonacci' | 'strategy' | 'timeframe' | 'harmonic' | 'elliott' | 'pivot' | 'market_structure' | 'news' | 'economic' | 'fundamental';
+  type: 'technical' | 'pattern' | 'volume' | 'momentum' | 'trend' | 'support_resistance' | 'fibonacci' | 'strategy' | 'timeframe' | 'harmonic' | 'elliott' | 'pivot' | 'market_structure' | 'news' | 'economic' | 'fundamental' | 'gann' | 'fibonacci_fan' | 'fibonacci_time';
   name: string;
   signal: 'buy' | 'sell' | 'neutral';
   weight: number; // 1-20 scale
@@ -69,34 +71,34 @@ export class ConfluenceEngine {
   // Regime-adaptive weight multipliers (Phase 3 Enhancement)
   private regimeWeightMultipliers: Record<string, Record<string, number>> = {
     'trending_bullish': {
-      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.1, 'fundamental': 1.0, 'harmonic': 0.8, 'fibonacci': 1.0
+      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.1, 'fundamental': 1.0, 'harmonic': 0.8, 'fibonacci': 1.0, 'gann': 1.1, 'fibonacci_fan': 1.2, 'fibonacci_time': 0.9
     },
     'trending_bearish': {
-      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.2, 'fundamental': 1.1, 'harmonic': 0.8, 'fibonacci': 1.0
+      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.2, 'fundamental': 1.1, 'harmonic': 0.8, 'fibonacci': 1.0, 'gann': 1.1, 'fibonacci_fan': 1.2, 'fibonacci_time': 0.9
     },
     'ranging_tight': {
-      'pattern': 1.4, 'technical': 1.2, 'fibonacci': 1.3, 'momentum': 0.7, 'volume': 0.9, 'news': 0.8, 'fundamental': 0.9, 'harmonic': 1.2
+      'pattern': 1.4, 'technical': 1.2, 'fibonacci': 1.3, 'momentum': 0.7, 'volume': 0.9, 'news': 0.8, 'fundamental': 0.9, 'harmonic': 1.2, 'gann': 1.3, 'fibonacci_fan': 1.4, 'fibonacci_time': 1.2
     },
     'ranging_volatile': {
-      'volume': 1.4, 'pattern': 1.2, 'technical': 1.0, 'momentum': 0.8, 'news': 1.3, 'fundamental': 0.9, 'harmonic': 0.9, 'fibonacci': 1.1
+      'volume': 1.4, 'pattern': 1.2, 'technical': 1.0, 'momentum': 0.8, 'news': 1.3, 'fundamental': 0.9, 'harmonic': 0.9, 'fibonacci': 1.1, 'gann': 1.0, 'fibonacci_fan': 1.1, 'fibonacci_time': 0.8
     },
     'shock_up': {
-      'volume': 1.5, 'news': 1.6, 'technical': 0.7, 'pattern': 0.6, 'momentum': 1.2, 'fundamental': 1.4, 'harmonic': 0.5, 'fibonacci': 0.8
+      'volume': 1.5, 'news': 1.6, 'technical': 0.7, 'pattern': 0.6, 'momentum': 1.2, 'fundamental': 1.4, 'harmonic': 0.5, 'fibonacci': 0.8, 'gann': 0.6, 'fibonacci_fan': 0.7, 'fibonacci_time': 0.5
     },
     'shock_down': {
-      'volume': 1.6, 'news': 1.7, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.3, 'fundamental': 1.5, 'harmonic': 0.4, 'fibonacci': 0.7
+      'volume': 1.6, 'news': 1.7, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.3, 'fundamental': 1.5, 'harmonic': 0.4, 'fibonacci': 0.7, 'gann': 0.5, 'fibonacci_fan': 0.6, 'fibonacci_time': 0.4
     },
     'liquidity_crisis': {
-      'volume': 1.8, 'news': 1.9, 'fundamental': 1.6, 'technical': 0.4, 'pattern': 0.3, 'momentum': 0.5, 'harmonic': 0.2, 'fibonacci': 0.4
+      'volume': 1.8, 'news': 1.9, 'fundamental': 1.6, 'technical': 0.4, 'pattern': 0.3, 'momentum': 0.5, 'harmonic': 0.2, 'fibonacci': 0.4, 'gann': 0.3, 'fibonacci_fan': 0.4, 'fibonacci_time': 0.2
     },
     'news_driven': {
-      'news': 2.0, 'fundamental': 1.7, 'volume': 1.4, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.1, 'harmonic': 0.3, 'fibonacci': 0.5
+      'news': 2.0, 'fundamental': 1.7, 'volume': 1.4, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.1, 'harmonic': 0.3, 'fibonacci': 0.5, 'gann': 0.4, 'fibonacci_fan': 0.5, 'fibonacci_time': 0.3
     },
     'breakout': {
-      'volume': 1.5, 'momentum': 1.4, 'technical': 1.3, 'pattern': 1.2, 'news': 1.0, 'fundamental': 0.8, 'harmonic': 1.0, 'fibonacci': 1.1
+      'volume': 1.5, 'momentum': 1.4, 'technical': 1.3, 'pattern': 1.2, 'news': 1.0, 'fundamental': 0.8, 'harmonic': 1.0, 'fibonacci': 1.1, 'gann': 1.2, 'fibonacci_fan': 1.3, 'fibonacci_time': 1.0
     },
     'consolidation': {
-      'pattern': 1.3, 'fibonacci': 1.2, 'technical': 1.1, 'volume': 0.8, 'momentum': 0.6, 'news': 0.7, 'fundamental': 0.8, 'harmonic': 1.1
+      'pattern': 1.3, 'fibonacci': 1.2, 'technical': 1.1, 'volume': 0.8, 'momentum': 0.6, 'news': 0.7, 'fundamental': 0.8, 'harmonic': 1.1, 'gann': 1.2, 'fibonacci_fan': 1.3, 'fibonacci_time': 1.1
     }
   };
 
@@ -131,6 +133,10 @@ export class ConfluenceEngine {
     this.analyzePivotLevels(pivotLevels, factors);
     this.analyzeMultiTimeframes(multiTimeframeAnalysis, factors);
     this.analyzeMarketStructure(candles, factors);
+    
+    // **PHASE 5: Analyze enhanced Fibonacci & Gann tools**
+    this.analyzeFibonacciFansAndTimeZones(candles, currentPrice, factors);
+    this.analyzeGannSquareOf9AndTimeCycles(candles, currentPrice, factors);
     
     // Analyze news and fundamental factors if available
     if (newsAnalysis && pair) {
@@ -696,6 +702,175 @@ export class ConfluenceEngine {
       console.log(`🎯 Market regime detected: ${this.currentRegime?.type || 'unknown'}`);
     } catch (error) {
       console.warn('Failed to detect market regime:', error);
+    }
+  }
+
+  // **PHASE 5: Analyze Fibonacci Fans and Time Zones**
+  private analyzeFibonacciFansAndTimeZones(candles: any[], currentPrice: number, factors: ConfluenceFactor[]): void {
+    if (!candles || candles.length < 20) return;
+    
+    try {
+      // Find swing high and swing low for Fibonacci calculations
+      const recentCandles = candles.slice(-50);
+      const high = Math.max(...recentCandles.map(c => c.high));
+      const low = Math.min(...recentCandles.map(c => c.low));
+      
+      const highIndex = recentCandles.findIndex(c => c.high === high);
+      const lowIndex = recentCandles.findIndex(c => c.low === low);
+      
+      // Calculate Fibonacci Fans
+      if (highIndex !== -1 && lowIndex !== -1 && highIndex !== lowIndex) {
+        const point1 = { price: low, index: lowIndex };
+        const point2 = { price: high, index: highIndex };
+        const currentIndex = recentCandles.length - 1;
+        
+        const fans = FibonacciTools.calculateFans(point1, point2, currentIndex);
+        
+        fans.forEach(fan => {
+          const distance = Math.abs(currentPrice - fan.price);
+          const priceRange = high - low;
+          const proximity = 1 - (distance / priceRange); // 0-1, closer = higher
+          
+          if (proximity > 0.02) { // Only consider if price is within 2% of fan line
+            const baseWeight = 8;
+            const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'fibonacci_fan');
+            
+            factors.push({
+              type: 'fibonacci',
+              name: `Fibonacci Fan ${(fan.level * 100).toFixed(1)}%`,
+              signal: currentPrice < fan.price ? 'buy' : 'sell',
+              weight: adaptiveWeight * proximity,
+              strength: Math.min(10, 5 + (proximity * 5)),
+              description: `Fib Fan ${(fan.level * 100).toFixed(1)}% at ${fan.price.toFixed(5)} (${fan.angle?.toFixed(1)}°)`,
+              price: fan.price,
+              confidence: proximity
+            });
+          }
+        });
+      }
+      
+      // Calculate Fibonacci Time Zones for upcoming reversals
+      const lastCandle = candles[candles.length - 1];
+      const candleTime = lastCandle.timestamp ? new Date(lastCandle.timestamp) : new Date();
+      const candleIntervalMinutes = 15; // Assume 15-minute candles
+      
+      const timeZones = FibonacciTools.calculateTimeZones(candles.length - 1, candleTime, candleIntervalMinutes);
+      
+      // Check if we're near a time zone (within next 3 candles)
+      const currentTime = new Date();
+      timeZones.forEach(tz => {
+        if (tz.time) {
+          const timeToZone = tz.time.getTime() - currentTime.getTime();
+          const candlesAway = timeToZone / (candleIntervalMinutes * 60 * 1000);
+          
+          if (candlesAway >= 0 && candlesAway <= 3) {
+            const baseWeight = 7;
+            const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'fibonacci_time');
+            const proximity = 1 - (candlesAway / 3);
+            
+            factors.push({
+              type: 'fibonacci',
+              name: `Fibonacci Time Zone ${tz.level}`,
+              signal: 'neutral', // Time zones indicate potential reversal, not direction
+              weight: adaptiveWeight * proximity,
+              strength: Math.min(10, 6 + (proximity * 4)),
+              description: `Fib Time Zone ${tz.level} approaching (${candlesAway.toFixed(1)} candles)`,
+              confidence: proximity
+            });
+          }
+        }
+      });
+    } catch (error) {
+      console.warn('Error analyzing Fibonacci fans/time zones:', error);
+    }
+  }
+
+  // **PHASE 5: Analyze Gann Square of 9 and Time Cycles**
+  private analyzeGannSquareOf9AndTimeCycles(candles: any[], currentPrice: number, factors: ConfluenceFactor[]): void {
+    if (!candles || candles.length < 20) return;
+    
+    try {
+      const recentCandles = candles.slice(-50);
+      const centerPrice = recentCandles[Math.floor(recentCandles.length / 2)].close;
+      
+      // Calculate Gann Square of 9 levels
+      const squareOf9Levels = GannAnalysis.calculateSquareOf9(centerPrice, currentPrice);
+      
+      squareOf9Levels.forEach(level => {
+        const distance = Math.abs(currentPrice - level.price);
+        const proximity = 1 - Math.min(1, distance / (currentPrice * 0.01)); // Within 1%
+        
+        if (proximity > 0.5 && level.strength) {
+          const baseWeight = 9;
+          const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'gann');
+          
+          factors.push({
+            type: 'support_resistance',
+            name: `Gann Square of 9 ${level.type}`,
+            signal: level.type === 'support' ? 'buy' : 'sell',
+            weight: adaptiveWeight * (level.strength / 10),
+            strength: level.strength,
+            description: `Gann Sq9 ${level.type} at ${level.price.toFixed(5)}`,
+            price: level.price,
+            confidence: proximity
+          });
+        }
+      });
+      
+      // Calculate Gann Square of 9 Cardinal Points (strongest levels)
+      const cardinals = GannAnalysis.calculateSquareOf9Cardinals(centerPrice);
+      
+      cardinals.forEach(cardinal => {
+        const distance = Math.abs(currentPrice - cardinal.price);
+        const proximity = 1 - Math.min(1, distance / (currentPrice * 0.015)); // Within 1.5%
+        
+        if (proximity > 0.3 && cardinal.strength) {
+          const baseWeight = 11;
+          const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'gann');
+          
+          factors.push({
+            type: 'support_resistance',
+            name: `Gann Cardinal ${cardinal.angle}° ${cardinal.type}`,
+            signal: cardinal.type === 'support' ? 'buy' : 'sell',
+            weight: adaptiveWeight * (cardinal.strength / 10),
+            strength: cardinal.strength,
+            description: `Gann Cardinal ${cardinal.angle}° at ${cardinal.price.toFixed(5)}`,
+            price: cardinal.price,
+            confidence: proximity
+          });
+        }
+      });
+      
+      // Calculate Gann Time Cycles for upcoming reversals
+      const lastCandle = candles[candles.length - 1];
+      const startDate = lastCandle.timestamp ? new Date(lastCandle.timestamp) : new Date();
+      
+      const timeCycles = GannAnalysis.calculateTimeCycles(new Date(startDate.getTime() - (50 * 24 * 60 * 60 * 1000))); // 50 days ago
+      
+      // Check if we're near a time cycle (within 2 days)
+      const currentTime = new Date();
+      timeCycles.forEach(cycle => {
+        const cycleTime = new Date(cycle.time);
+        const daysAway = (cycleTime.getTime() - currentTime.getTime()) / (24 * 60 * 60 * 1000);
+        
+        if (daysAway >= 0 && daysAway <= 2 && cycle.strength) {
+          const baseWeight = 8;
+          const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'gann');
+          const proximity = 1 - (daysAway / 2);
+          
+          factors.push({
+            type: 'fibonacci', // Group with time-based analysis
+            name: `Gann Time Cycle ${cycle.angle} days`,
+            signal: 'neutral', // Time cycles indicate potential reversal
+            weight: adaptiveWeight * proximity * (cycle.strength / 10),
+            strength: cycle.strength,
+            description: `Gann ${cycle.angle}-day cycle approaching (${daysAway.toFixed(1)} days)`,
+            confidence: proximity
+          });
+        }
+      });
+    } catch (error) {
+      console.warn('Error analyzing Gann tools:', error);
     }
   }
 
