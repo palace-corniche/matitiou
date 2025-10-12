@@ -517,6 +517,36 @@ serve(async (req) => {
             errorMessage = masterSignalError.message;
           } else {
             console.log(`✅ Master signal stored: ${masterSignalData.id}`);
+            
+            // **PHASE 2 FIX: Calculate and update signal quality score**
+            try {
+              const { data: qualityScore, error: qualityError } = await supabase
+                .rpc('calculate_trade_quality_score', {
+                  p_signal_id: masterSignalData.id,
+                  p_confluence_score: confluenceSignal.confluence_score,
+                  p_market_regime: confluenceSignal.market_regime || 'unknown',
+                  p_volatility_percentile: 50 // Default, can be enhanced later
+                });
+
+              if (qualityError) {
+                console.error('⚠️ Quality score calculation failed:', qualityError);
+              } else {
+                // Update master signal with quality score
+                const { error: updateError } = await supabase
+                  .from('master_signals')
+                  .update({ signal_quality_score: qualityScore })
+                  .eq('id', masterSignalData.id);
+
+                if (updateError) {
+                  console.error('⚠️ Quality score update failed:', updateError);
+                } else {
+                  console.log(`📊 Signal quality score: ${qualityScore}`);
+                }
+              }
+            } catch (scoreError) {
+              console.error('⚠️ Quality scoring error:', scoreError);
+            }
+            
             processedItems = 1;
 
             // Store fusion analytics
