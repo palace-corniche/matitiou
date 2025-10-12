@@ -115,8 +115,6 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
       );
       
       if (success) {
-        // Sync global account metrics after close
-        await supabase.rpc('calculate_global_performance_metrics');
         toast.success('Trade closed successfully');
         await refreshData();
       } else {
