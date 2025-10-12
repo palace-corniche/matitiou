@@ -1050,10 +1050,10 @@ export async function generateStrategySignals(candles: any[], pair: string, time
   const deviation20 = Math.abs(currentPrice - latestMA20) / latestMA20;
   const deviation50 = Math.abs(currentPrice - latestMA50) / latestMA50;
   const bb = calculateBollingerBands(closes, 20, 2);
-  const latestBB = bb[bb.length - 1];
+  const latestBB = bb && bb.length > 0 ? bb[bb.length - 1] : null;
   
   // Enhanced mean reversion with multiple indicators
-  if (deviation20 > 0.012 || (currentPrice < latestBB.lower || currentPrice > latestBB.upper)) {
+  if (latestBB && (deviation20 > 0.012 || (currentPrice < latestBB.lower || currentPrice > latestBB.upper))) {
     const bbPosition = currentPrice > latestBB.upper ? 1 : currentPrice < latestBB.lower ? -1 : 0;
     const meanRevStrength = Math.min((deviation20 + deviation50) * 15, 1);
     
