@@ -504,6 +504,10 @@ export class ConfluenceEngine {
                 description: `${event.name}: Impact ${impact > 0 ? '+' : ''}${impact.toFixed(1)}`,
                 newsImpact: impact,
                 confidence: event.surprise !== undefined ? 0.9 : 0.7
+              });
+            }
+          }
+        }
       });
     }
 
@@ -669,54 +673,32 @@ export class ConfluenceEngine {
     // For now, return null (can be enhanced with real API integration)
     return null;
   }
-        }
-      });
+
+  // **PHASE 3: Apply regime-adaptive weight multiplier**
+  private applyRegimeWeightMultiplier(baseWeight: number, factorType: string): number {
+    if (!this.currentRegime || !this.currentRegime.type) {
+      return baseWeight; // No regime detected, use base weight
     }
 
-    // Currency bias factors
-    if (newsAnalysis.currencyBias) {
-      const currencies = pair.match(/([A-Z]{3})/g) || [];
-      const baseCurrency = currencies[0];
-      const quoteCurrency = currencies[1];
-      
-      if (baseCurrency && quoteCurrency) {
-        const baseBias = newsAnalysis.currencyBias[baseCurrency] || 0;
-        const quoteBias = newsAnalysis.currencyBias[quoteCurrency] || 0;
-        const netBias = baseBias - quoteBias;
-        
-        if (Math.abs(netBias) > 8) {
-          const signal: 'buy' | 'sell' | 'neutral' = netBias > 12 ? 'buy' : netBias < -12 ? 'sell' : 'neutral';
-          
-          if (signal !== 'neutral') {
-            factors.push({
-              type: 'fundamental',
-              name: `Currency Strength Analysis`,
-              signal,
-              weight: Math.min(12, Math.abs(netBias) / 2),
-              strength: Math.min(10, Math.abs(netBias) / 4),
-              description: `${baseCurrency} vs ${quoteCurrency} bias: ${netBias > 0 ? 'Bullish' : 'Bearish'} (${netBias.toFixed(1)})`,
-              newsImpact: netBias / 5,
-              confidence: 0.8
-            });
-          }
-        }
-      }
-    }
+    const regimeName = this.currentRegime.type;
+    const multiplier = this.regimeWeightMultipliers[regimeName]?.[factorType] || 1.0;
+    
+    return baseWeight * multiplier;
+  }
 
-    // High volatility warning factor
-    if (newsAnalysis.volatilityExpectation > 60 || newsAnalysis.riskLevel === 'extreme') {
-      factors.push({
-        type: 'news',
-        name: `High Volatility Risk`,
-        signal: 'neutral',
-        weight: 8, // Moderate weight but important for risk management
-        strength: Math.min(10, newsAnalysis.volatilityExpectation / 10),
-        description: `Expected volatility: ${newsAnalysis.volatilityExpectation}% (${newsAnalysis.riskLevel} risk)`,
-        newsImpact: 0,
-        confidence: 0.7
-      });
+  // **PHASE 3: Update market regime**
+  private async updateMarketRegime(candles: any[]): Promise<void> {
+    if (!candles || candles.length < 50) return;
+    
+    try {
+      const volume = candles.map(c => c.volume || 1000);
+      this.currentRegime = await this.regimeDetector.detectCurrentRegime(candles, volume, []);
+      console.log(`🎯 Market regime detected: ${this.currentRegime?.type || 'unknown'}`);
+    } catch (error) {
+      console.warn('Failed to detect market regime:', error);
     }
   }
+
 
   // Calculate confluence score
   private calculateConfluenceScore(factors: ConfluenceFactor[]): number {
@@ -1004,51 +986,6 @@ export class ConfluenceEngine {
     }
     
     return description;
-  }
-
-  // **PHASE 3: Regime-Adaptive Weight Application**
-  private applyRegimeWeightMultiplier(baseWeight: number, factorType: string): number {
-    if (!this.currentRegime) return baseWeight;
-    
-    const regimeKey = this.currentRegime.type;
-    const multipliers = this.regimeWeightMultipliers[regimeKey];
-    
-    if (!multipliers) return baseWeight;
-    
-    // Map factor types to regime weight categories
-    const typeMapping: Record<string, string> = {
-      'technical': 'technical',
-      'pattern': 'pattern',
-      'volume': 'volume',
-      'momentum': 'momentum',
-      'trend': 'technical',
-      'support_resistance': 'technical',
-      'fibonacci': 'fibonacci',
-      'harmonic': 'harmonic',
-      'news': 'news',
-      'fundamental': 'fundamental'
-    };
-    
-    const mappedType = typeMapping[factorType] || 'technical';
-    const multiplier = multipliers[mappedType] || 1.0;
-    
-    return Math.round(baseWeight * multiplier);
-  }
-  
-  // Update current market regime (called by signal generation)
-  async updateMarketRegime(candles: any[]): Promise<void> {
-    try {
-      this.currentRegime = await this.regimeDetector.detectCurrentRegime(
-        candles,
-        candles.map((c: any) => c.volume || 0),
-        [],
-        []
-      );
-      console.log(`🎯 Market Regime Detected: ${this.currentRegime?.type} (Confidence: ${this.currentRegime?.confidence?.toFixed(2)})`);
-    } catch (error) {
-      console.warn('⚠️ Regime detection failed, using default weights:', error);
-      this.currentRegime = null;
-    }
   }
 
   // Get confluence history
