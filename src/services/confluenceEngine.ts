@@ -1,8 +1,10 @@
 // Professional Confluence Engine for Multi-Source Trading Signal Analysis
 // Integrates 120+ technical indicators, patterns, strategies, and news analysis
 // Phase 3: Regime-Adaptive Weight System
+// Phase 4: Enhanced Market Sentiment with COT + Alternative Data
 
 import { RegimeDetectionEngine, type MarketRegime } from './regimeDetection';
+import { supabase } from '@/integrations/supabase/client';
 export interface ConfluenceSignal {
   id: string;
   timestamp: Date;
@@ -132,7 +134,7 @@ export class ConfluenceEngine {
     
     // Analyze news and fundamental factors if available
     if (newsAnalysis && pair) {
-      this.analyzeNewsFactors(newsAnalysis, factors, pair);
+      await this.analyzeNewsFactors(newsAnalysis, factors, pair);
     }
 
     // Filter out factors with NaN values
@@ -458,11 +460,11 @@ export class ConfluenceEngine {
     }
   }
 
-  // Analyze news and fundamental factors
-  private analyzeNewsFactors(newsAnalysis: any, factors: ConfluenceFactor[], pair: string): void {
+  // **PHASE 4: Enhanced News and Fundamental Analysis with COT + Alternative Data**
+  private async analyzeNewsFactors(newsAnalysis: any, factors: ConfluenceFactor[], pair: string): Promise<void> {
     if (!newsAnalysis) return;
 
-    // Overall news sentiment factor
+    // 1. Overall news sentiment factor
     if (newsAnalysis.overallSentiment && Math.abs(newsAnalysis.overallSentiment) > 5) {
       const sentiment = newsAnalysis.overallSentiment;
       const signal: 'buy' | 'sell' | 'neutral' = sentiment > 15 ? 'buy' : sentiment < -15 ? 'sell' : 'neutral';
@@ -472,7 +474,7 @@ export class ConfluenceEngine {
           type: 'news',
           name: `News Sentiment Analysis`,
           signal,
-          weight: Math.min(15, Math.abs(sentiment) / 5), // High weight for news
+          weight: Math.min(15, Math.abs(sentiment) / 5),
           strength: Math.min(10, Math.abs(sentiment) / 8),
           description: `Market news sentiment: ${sentiment > 0 ? 'Bullish' : 'Bearish'} (${sentiment.toFixed(1)})`,
           newsImpact: sentiment / 10,
@@ -481,7 +483,7 @@ export class ConfluenceEngine {
       }
     }
 
-    // Major economic events
+    // 2. Major economic events
     if (newsAnalysis.majorEvents && newsAnalysis.majorEvents.length > 0) {
       newsAnalysis.majorEvents.forEach((event: any) => {
         if (Math.abs(event.impact || 0) > 2) {
@@ -497,14 +499,176 @@ export class ConfluenceEngine {
                 type: 'economic',
                 name: `${event.name} (${event.currency})`,
                 signal,
-                weight: Math.min(18, Math.abs(impact) * 3), // Very high weight for economic events
+                weight: Math.min(18, Math.abs(impact) * 3),
                 strength: Math.min(10, Math.abs(impact)),
                 description: `${event.name}: Impact ${impact > 0 ? '+' : ''}${impact.toFixed(1)}`,
                 newsImpact: impact,
                 confidence: event.surprise !== undefined ? 0.9 : 0.7
-              });
-            }
-          }
+      });
+    }
+
+    // **PHASE 4: Add COT (Commitment of Traders) Analysis**
+    try {
+      const cotSignal = await this.analyzeCOTData(pair);
+      if (cotSignal) {
+        factors.push(cotSignal);
+      }
+    } catch (error) {
+      console.warn('⚠️ COT analysis failed:', error);
+    }
+
+    // **PHASE 4: Add Alternative Data Integration**
+    try {
+      const altDataSignals = await this.analyzeAlternativeData(pair);
+      factors.push(...altDataSignals);
+    } catch (error) {
+      console.warn('⚠️ Alternative data analysis failed:', error);
+    }
+  }
+
+  // **PHASE 4: COT Data Analysis**
+  private async analyzeCOTData(pair: string): Promise<ConfluenceFactor | null> {
+    try {
+      const { data: cotReports, error } = await supabase
+        .from('cot_reports')
+        .select('*')
+        .eq('pair', pair)
+        .order('report_date', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error || !cotReports) return null;
+
+      // Calculate COT sentiment based on commercial traders positioning
+      const commercialNet = cotReports.commercial_long - cotReports.commercial_short;
+      const speculativeNet = cotReports.large_traders_long - cotReports.large_traders_short;
+      
+      // Commercial traders are typically contrarian indicators (smart money)
+      // Large speculators are trend followers
+      const cotScore = (commercialNet * 0.7) + (speculativeNet * 0.3);
+      const normalizedScore = Math.max(-10, Math.min(10, cotScore / 1000000)); // Normalize to -10 to +10
+      
+      const signal: 'buy' | 'sell' | 'neutral' = normalizedScore > 2 ? 'buy' : normalizedScore < -2 ? 'sell' : 'neutral';
+      
+      if (signal !== 'neutral') {
+        return {
+          type: 'fundamental',
+          name: 'COT Positioning',
+          signal,
+          weight: Math.min(12, Math.abs(normalizedScore) * 2),
+          strength: Math.min(10, Math.abs(normalizedScore)),
+          description: `Smart money ${normalizedScore > 0 ? 'accumulating' : 'distributing'} (${normalizedScore.toFixed(1)})`,
+          confidence: 0.85
+        };
+      }
+    } catch (error) {
+      console.error('COT analysis error:', error);
+    }
+    
+    return null;
+  }
+
+  // **PHASE 4: Alternative Data Analysis**
+  private async analyzeAlternativeData(pair: string): Promise<ConfluenceFactor[]> {
+    const altFactors: ConfluenceFactor[] = [];
+
+    try {
+      // Analyze real-time news sentiment (placeholder for API integration)
+      const newsSentiment = await this.fetchRealTimeNewsSentiment(pair);
+      if (newsSentiment && Math.abs(newsSentiment.score) > 0.3) {
+        const signal: 'buy' | 'sell' | 'neutral' = 
+          newsSentiment.score > 0.5 ? 'buy' : 
+          newsSentiment.score < -0.5 ? 'sell' : 'neutral';
+        
+        if (signal !== 'neutral') {
+          altFactors.push({
+            type: 'news',
+            name: 'Real-Time News Sentiment',
+            signal,
+            weight: Math.min(14, Math.abs(newsSentiment.score) * 20),
+            strength: Math.min(10, Math.abs(newsSentiment.score) * 15),
+            description: `Live news: ${newsSentiment.score > 0 ? 'Bullish' : 'Bearish'} (${newsSentiment.articles} articles)`,
+            newsImpact: newsSentiment.score * 10,
+            confidence: newsSentiment.confidence
+          });
+        }
+      }
+
+      // Analyze social sentiment (Twitter/Reddit/StockTwits)
+      const socialSentiment = await this.fetchSocialSentiment(pair);
+      if (socialSentiment && Math.abs(socialSentiment.score) > 0.4) {
+        const signal: 'buy' | 'sell' | 'neutral' = 
+          socialSentiment.score > 0.6 ? 'buy' : 
+          socialSentiment.score < -0.6 ? 'sell' : 'neutral';
+        
+        if (signal !== 'neutral') {
+          altFactors.push({
+            type: 'fundamental',
+            name: 'Social Media Sentiment',
+            signal,
+            weight: Math.min(10, Math.abs(socialSentiment.score) * 15),
+            strength: Math.min(9, Math.abs(socialSentiment.score) * 12),
+            description: `Social: ${socialSentiment.score > 0 ? 'Bullish' : 'Bearish'} (${socialSentiment.volume} mentions)`,
+            confidence: socialSentiment.confidence
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Alternative data error:', error);
+    }
+
+    return altFactors;
+  }
+
+  // **PHASE 4: Real-time News Sentiment Fetcher (placeholder)**
+  private async fetchRealTimeNewsSentiment(pair: string): Promise<{
+    score: number;
+    confidence: number;
+    articles: number;
+  } | null> {
+    // TODO: Integrate with real news APIs (NewsAPI, Benzinga, etc.)
+    // For now, return mock data based on recent economic calendar events
+    try {
+      const { data: recentEvents } = await supabase
+        .from('economic_calendar')
+        .select('*')
+        .gte('event_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .eq('impact_level', 'high')
+        .limit(5);
+
+      if (!recentEvents || recentEvents.length === 0) return null;
+
+      // Calculate sentiment from event impacts
+      let sentimentSum = 0;
+      recentEvents.forEach((event: any) => {
+        const actual = parseFloat(event.actual_value) || 0;
+        const forecast = parseFloat(event.forecast_value) || 0;
+        const surprise = actual - forecast;
+        sentimentSum += surprise / (Math.abs(forecast) || 1);
+      });
+
+      const score = Math.max(-1, Math.min(1, sentimentSum / recentEvents.length));
+      
+      return {
+        score,
+        confidence: 0.75,
+        articles: recentEvents.length
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  // **PHASE 4: Social Sentiment Fetcher (placeholder)**
+  private async fetchSocialSentiment(pair: string): Promise<{
+    score: number;
+    confidence: number;
+    volume: number;
+  } | null> {
+    // TODO: Integrate with social media APIs (Twitter API, Reddit API, etc.)
+    // For now, return null (can be enhanced with real API integration)
+    return null;
+  }
         }
       });
     }
