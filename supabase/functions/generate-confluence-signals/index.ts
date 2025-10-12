@@ -7,6 +7,7 @@ import {
   generateMultiTimeframeSignals,
   generatePatternSignals,
   generateStrategySignals,
+  generateIntermarketSignals,
   fuseSignalsWithBayesian,
   generateSignalDiagnostics
 } from './master-signal-modules.ts';
@@ -805,6 +806,18 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     moduleErrors.push({ module: 'strategy', error: (error as Error).message });
   }
 
+  // Intermarket signals with enhanced error handling
+  try {
+    const intermarketSignals = await generateIntermarketSignals(supabase, pair, timeframe);
+    if (intermarketSignals?.length > 0) {
+      signals.push(...intermarketSignals);
+      console.log(`✅ Generated ${intermarketSignals.length} intermarket signals`);
+    }
+  } catch (error) {
+    console.error('Error generating intermarket signals:', error);
+    moduleErrors.push({ module: 'intermarket', error: (error as Error).message });
+  }
+
   // Log module errors for monitoring
   if (moduleErrors.length > 0) {
     console.warn(`⚠️ Module errors encountered:`, moduleErrors);
@@ -829,6 +842,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     patternCount: signals.filter(s => s.source?.includes('pattern')).length,
     multiTimeframeCount: signals.filter(s => s.source?.includes('timeframe')).length,
     strategyCount: signals.filter(s => s.source?.includes('strategy')).length,
+    intermarketCount: signals.filter(s => s.source?.includes('intermarket')).length,
     moduleErrors,
     qualityMetrics: {
       dataFreshness: calculateDataFreshness(signals),

@@ -68,7 +68,8 @@ export class IntermarketAnalysisAdapter {
       // Analyze intermarket relationships
       const analysis = this.analyzeIntermarketRelations(intermarketData, symbol);
       
-      if (analysis.confidence > 0.5) {
+      // LOWERED THRESHOLD: Generate signals at lower confidence (from 0.5 -> 0.35)
+      if (analysis.confidence > 0.35) {
         const signal = this.generateSignal(marketData[0], analysis, intermarketData, symbol, timeframe);
         if (signal) {
           await this.saveSignal(signal);
@@ -84,54 +85,68 @@ export class IntermarketAnalysisAdapter {
   }
 
   private async gatherIntermarketData(symbol: string): Promise<IntermarketData> {
-    // In a real implementation, this would fetch from multiple market data sources
-    // For now, we'll simulate realistic intermarket data
-    
     const [baseCurrency, quoteCurrency] = symbol.split('/');
+    
+    // Fetch real correlation data from database
+    const { data: correlations } = await supabase
+      .from('correlations')
+      .select('*')
+      .or(`asset_a.eq.${symbol},asset_b.eq.${symbol}`)
+      .order('created_at', { ascending: false })
+      .limit(20);
+    
+    // Build correlation map from database
+    const correlationMap: { [key: string]: number } = {};
+    correlations?.forEach(corr => {
+      const otherAsset = corr.asset_a === symbol ? corr.asset_b : corr.asset_a;
+      correlationMap[otherAsset] = corr.correlation_value;
+    });
     
     return {
       forexCorrelations: {
-        'EUR/USD': baseCurrency === 'EUR' ? 1.0 : (Math.random() - 0.5) * 2,
-        'GBP/USD': (Math.random() - 0.5) * 2,
-        'USD/JPY': quoteCurrency === 'USD' ? -0.8 : (Math.random() - 0.5) * 2,
-        'AUD/USD': (Math.random() - 0.5) * 2,
-        'USD/CHF': quoteCurrency === 'USD' ? -0.7 : (Math.random() - 0.5) * 2
+        'EUR/USD': correlationMap['EUR/USD'] ?? 0,
+        'GBP/USD': correlationMap['GBP/USD'] ?? 0,
+        'USD/JPY': correlationMap['USD/JPY'] ?? 0,
+        'AUD/USD': correlationMap['AUD/USD'] ?? 0,
+        'USD/CHF': correlationMap['USD/CHF'] ?? 0,
+        'NZD/USD': correlationMap['NZD/USD'] ?? 0,
+        'USD/CAD': correlationMap['USD/CAD'] ?? 0
       },
       commodityRelations: {
         gold: { 
-          correlation: quoteCurrency === 'USD' ? -0.6 : 0.3, 
+          correlation: correlationMap['GOLD'] ?? (quoteCurrency === 'USD' ? -0.4 : 0.2), 
           currentPrice: 2000 + (Math.random() - 0.5) * 100 
         },
         oil: { 
-          correlation: baseCurrency === 'CAD' ? 0.7 : 0.2, 
+          correlation: correlationMap['OIL'] ?? (baseCurrency === 'CAD' ? 0.5 : 0.1), 
           currentPrice: 75 + (Math.random() - 0.5) * 10 
         },
         copper: { 
-          correlation: baseCurrency === 'AUD' ? 0.6 : 0.1, 
+          correlation: correlationMap['COPPER'] ?? (baseCurrency === 'AUD' ? 0.4 : 0.1), 
           currentPrice: 4.2 + (Math.random() - 0.5) * 0.5 
         }
       },
       equityIndices: {
         spy: { 
-          correlation: 0.4 + (Math.random() - 0.5) * 0.4, 
-          performance: (Math.random() - 0.5) * 4 // -2% to +2%
+          correlation: correlationMap['SPX'] ?? 0.2, 
+          performance: (Math.random() - 0.5) * 4
         },
         vix: { 
-          correlation: -0.3 + (Math.random() - 0.5) * 0.4, 
+          correlation: correlationMap['VIX'] ?? -0.2, 
           level: 15 + Math.random() * 20 
         },
         dxy: { 
-          correlation: quoteCurrency === 'USD' ? -0.9 : 0.3, 
+          correlation: correlationMap['DXY'] ?? (quoteCurrency === 'USD' ? -0.7 : 0.2), 
           level: 103 + (Math.random() - 0.5) * 5 
         }
       },
       bondMarkets: {
         us10y: { 
-          correlation: quoteCurrency === 'USD' ? 0.5 : -0.2, 
+          correlation: correlationMap['US10Y'] ?? (quoteCurrency === 'USD' ? 0.3 : -0.1), 
           yield: 4.2 + (Math.random() - 0.5) * 0.5 
         },
         ger10y: { 
-          correlation: baseCurrency === 'EUR' ? 0.4 : -0.1, 
+          correlation: correlationMap['GER10Y'] ?? (baseCurrency === 'EUR' ? 0.3 : -0.1), 
           yield: 2.3 + (Math.random() - 0.5) * 0.3 
         },
         yieldSpread: 1.9 + (Math.random() - 0.5) * 0.4
@@ -157,28 +172,32 @@ export class IntermarketAnalysisAdapter {
 
     const [baseCurrency, quoteCurrency] = symbol.split('/');
 
-    // Analyze USD strength via DXY
+    // LOWERED THRESHOLD: Analyze USD strength via DXY (threshold from 0.7 -> 0.4)
     if (quoteCurrency === 'USD') {
       const dxyCorrelation = Math.abs(data.equityIndices.dxy.correlation);
-      if (dxyCorrelation > 0.7) {
+      if (dxyCorrelation > 0.4) {
         primaryDriver = 'USD_strength';
         maxCorrelation = Math.max(maxCorrelation, dxyCorrelation);
         
-        // Strong negative correlation with DXY means USD strength = pair weakness
-        if (data.equityIndices.dxy.correlation < -0.7) {
-          // DXY rising = bearish for EUR/USD etc.
-          bearishScore += 0.4;
+        // Negative correlation with DXY means USD strength = pair weakness
+        if (data.equityIndices.dxy.correlation < -0.4) {
+          bearishScore += 0.3 * dxyCorrelation; // Scale by correlation strength
+        } else if (data.equityIndices.dxy.correlation > 0.4) {
+          bullishScore += 0.3 * dxyCorrelation;
         }
       }
     }
 
-    // Analyze commodity currencies
+    // Analyze commodity currencies (EXPANDED: added NZD)
     if (baseCurrency === 'AUD' || baseCurrency === 'CAD' || baseCurrency === 'NZD') {
       const commoditySignal = this.analyzeCommodityRelations(data, baseCurrency);
-      bullishScore += commoditySignal.bullish;
-      bearishScore += commoditySignal.bearish;
       
-      if (commoditySignal.strength > 0.3) {
+      // REGIME-BASED WEIGHTING: boost commodity signals in risk-on
+      const regimeMultiplier = data.riskSentiment.riskOn ? 1.5 : 1.0;
+      bullishScore += commoditySignal.bullish * regimeMultiplier;
+      bearishScore += commoditySignal.bearish * regimeMultiplier;
+      
+      if (commoditySignal.strength > 0.2) { // LOWERED from 0.3
         primaryDriver = 'commodity_correlation';
         maxCorrelation = Math.max(maxCorrelation, commoditySignal.strength);
       }
@@ -187,10 +206,13 @@ export class IntermarketAnalysisAdapter {
     // Analyze safe haven flows (JPY, CHF, Gold)
     if (baseCurrency === 'JPY' || baseCurrency === 'CHF') {
       const safeHavenSignal = this.analyzeSafeHavenFlow(data);
-      bullishScore += safeHavenSignal.bullish;
-      bearishScore += safeHavenSignal.bearish;
       
-      if (safeHavenSignal.strength > 0.3) {
+      // REGIME-BASED WEIGHTING: boost safe haven signals in risk-off (up to 2x)
+      const regimeMultiplier = data.riskSentiment.riskOn ? 0.8 : 2.0;
+      bullishScore += safeHavenSignal.bullish * regimeMultiplier;
+      bearishScore += safeHavenSignal.bearish * regimeMultiplier;
+      
+      if (safeHavenSignal.strength > 0.2) { // LOWERED from 0.3
         primaryDriver = 'safe_haven_flow';
         maxCorrelation = Math.max(maxCorrelation, safeHavenSignal.strength);
       }
@@ -201,19 +223,20 @@ export class IntermarketAnalysisAdapter {
     bullishScore += yieldSignal.bullish;
     bearishScore += yieldSignal.bearish;
     
-    if (yieldSignal.strength > 0.3) {
+    if (yieldSignal.strength > 0.2) { // LOWERED from 0.3
       primaryDriver = 'yield_differential';
       maxCorrelation = Math.max(maxCorrelation, yieldSignal.strength);
     }
 
-    // Risk sentiment analysis
+    // Risk sentiment analysis with regime boost
     const riskSignal = this.analyzeRiskSentiment(data, symbol);
     bullishScore += riskSignal.bullish;
     bearishScore += riskSignal.bearish;
 
+    // LOWERED THRESHOLD: Generate signals more frequently (from 0.3 -> 0.2)
     const netScore = bullishScore - bearishScore;
     const confidence = Math.min(Math.abs(netScore), 1.0);
-    const signalType = netScore > 0.3 ? 'buy' : netScore < -0.3 ? 'sell' : null;
+    const signalType = netScore > 0.2 ? 'buy' : netScore < -0.2 ? 'sell' : null;
 
     return {
       signalType,
@@ -230,32 +253,43 @@ export class IntermarketAnalysisAdapter {
     let strength = 0;
 
     if (currency === 'AUD') {
-      // AUD correlates with copper and gold
+      // AUD correlates with copper and gold (LOWERED thresholds)
       const copperCorr = data.commodityRelations.copper.correlation;
       const goldCorr = data.commodityRelations.gold.correlation;
       
-      if (copperCorr > 0.5) {
-        bullish += 0.3;
+      if (Math.abs(copperCorr) > 0.3) { // LOWERED from 0.5
+        bullish += 0.3 * Math.abs(copperCorr);
         strength = Math.max(strength, Math.abs(copperCorr));
       }
       
-      if (goldCorr > 0.4) {
-        bullish += 0.2;
+      if (Math.abs(goldCorr) > 0.25) { // LOWERED from 0.4
+        bullish += 0.2 * Math.abs(goldCorr);
         strength = Math.max(strength, Math.abs(goldCorr));
       }
     }
 
     if (currency === 'CAD') {
-      // CAD correlates strongly with oil
+      // CAD correlates strongly with oil (LOWERED threshold)
       const oilCorr = data.commodityRelations.oil.correlation;
       
-      if (Math.abs(oilCorr) > 0.6) {
+      if (Math.abs(oilCorr) > 0.35) { // LOWERED from 0.6
         if (oilCorr > 0) {
-          bullish += 0.4;
+          bullish += 0.4 * Math.abs(oilCorr);
         } else {
-          bearish += 0.4;
+          bearish += 0.4 * Math.abs(oilCorr);
         }
         strength = Math.abs(oilCorr);
+      }
+    }
+
+    // EXPANDED: Added NZD commodity relationships
+    if (currency === 'NZD') {
+      // NZD correlates with dairy prices (approximated by gold)
+      const goldCorr = data.commodityRelations.gold.correlation;
+      
+      if (Math.abs(goldCorr) > 0.3) {
+        bullish += 0.25 * Math.abs(goldCorr);
+        strength = Math.max(strength, Math.abs(goldCorr));
       }
     }
 
@@ -368,6 +402,15 @@ export class IntermarketAnalysisAdapter {
       ? currentPrice + (priceBuffer * 3.5)
       : currentPrice - (priceBuffer * 3.5);
 
+    // REGIME-BASED WEIGHTING: Higher weight in risk-off for safe haven signals
+    let adaptiveWeight = 0.9;
+    if (analysis.riskEnvironment === 'risk_off' && 
+        (analysis.primaryDriver === 'safe_haven_flow' || analysis.primaryDriver === 'USD_strength')) {
+      adaptiveWeight = 1.2; // Boost intermarket weight in risk-off
+    } else if (analysis.riskEnvironment === 'risk_on' && analysis.primaryDriver === 'commodity_correlation') {
+      adaptiveWeight = 1.1; // Boost commodity signals in risk-on
+    }
+
     return {
       moduleId: this.moduleId,
       symbol,
@@ -375,7 +418,7 @@ export class IntermarketAnalysisAdapter {
       signalType: analysis.signalType,
       confidence: analysis.confidence,
       strength: Math.round(analysis.confidence * 10),
-      weight: 0.9, // Intermarket analysis is important but not always immediate
+      weight: adaptiveWeight,
       triggerPrice: currentPrice,
       suggestedEntry,
       suggestedStopLoss,

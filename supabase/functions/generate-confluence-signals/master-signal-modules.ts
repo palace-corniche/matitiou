@@ -1166,6 +1166,78 @@ export async function generateStrategySignals(candles: any[], pair: string, time
   return signals;
 }
 
+// ===================== ENHANCED INTERMARKET ANALYSIS SIGNALS =====================
+export async function generateIntermarketSignals(supabase: any, pair: string, timeframe: string): Promise<StandardSignal[]> {
+  const signals: StandardSignal[] = [];
+  
+  try {
+    // Get intermarket analysis signals from modular_signals
+    const { data: intermarketSignals } = await supabase
+      .from('modular_signals')
+      .select('*')
+      .eq('module_id', 'intermarket_analysis')
+      .eq('symbol', pair)
+      .eq('timeframe', timeframe)
+      .eq('is_active', true)
+      .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+      .order('confidence', { ascending: false })
+      .limit(5);
+
+    if (intermarketSignals && intermarketSignals.length > 0) {
+      for (const signal of intermarketSignals) {
+        const intermarketData = signal.intermediate_values?.intermarket_data || {};
+        const analysisResult = signal.intermediate_values?.analysis_result || {};
+        
+        // Apply regime-based confidence boost
+        let confidenceBoost = 1.0;
+        if (analysisResult.risk_environment === 'risk_off' && 
+            (analysisResult.primary_driver === 'safe_haven_flow' || analysisResult.primary_driver === 'USD_strength')) {
+          confidenceBoost = 1.3; // 30% boost in risk-off for safe haven signals
+        } else if (analysisResult.risk_environment === 'risk_on' && analysisResult.primary_driver === 'commodity_correlation') {
+          confidenceBoost = 1.2; // 20% boost in risk-on for commodity signals
+        }
+
+        signals.push({
+          source: `intermarket_${analysisResult.primary_driver || 'multi'}`,
+          timestamp: new Date(signal.created_at),
+          pair,
+          timeframe,
+          signal: signal.signal_type as 'buy' | 'sell' | 'hold',
+          confidence: Math.min(1, signal.confidence * confidenceBoost),
+          strength: Math.min(1, (signal.strength / 10) * confidenceBoost),
+          entryPrice: signal.suggested_entry || signal.trigger_price,
+          stopLoss: signal.suggested_stop_loss,
+          takeProfit: signal.suggested_take_profit,
+          factors: [
+            { 
+              name: 'correlation_strength', 
+              value: analysisResult.correlation_strength || 0.5, 
+              weight: 0.35, 
+              contribution: (analysisResult.correlation_strength || 0.5) * 0.35 
+            },
+            { 
+              name: 'risk_environment', 
+              value: analysisResult.risk_environment === 'risk_off' ? 0.8 : 0.5, 
+              weight: 0.30, 
+              contribution: (analysisResult.risk_environment === 'risk_off' ? 0.8 : 0.5) * 0.30 
+            },
+            { 
+              name: 'primary_driver_strength', 
+              value: signal.confidence, 
+              weight: 0.35, 
+              contribution: signal.confidence * 0.35 
+            }
+          ]
+        });
+      }
+    }
+  } catch (error) {
+    console.error('Error generating intermarket signals:', error);
+  }
+
+  return signals;
+}
+
 // ===================== ENHANCED BAYESIAN SIGNAL FUSION =====================
 export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabase: any): Promise<any> {
   if (signals.length === 0) {
@@ -1199,12 +1271,13 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
 
     // Dynamic source weighting based on recent performance
     const sourceWeights: { [key: string]: number } = {
-      'quantitative': 0.25,  // Highest weight for quantitative
-      'technical': 0.20,
-      'fundamental': 0.18,
-      'sentiment': 0.15,
-      'pattern': 0.12,
-      'multitimeframe': 0.10
+      'quantitative': 0.23,  // Adjusted for new module
+      'intermarket': 0.22,   // NEW: High weight for intermarket
+      'technical': 0.18,
+      'fundamental': 0.16,
+      'sentiment': 0.12,
+      'pattern': 0.09,
+      'multitimeframe': 0.08
     };
 
     // Adjust weights based on recent performance
