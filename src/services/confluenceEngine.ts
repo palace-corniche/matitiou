@@ -1,6 +1,8 @@
 // Professional Confluence Engine for Multi-Source Trading Signal Analysis
 // Integrates 120+ technical indicators, patterns, strategies, and news analysis
+// Phase 3: Regime-Adaptive Weight System
 
+import { RegimeDetectionEngine, type MarketRegime } from './regimeDetection';
 export interface ConfluenceSignal {
   id: string;
   timestamp: Date;
@@ -59,7 +61,46 @@ export interface RiskAssessment {
 
 export class ConfluenceEngine {
   private signalHistory: ConfluenceSignal[] = [];
+  private regimeDetector: RegimeDetectionEngine;
+  private currentRegime: MarketRegime | null = null;
+  
+  // Regime-adaptive weight multipliers (Phase 3 Enhancement)
+  private regimeWeightMultipliers: Record<string, Record<string, number>> = {
+    'trending_bullish': {
+      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.1, 'fundamental': 1.0, 'harmonic': 0.8, 'fibonacci': 1.0
+    },
+    'trending_bearish': {
+      'momentum': 1.4, 'technical': 1.3, 'pattern': 0.9, 'volume': 1.2, 'news': 1.2, 'fundamental': 1.1, 'harmonic': 0.8, 'fibonacci': 1.0
+    },
+    'ranging_tight': {
+      'pattern': 1.4, 'technical': 1.2, 'fibonacci': 1.3, 'momentum': 0.7, 'volume': 0.9, 'news': 0.8, 'fundamental': 0.9, 'harmonic': 1.2
+    },
+    'ranging_volatile': {
+      'volume': 1.4, 'pattern': 1.2, 'technical': 1.0, 'momentum': 0.8, 'news': 1.3, 'fundamental': 0.9, 'harmonic': 0.9, 'fibonacci': 1.1
+    },
+    'shock_up': {
+      'volume': 1.5, 'news': 1.6, 'technical': 0.7, 'pattern': 0.6, 'momentum': 1.2, 'fundamental': 1.4, 'harmonic': 0.5, 'fibonacci': 0.8
+    },
+    'shock_down': {
+      'volume': 1.6, 'news': 1.7, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.3, 'fundamental': 1.5, 'harmonic': 0.4, 'fibonacci': 0.7
+    },
+    'liquidity_crisis': {
+      'volume': 1.8, 'news': 1.9, 'fundamental': 1.6, 'technical': 0.4, 'pattern': 0.3, 'momentum': 0.5, 'harmonic': 0.2, 'fibonacci': 0.4
+    },
+    'news_driven': {
+      'news': 2.0, 'fundamental': 1.7, 'volume': 1.4, 'technical': 0.6, 'pattern': 0.5, 'momentum': 1.1, 'harmonic': 0.3, 'fibonacci': 0.5
+    },
+    'breakout': {
+      'volume': 1.5, 'momentum': 1.4, 'technical': 1.3, 'pattern': 1.2, 'news': 1.0, 'fundamental': 0.8, 'harmonic': 1.0, 'fibonacci': 1.1
+    },
+    'consolidation': {
+      'pattern': 1.3, 'fibonacci': 1.2, 'technical': 1.1, 'volume': 0.8, 'momentum': 0.6, 'news': 0.7, 'fundamental': 0.8, 'harmonic': 1.1
+    }
+  };
 
+  constructor() {
+    this.regimeDetector = new RegimeDetectionEngine();
+  }
   async analyzeConfluence(
     technicalIndicators: any[],
     candlestickPatterns: any[],
@@ -144,7 +185,7 @@ export class ConfluenceEngine {
     if (!Array.isArray(indicators)) return;
 
     // Enhanced indicator weights based on reliability and market conditions
-    const indicatorWeights: Record<string, number> = {
+    const baseIndicatorWeights: Record<string, number> = {
       'RSI Divergence': 12,
       'MACD Signal Cross': 10,
       'Bollinger Squeeze': 8,
@@ -168,13 +209,16 @@ export class ConfluenceEngine {
         return;
       }
 
-      const weight = indicatorWeights[indicator.name] || 5;
+      const baseWeight = baseIndicatorWeights[indicator.name] || 5;
+      
+      // **PHASE 3: Apply regime-adaptive weight multiplier**
+      const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'technical');
       
       factors.push({
         type: 'technical',
         name: indicator.name,
         signal: indicator.signal,
-        weight,
+        weight: adaptiveWeight,
         strength: Math.max(1, Math.min(10, indicator.strength)), // Clamp between 1-10
         description: `${indicator.name}: ${indicator.value?.toFixed(4) || 'N/A'}`,
         price: indicator.value || undefined
@@ -186,7 +230,7 @@ export class ConfluenceEngine {
   private analyzeCandlestickPatterns(patterns: any[], factors: ConfluenceFactor[]): void {
     if (!Array.isArray(patterns)) return;
 
-    const patternWeights: Record<string, number> = {
+    const basePatternWeights: Record<string, number> = {
       'Doji': 6,
       'Hammer': 8,
       'Shooting Star': 8,
@@ -201,12 +245,16 @@ export class ConfluenceEngine {
     };
 
     patterns.forEach(pattern => {
-      const weight = patternWeights[pattern.name] || 5;
+      const baseWeight = basePatternWeights[pattern.name] || 5;
+      
+      // **PHASE 3: Apply regime-adaptive weight multiplier**
+      const adaptiveWeight = this.applyRegimeWeightMultiplier(baseWeight, 'pattern');
+      
       factors.push({
         type: 'pattern',
         name: `${pattern.name} Pattern`,
         signal: pattern.signal,
-        weight,
+        weight: adaptiveWeight,
         strength: pattern.strength || 6,
         description: `${pattern.name} detected at ${pattern.price?.toFixed(4)}`,
         price: pattern.price
@@ -792,6 +840,51 @@ export class ConfluenceEngine {
     }
     
     return description;
+  }
+
+  // **PHASE 3: Regime-Adaptive Weight Application**
+  private applyRegimeWeightMultiplier(baseWeight: number, factorType: string): number {
+    if (!this.currentRegime) return baseWeight;
+    
+    const regimeKey = this.currentRegime.type;
+    const multipliers = this.regimeWeightMultipliers[regimeKey];
+    
+    if (!multipliers) return baseWeight;
+    
+    // Map factor types to regime weight categories
+    const typeMapping: Record<string, string> = {
+      'technical': 'technical',
+      'pattern': 'pattern',
+      'volume': 'volume',
+      'momentum': 'momentum',
+      'trend': 'technical',
+      'support_resistance': 'technical',
+      'fibonacci': 'fibonacci',
+      'harmonic': 'harmonic',
+      'news': 'news',
+      'fundamental': 'fundamental'
+    };
+    
+    const mappedType = typeMapping[factorType] || 'technical';
+    const multiplier = multipliers[mappedType] || 1.0;
+    
+    return Math.round(baseWeight * multiplier);
+  }
+  
+  // Update current market regime (called by signal generation)
+  async updateMarketRegime(candles: any[]): Promise<void> {
+    try {
+      this.currentRegime = await this.regimeDetector.detectCurrentRegime(
+        candles,
+        candles.map((c: any) => c.volume || 0),
+        [],
+        []
+      );
+      console.log(`🎯 Market Regime Detected: ${this.currentRegime?.type} (Confidence: ${this.currentRegime?.confidence?.toFixed(2)})`);
+    } catch (error) {
+      console.warn('⚠️ Regime detection failed, using default weights:', error);
+      this.currentRegime = null;
+    }
   }
 
   // Get confluence history
