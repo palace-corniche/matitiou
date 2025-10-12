@@ -4,8 +4,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AutomatedTradingPanel } from '@/components/AutomatedTradingPanel';
 import { MultiTimeframeAnalysis } from '@/components/MultiTimeframeAnalysis';
 import { IntelligenceBacktestingPanel } from '@/components/IntelligenceBacktestingPanel';
+import FundamentalSignalsPanel from '@/components/FundamentalSignalsPanel';
 // Portfolio management removed - now using global system
-import { Brain, Clock, BarChart3, Briefcase } from 'lucide-react';
+import { Brain, Clock, BarChart3, Briefcase, DollarSign } from 'lucide-react';
 
 export default function IntelligenceHub() {
   const [portfolioId] = useState('default-portfolio-id');
@@ -70,10 +71,14 @@ export default function IntelligenceHub() {
 
         {/* Main Content Tabs */}
         <Tabs defaultValue="automated" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="automated" className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
               Automated Trading
+            </TabsTrigger>
+            <TabsTrigger value="fundamental" className="flex items-center gap-2">
+              <DollarSign className="h-4 w-4" />
+              Fundamental Signals
             </TabsTrigger>
             <TabsTrigger value="timeframe" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
@@ -91,6 +96,10 @@ export default function IntelligenceHub() {
 
           <TabsContent value="automated">
             <AutomatedTradingPanel portfolioId={portfolioId} />
+          </TabsContent>
+
+          <TabsContent value="fundamental">
+            <FundamentalSignalsPanel />
           </TabsContent>
 
           <TabsContent value="timeframe">

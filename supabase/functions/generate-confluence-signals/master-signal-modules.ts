@@ -296,41 +296,125 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
       }
     }
 
-    // Get real economic calendar events
+    // Get real COT reports for directional bias
+    const { data: cotReports } = await supabase
+      .from('cot_reports')
+      .select('*')
+      .eq('pair', 'EUR/USD')
+      .order('report_date', { ascending: false })
+      .limit(3);
+
+    if (cotReports && cotReports.length > 0) {
+      const latestCOT = cotReports[0];
+      const commercialNet = latestCOT.commercial_long - latestCOT.commercial_short;
+      const largeTraderNet = latestCOT.large_traders_long - latestCOT.large_traders_short;
+      const retailNet = latestCOT.retail_long - latestCOT.retail_short;
+      
+      // COT directional bias (commercial traders are "smart money")
+      if (Math.abs(commercialNet) > 10000) {
+        const cotSignal = commercialNet > 0 ? 'buy' : 'sell';
+        const cotStrength = Math.min(1, Math.abs(commercialNet) / 50000);
+        
+        // Enhanced confidence when retail is on opposite side (contrarian indicator)
+        const contrarianBoost = (commercialNet > 0 && retailNet < 0) || (commercialNet < 0 && retailNet > 0) ? 0.15 : 0;
+        
+        signals.push({
+          source: 'fundamental_cot_positioning',
+          timestamp: new Date(),
+          pair,
+          timeframe,
+          signal: cotSignal,
+          confidence: 0.7 + cotStrength * 0.2 + contrarianBoost,
+          strength: cotStrength,
+          entryPrice: currentPrice,
+          stopLoss: currentPrice * (cotSignal === 'buy' ? 0.99 : 1.01),
+          takeProfit: currentPrice * (cotSignal === 'buy' ? 1.03 : 0.97),
+          factors: [
+            { name: 'commercial_net', value: commercialNet / 50000, weight: 0.5, contribution: cotStrength * 0.5 },
+            { name: 'large_trader_net', value: largeTraderNet / 30000, weight: 0.25, contribution: Math.min(1, Math.abs(largeTraderNet) / 30000) * 0.25 },
+            { name: 'retail_contrarian', value: -retailNet / 20000, weight: 0.25, contribution: contrarianBoost }
+          ]
+        });
+      }
+    }
+
+    // Get real economic calendar events for entry/exit triggers
     const { data: economicEvents } = await supabase
       .from('economic_calendar')
       .select('*')
       .in('currency', ['EUR', 'USD'])
-      .eq('impact_level', 'high')
+      .in('impact_level', ['high', 'medium'])
       .gte('event_time', new Date().toISOString())
-      .lte('event_time', new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString())
+      .lte('event_time', new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString())
       .order('event_time', { ascending: true });
 
     if (economicEvents && economicEvents.length > 0) {
-      const eurEvents = economicEvents.filter((e: any) => e.currency === 'EUR');
-      const usdEvents = economicEvents.filter((e: any) => e.currency === 'USD');
+      const eurHighImpact = economicEvents.filter((e: any) => e.currency === 'EUR' && e.impact_level === 'high');
+      const usdHighImpact = economicEvents.filter((e: any) => e.currency === 'USD' && e.impact_level === 'high');
       
-      // Create signal based on upcoming high-impact events
-      const eventImbalance = eurEvents.length - usdEvents.length;
-      if (Math.abs(eventImbalance) >= 2) {
-        const eventSignal = eventImbalance > 0 ? 'buy' : 'sell'; // More EUR events = potential EUR strength
-        const eventStrength = Math.min(1, Math.abs(eventImbalance) / 3);
+      // Generate signal based on upcoming high-impact events (48h window)
+      const nextEvent = economicEvents[0];
+      const hoursUntilEvent = (new Date(nextEvent.event_time).getTime() - Date.now()) / (1000 * 60 * 60);
+      
+      // Event-based signal: cautious before high-impact events, directional after if forecast vs actual diverges
+      if (eurHighImpact.length > usdHighImpact.length && hoursUntilEvent > 2) {
+        const eventStrength = Math.min(1, (eurHighImpact.length - usdHighImpact.length) / 3);
         
         signals.push({
           source: 'fundamental_economic_calendar',
           timestamp: new Date(),
           pair,
           timeframe,
-          signal: eventSignal,
-          confidence: 0.6 + eventStrength * 0.25,
+          signal: 'buy', // More EUR events suggests EUR focus/strength
+          confidence: 0.65 + eventStrength * 0.2,
           strength: eventStrength,
           entryPrice: currentPrice,
-          stopLoss: currentPrice * (eventSignal === 'buy' ? 0.995 : 1.005),
-          takeProfit: currentPrice * (eventSignal === 'buy' ? 1.015 : 0.985),
+          stopLoss: currentPrice * 0.995,
+          takeProfit: currentPrice * 1.02,
           factors: [
-            { name: 'eur_events', value: eurEvents.length, weight: 0.4, contribution: eventStrength * 0.4 },
-            { name: 'usd_events', value: usdEvents.length, weight: 0.4, contribution: eventStrength * 0.4 },
-            { name: 'event_imbalance', value: eventImbalance, weight: 0.2, contribution: eventStrength * 0.2 }
+            { name: 'eur_high_impact', value: eurHighImpact.length, weight: 0.45, contribution: eventStrength * 0.45 },
+            { name: 'usd_high_impact', value: usdHighImpact.length, weight: 0.35, contribution: 0.35 },
+            { name: 'time_to_event', value: Math.max(0, 1 - hoursUntilEvent / 48), weight: 0.2, contribution: 0.2 }
+          ]
+        });
+      } else if (usdHighImpact.length > eurHighImpact.length && hoursUntilEvent > 2) {
+        const eventStrength = Math.min(1, (usdHighImpact.length - eurHighImpact.length) / 3);
+        
+        signals.push({
+          source: 'fundamental_economic_calendar',
+          timestamp: new Date(),
+          pair,
+          timeframe,
+          signal: 'sell', // More USD events suggests USD focus/strength
+          confidence: 0.65 + eventStrength * 0.2,
+          strength: eventStrength,
+          entryPrice: currentPrice,
+          stopLoss: currentPrice * 1.005,
+          takeProfit: currentPrice * 0.98,
+          factors: [
+            { name: 'usd_high_impact', value: usdHighImpact.length, weight: 0.45, contribution: eventStrength * 0.45 },
+            { name: 'eur_high_impact', value: eurHighImpact.length, weight: 0.35, contribution: 0.35 },
+            { name: 'time_to_event', value: Math.max(0, 1 - hoursUntilEvent / 48), weight: 0.2, contribution: 0.2 }
+          ]
+        });
+      }
+
+      // Generate caution/hold signal if major event within 2 hours
+      if (hoursUntilEvent <= 2 && nextEvent.impact_level === 'high') {
+        signals.push({
+          source: 'fundamental_event_caution',
+          timestamp: new Date(),
+          pair,
+          timeframe,
+          signal: 'hold',
+          confidence: 0.85,
+          strength: 0.9,
+          entryPrice: currentPrice,
+          stopLoss: currentPrice,
+          takeProfit: currentPrice,
+          factors: [
+            { name: 'event_proximity', value: 1 - (hoursUntilEvent / 2), weight: 0.7, contribution: 0.7 },
+            { name: 'event_impact', value: 1, weight: 0.3, contribution: 0.3 }
           ]
         });
       }
@@ -338,80 +422,6 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
 
   } catch (error) {
     console.error('Error generating enhanced fundamental signals:', error);
-  }
-
-  // Economic sentiment analysis with multiple factors
-  const gdpGrowthFactor = Math.random() * 0.8 + 0.1; // 0.1 to 0.9
-  const inflationFactor = Math.random() * 0.7 + 0.2; // 0.2 to 0.9
-  const employmentFactor = Math.random() * 0.8 + 0.1; // 0.1 to 0.9
-  
-  const economicStrength = (gdpGrowthFactor + inflationFactor + employmentFactor) / 3;
-  
-  if (economicStrength > 0.5) {
-    signals.push({
-      source: 'fundamental_economic',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: economicStrength > 0.65 ? 'buy' : 'sell',
-      confidence: economicStrength,
-      strength: economicStrength,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (economicStrength > 0.65 ? 0.995 : 1.005),
-      takeProfit: currentPrice * (economicStrength > 0.65 ? 1.02 : 0.98),
-      factors: [
-        { name: 'gdp_growth', value: gdpGrowthFactor, weight: 0.4, contribution: gdpGrowthFactor * 0.4 },
-        { name: 'inflation_rate', value: inflationFactor, weight: 0.3, contribution: inflationFactor * 0.3 },
-        { name: 'employment_data', value: employmentFactor, weight: 0.3, contribution: employmentFactor * 0.3 }
-      ]
-    });
-  }
-  
-  // Central bank policy analysis
-  const hawkishFactor = Math.random() * 0.9 + 0.1; // 0.1 to 1.0
-  const dovishFactor = 1 - hawkishFactor;
-  const policyStrength = Math.abs(hawkishFactor - 0.5) * 2; // 0 to 1
-  
-  if (policyStrength > 0.4) {
-    signals.push({
-      source: 'fundamental_central_bank',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: hawkishFactor > 0.6 ? 'buy' : 'sell',
-      confidence: policyStrength,
-      strength: policyStrength,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (hawkishFactor > 0.6 ? 0.997 : 1.003),
-      takeProfit: currentPrice * (hawkishFactor > 0.6 ? 1.015 : 0.985),
-      factors: [
-        { name: 'hawkish_sentiment', value: hawkishFactor, weight: 0.6, contribution: hawkishFactor * 0.6 },
-        { name: 'dovish_sentiment', value: dovishFactor, weight: 0.4, contribution: dovishFactor * 0.4 }
-      ]
-    });
-  }
-  
-  // Interest rate differential analysis
-  const interestRateDiff = (Math.random() - 0.5) * 1.5; // Range: -0.75 to 0.75
-  const rateStrength = Math.abs(interestRateDiff);
-  
-  if (rateStrength > 0.25) {
-    signals.push({
-      source: 'fundamental_interest_rates',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: interestRateDiff > 0 ? 'buy' : 'sell',
-      confidence: rateStrength,
-      strength: rateStrength,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (interestRateDiff > 0 ? 0.995 : 1.005),
-      takeProfit: currentPrice * (interestRateDiff > 0 ? 1.015 : 0.985),
-      factors: [
-        { name: 'interest_rate_differential', value: interestRateDiff, weight: 0.8, contribution: rateStrength * 0.8 },
-        { name: 'yield_curve_slope', value: Math.random() * 0.6 + 0.2, weight: 0.2, contribution: (Math.random() * 0.6 + 0.2) * 0.2 }
-      ]
-    });
   }
 
   return signals;
