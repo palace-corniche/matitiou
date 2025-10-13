@@ -71,6 +71,7 @@ export interface TradeExecutionRequest {
   take_profit?: number;
   comment?: string;
   magic_number?: number;
+  master_signal_id?: string; // REQUIRED for market orders
 }
 
 export interface GlobalPerformanceMetrics {
@@ -187,6 +188,11 @@ class GlobalShadowTradingEngine {
         await this.getGlobalAccount();
       }
 
+      // CRITICAL VALIDATION: Require master_signal_id for market orders
+      if (!request.master_signal_id) {
+        throw new Error('Trade execution requires master_signal_id - cannot execute orphaned trades');
+      }
+
       // Get current market price if not provided
       let currentPrice = request.entry_price;
       if (!currentPrice) {
@@ -203,7 +209,8 @@ class GlobalShadowTradingEngine {
         take_profit: request.take_profit || this.calculateDefaultTakeProfit(currentPrice, request.trade_type),
         comment: request.comment || 'Global Trading',
         magic_number: request.magic_number || 12345,
-        order_type: 'market'
+        order_type: 'market',
+        master_signal_id: request.master_signal_id  // Pass signal ID to DB function
       };
 
       const { data, error } = await supabase.rpc('execute_advanced_order', {
