@@ -69,7 +69,7 @@ export class PriceValidationService {
     try {
       const { data, error } = await supabase
         .from('tick_data')
-        .select('price, bid, ask, timestamp, spread')
+        .select('bid, ask, timestamp, spread')
         .eq('symbol', symbol)
         .eq('is_live', true)
         .order('timestamp', { ascending: false })
@@ -93,10 +93,13 @@ export class PriceValidationService {
         };
       }
 
+      // Calculate mid price from bid/ask
+      const midPrice = (data.bid + data.ask) / 2;
+
       return {
         valid: true,
         price: {
-          price: data.price,
+          price: midPrice,
           bid: data.bid,
           ask: data.ask,
           source: 'tick',
