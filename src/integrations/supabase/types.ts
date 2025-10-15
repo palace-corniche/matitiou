@@ -2373,6 +2373,7 @@ export type Database = {
           current_price: number | null
           entry_price: number
           entry_time: string
+          execution_path: string | null
           execution_price: number | null
           exit_factors: Json | null
           exit_intelligence_score: number | null
@@ -2432,6 +2433,7 @@ export type Database = {
           current_price?: number | null
           entry_price: number
           entry_time?: string
+          execution_path?: string | null
           execution_price?: number | null
           exit_factors?: Json | null
           exit_intelligence_score?: number | null
@@ -2491,6 +2493,7 @@ export type Database = {
           current_price?: number | null
           entry_price?: number
           entry_time?: string
+          execution_path?: string | null
           execution_price?: number | null
           exit_factors?: Json | null
           exit_intelligence_score?: number | null
@@ -3006,6 +3009,57 @@ export type Database = {
           },
           {
             foreignKeyName: "trade_execution_audit_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      trade_execution_log: {
+        Row: {
+          created_at: string
+          data_freshness_ms: number | null
+          execution_path: string
+          execution_timestamp: string
+          id: string
+          price_deviation_percent: number | null
+          signal_id: string | null
+          trade_id: string | null
+          validation_results: Json | null
+        }
+        Insert: {
+          created_at?: string
+          data_freshness_ms?: number | null
+          execution_path: string
+          execution_timestamp?: string
+          id?: string
+          price_deviation_percent?: number | null
+          signal_id?: string | null
+          trade_id?: string | null
+          validation_results?: Json | null
+        }
+        Update: {
+          created_at?: string
+          data_freshness_ms?: number | null
+          execution_path?: string
+          execution_timestamp?: string
+          id?: string
+          price_deviation_percent?: number | null
+          signal_id?: string | null
+          trade_id?: string | null
+          validation_results?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trade_execution_log_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trade_execution_log_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "shadow_trades"
