@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
 import { TrendingUp, TrendingDown, DollarSign, Target, Shield, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';  // PHASE 1: Added for manual execution blocker
 
 interface TradingInstrument {
   symbol: string;
@@ -41,6 +42,7 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({
   onPlacePendingOrder,
   onCancel
 }) => {
+  const { toast } = useToast(); // PHASE 1: Added for manual execution blocker
   const [orderType, setOrderType] = useState<'market' | 'pending'>('market');
   const [tradeType, setTradeType] = useState<'buy' | 'sell'>('buy');
   const [pendingOrderType, setPendingOrderType] = useState<string>('limit');
@@ -109,6 +111,15 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({
   };
 
   const handleExecuteOrder = () => {
+    // PHASE 1: DISABLE MANUAL EXECUTION
+    toast({
+      title: "Manual Execution Disabled",
+      description: "All trades must be executed through the Advanced Fusion System. Signals are auto-executed when validated.",
+      variant: "destructive"
+    });
+    return;
+    
+    /* OLD CODE - PERMANENTLY DISABLED
     const validation = validateOrder();
     if (!validation.valid) {
       alert(validation.error);
@@ -140,6 +151,7 @@ export const OrderEntry: React.FC<OrderEntryProps> = ({
         partialFillAllowed
       });
     }
+    */
   };
 
   const riskReward = calculateRiskReward();

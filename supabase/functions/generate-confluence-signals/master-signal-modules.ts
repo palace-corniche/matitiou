@@ -1,6 +1,36 @@
 // ===================== ENHANCED MASTER SIGNAL MODULES WITH REAL DATA INTEGRATION =====================
 // Complete implementation connecting ALL analysis modules with advanced database integration
 
+// PHASE 2: Price sanity check ranges
+const SYMBOL_PRICE_RANGES: Record<string, { min: number; max: number }> = {
+  'EUR/USD': { min: 0.9, max: 1.4 },
+  'EURUSD': { min: 0.9, max: 1.4 },
+  'GBP/USD': { min: 1.0, max: 1.8 },
+  'GBPUSD': { min: 1.0, max: 1.8 },
+  'USD/JPY': { min: 90, max: 160 },
+  'USDJPY': { min: 90, max: 160 },
+  'AUD/USD': { min: 0.5, max: 0.95 },
+  'AUDUSD': { min: 0.5, max: 0.95 },
+};
+
+// Validate signal price is reasonable
+function validateSignalPrice(symbol: string, price: number): { valid: boolean; reason?: string } {
+  const range = SYMBOL_PRICE_RANGES[symbol] || SYMBOL_PRICE_RANGES[symbol.replace('/', '')];
+  
+  if (!range) {
+    return { valid: true }; // Unknown symbol, allow it
+  }
+  
+  if (price < range.min || price > range.max) {
+    return {
+      valid: false,
+      reason: `Price ${price} outside valid range [${range.min}, ${range.max}] for ${symbol}`
+    };
+  }
+  
+  return { valid: true };
+}
+
 // Standard signal interface for all analysis modules
 export interface StandardSignal {
   source: string;
@@ -44,6 +74,15 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
         const indicators = signal.intermediate_values?.indicators || {};
         const patterns = signal.intermediate_values?.patterns || [];
         
+        // PHASE 2: Validate signal price
+        const entryPrice = signal.suggested_entry || currentPrice;
+        const priceValidation = validateSignalPrice(pair, entryPrice);
+        
+        if (!priceValidation.valid) {
+          console.error(`❌ REJECTED: Corrupted technical signal - ${priceValidation.reason}`);
+          continue; // Skip this signal
+        }
+        
         // Enhanced technical signal with real data
         signals.push({
           source: `technical_${signal.module_id}`,
@@ -53,7 +92,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
           confidence: Math.min(1, signal.confidence * 1.2), // Boost real signal confidence
           strength: Math.min(1, signal.strength / 10),
-          entryPrice: signal.suggested_entry || currentPrice,
+          entryPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.997 : 1.003)),
           takeProfit: signal.suggested_take_profit || (currentPrice * (signal.signal_type === 'buy' ? 1.015 : 0.985)),
           factors: [

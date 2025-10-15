@@ -3815,6 +3815,10 @@ export type Database = {
         }
         Returns: undefined
       }
+      validate_signal_freshness: {
+        Args: { p_signal_id: string }
+        Returns: Json
+      }
       validate_signal_reproducibility: {
         Args: { p_analysis_id: string; p_signal_table?: string }
         Returns: Json

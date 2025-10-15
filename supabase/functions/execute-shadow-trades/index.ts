@@ -740,60 +740,56 @@ serve(async (req) => {
           }
           
           // **PHASE 1: Fixed lot size for all trades - simple and predictable**
-          const positionSize = 0.01; // Fixed 0.01 lot for consistency across all accounts
+          const fixedLotSize = 0.01; // Fixed 0.01 lot for consistency
           
-          console.log(`🔒 Using fixed lot size: ${positionSize}`);
+          console.log(`🔒 Using fixed lot size: ${fixedLotSize}`);
 
-          console.log(`📏 Calculated position size: ${positionSize} for signal ${signal.signal_id}`);
-
-          // Create new shadow trade with correct schema fields
-          const contractSize = 100000; // Standard lot size for EUR/USD
-          const marginRequiredLots = positionSize * signal.entry_price * contractSize * 0.01; // 1% margin
-          
-          const newTrade = {
-            portfolio_id: portfolio.id,
+          // ===================== PHASE 3: CREATE TRADE VIA execute_advanced_order =====================
+          // Use RPC to get full validation (price freshness, deviation, signal freshness, etc.)
+          const tradeOrderData = {
+            master_signal_id: signal.signal_id,
             symbol: signal.pair,
             trade_type: signal.signal_type,
-            lot_size: positionSize,
-            position_size: positionSize,
-            remaining_lot_size: positionSize, // NEW: Track remaining size for partial closes
+            lot_size: fixedLotSize,
             entry_price: signal.entry_price,
             stop_loss: dynamicStopLoss || signal.stop_loss || 0,
             take_profit: dynamicTakeProfit || signal.take_profit || 0,
-            trailing_stop_distance: Math.round(Math.max(atr / 0.0001, 15)), // Minimum 15 pips trailing distance
-            contract_size: contractSize,
-            margin_required: marginRequiredLots,
-            confluence_score: signal.confluence_score,
-            comment: `Signal ${signal.signal_id.slice(0, 8)} | ATR: ${atr.toFixed(5)}`,
-            status: 'open'
+            order_type: 'market',
+            comment: `Advanced Fusion | Signal ${signal.signal_id.slice(0, 8)} | Confluence: ${signal.confluence_score} | ATR: ${atr.toFixed(5)}`,
+            magic_number: 100001
           };
 
-          console.log(`💾 Creating trade:`, newTrade);
+          console.log(`🚀 Executing via execute_advanced_order:`, tradeOrderData);
 
-          const { data: insertedTrade, error: tradeError } = await supabase
-            .from('shadow_trades')
-            .insert(newTrade)
-            .select()
-            .single();
+          const { data: tradeResult, error: tradeError } = await supabase
+            .rpc('execute_advanced_order', {
+              p_portfolio_id: portfolio.id,
+              p_order_data: tradeOrderData
+            });
 
-          if (tradeError) {
-            console.error(`❌ Error creating trade for signal ${signal.signal_id}:`, tradeError);
-            console.error(`❌ Trade data that failed:`, newTrade);
-            continue;
+          if (tradeError || !tradeResult?.success) {
+            console.error(`❌ Trade execution failed:`, tradeError || tradeResult);
+            
+            // Log rejection reason
+            await supabase.from('ea_logs').insert({
+              portfolio_id: portfolio.id,
+              ea_name: 'Execute Shadow Trades',
+              log_level: 'ERROR',
+              message: `Trade rejected: ${tradeResult?.error || tradeError?.message}`,
+              symbol: signal.pair
+            });
+            
+            continue; // Skip to next signal
           }
 
-          console.log(`✅ Successfully created trade ${insertedTrade.id} for signal ${signal.signal_id}`);
-
-          // Immediately mark signal as executed to prevent reprocessing
-          await supabase
-            .from('master_signals')
-            .update({ 
-              status: 'executed',
-              execution_timestamp: new Date().toISOString(),
-              execution_price: signal.entry_price,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', signal.signal_id);
+          const trade_id = tradeResult.trade_id;
+          console.log(`✅ Trade created via advanced pipeline:`, {
+            trade_id,
+            execution_path: tradeResult.execution_path,
+            data_freshness_ms: tradeResult.data_freshness_ms,
+            data_source: tradeResult.data_source,
+            price_deviation: tradeResult.price_deviation_percent
+          });
 
           // Upsert/update rate limit record
           const { data: existingRate } = await supabase
