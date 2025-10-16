@@ -376,7 +376,14 @@ const corsHeaders = {
 };
 
 serve(async (req) => {
+  // **FIX #2: Comprehensive error handling and logging to debug deployment**
+  console.log('🎬 FUNCTION INVOKED - execute-shadow-trades');
+  console.log('📅 Timestamp:', new Date().toISOString());
+  console.log('🔍 Method:', req.method);
+  console.log('🌐 URL:', req.url);
+  
   if (req.method === 'OPTIONS') {
+    console.log('✅ CORS preflight handled');
     return new Response(null, { headers: corsHeaders });
   }
 
@@ -386,15 +393,31 @@ serve(async (req) => {
   let errorMessage = '';
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    console.log('🔑 Checking environment variables...');
+    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    
+    if (!supabaseUrl || !supabaseKey) {
+      throw new Error(`Missing env vars: URL=${!!supabaseUrl}, KEY=${!!supabaseKey}`);
+    }
+    console.log('✅ Environment variables present');
+    
     const supabase = createClient(supabaseUrl, supabaseKey);
+    console.log('✅ Supabase client created');
 
-    const requestBody = await req.json().catch(() => ({}));
+    let requestBody;
+    try {
+      requestBody = await req.json();
+      console.log('📦 Request body:', JSON.stringify(requestBody));
+    } catch (e) {
+      console.log('⚠️ No request body or invalid JSON, using defaults');
+      requestBody = {};
+    }
+    
     const { signal_id, trigger } = requestBody;
 
     console.log('🚀 Starting shadow trade execution...');
-    console.log('📋 Trigger:', trigger, 'Signal ID:', signal_id);
+    console.log('📋 Trigger:', trigger || 'cron', 'Signal ID:', signal_id || 'none');
 
     // Get all active portfolios (removed is_active filter as column doesn't exist)
     console.log('🔍 Fetching active portfolios...');
@@ -924,6 +947,7 @@ serve(async (req) => {
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
       const supabase = createClient(supabaseUrl, supabaseKey);
       
+      console.log('📝 Logging error to system_health...');
       await supabase.from('system_health').insert({
         function_name: 'execute-shadow-trades',
         execution_time_ms: executionTime,
@@ -931,21 +955,34 @@ serve(async (req) => {
         error_message: (error as Error).message,
         processed_items: processedItems
       });
+      console.log('✅ Error logged to system_health');
     } catch (logError) {
-      console.error('Failed to log error:', logError);
+      console.error('❌ Failed to log error to system_health:', logError);
     }
+
+    console.error('🔴 CRITICAL ERROR - Returning 500 response');
+    console.error('🔍 Error details:', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+      executionTimeMs: executionTime
+    });
 
     return new Response(
       JSON.stringify({ 
         success: false, 
         error: (error as Error).message,
-        executionTimeMs: executionTime
+        stack: (error as Error).stack,
+        executionTimeMs: executionTime,
+        timestamp: new Date().toISOString()
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500,
       }
     );
+  } finally {
+    console.log('🏁 FUNCTION EXECUTION COMPLETE');
+    console.log('⏱️ Total execution time:', Date.now() - startTime, 'ms');
   }
 });
 

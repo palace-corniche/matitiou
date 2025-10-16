@@ -23,23 +23,25 @@ serve(async (req) => {
 
     console.log('🔄 Starting shadow trade management...');
 
-    // Get all open trades
+    // **FIX #1: Get all open trades without broken join - all trades use global_trading_account**
     const { data: openTrades, error: tradesError } = await supabase
       .from('shadow_trades')
-      .select(`
-        *,
-        shadow_portfolios!inner (
-          id, balance, is_active, auto_trading_enabled
-        )
-      `)
-      .eq('status', 'open')
-      .eq('shadow_portfolios.is_active', true);
+      .select('*')
+      .eq('status', 'open');
 
     if (tradesError) {
+      console.error('❌ Error fetching open trades:', tradesError);
       throw new Error(`Error fetching open trades: ${tradesError.message}`);
     }
+    
+    // Filter for global trading account trades (all current trades use this)
+    const validTrades = openTrades?.filter(trade => 
+      trade.portfolio_id === '00000000-0000-0000-0000-000000000001'
+    ) || [];
+    
+    console.log(`📊 Found ${openTrades?.length || 0} open trades, ${validTrades.length} for global account`);
 
-    if (!openTrades || openTrades.length === 0) {
+    if (!validTrades || validTrades.length === 0) {
       console.log('📊 No open trades found to manage');
       return new Response(
         JSON.stringify({ success: true, message: 'No open trades to manage' }),
@@ -47,7 +49,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`📈 Managing ${openTrades.length} open trades`);
+    console.log(`📈 Managing ${validTrades.length} open trades`);
 
     // Get current market price
     const { data: latestPrice, error: priceError } = await supabase
@@ -87,7 +89,7 @@ serve(async (req) => {
 
     // **PHASE 4: INTELLIGENT EXIT INTEGRATION**
     // Check each trade for exit conditions using holistic intelligence
-    for (const trade of openTrades) {
+    for (const trade of validTrades) {
       try {
         const entryPrice = parseFloat(trade.entry_price.toString());
         const stopLoss = parseFloat(trade.stop_loss.toString());
