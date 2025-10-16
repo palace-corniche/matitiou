@@ -312,38 +312,25 @@ serve(async (req) => {
           }
         }
 
-        // **INTELLIGENT EXIT SYSTEM (Priority 2 - Only if SL/TP not hit)**
+        // **PHASE 2 FIX: INTELLIGENT EXIT SYSTEM using Supabase client**
         if (!shouldClose) {
           console.log(`🧠 Checking intelligence exit for trade ${trade.id.slice(0, 8)}...`);
           try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-            
-            const exitEngineResponse = await fetch(
-              `${supabaseUrl}/functions/v1/intelligent-exit-engine`,
+            const { data: exitData, error: exitError } = await supabase.functions.invoke(
+              'intelligent-exit-engine',
               {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${supabaseKey}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
+                body: {
                   tradeId: trade.id,
                   currentPrice
-                }),
-                signal: controller.signal
+                }
               }
             );
             
-            clearTimeout(timeoutId);
-            
-            if (!exitEngineResponse.ok) {
-              const errorText = await exitEngineResponse.text();
-              console.error(`❌ Intelligence engine HTTP error ${exitEngineResponse.status}:`, errorText);
-              throw new Error(`HTTP ${exitEngineResponse.status}: ${errorText}`);
+            if (exitError) {
+              console.error(`❌ Intelligence engine error:`, exitError);
+              throw exitError;
             }
 
-            const exitData = await exitEngineResponse.json();
             exitIntelligence = exitData.exitIntelligence;
             console.log(`✅ Intelligence score: ${exitIntelligence.overallExitScore}, Recommendation: ${exitIntelligence.recommendation}`);
 
@@ -416,12 +403,15 @@ serve(async (req) => {
           }
         }
 
-        // **FALLBACK: Time-based exit (24 hours) - Only if no other exit triggered**
+        // **PHASE 3 FIX: Time-based exit (24 hours) with debug logging**
         if (!shouldClose) {
           const entryTime = new Date(trade.entry_time).getTime();
           const hoursOpen = (Date.now() - entryTime) / (1000 * 60 * 60);
           
+          console.log(`⏰ Time check for ${trade.id.slice(0,8)}: ${hoursOpen.toFixed(1)}h open (threshold: 24h)`);
+          
           if (hoursOpen >= 24) {
+            console.log(`🔴 FORCING TIME-BASED EXIT for trade ${trade.id.slice(0,8)} - Open for ${hoursOpen.toFixed(1)} hours`);
             shouldClose = true;
             exitReason = 'time';
           }

@@ -438,13 +438,13 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // **FIX 7: Query master_signals instead of trading_signals**
+    // **PHASE 1 FIX: Explicit column selection to avoid PostgREST alias bug**
     console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
       .from('master_signals')
-      .select('*, id as signal_id, symbol as pair, signal_type, recommended_entry as entry_price, recommended_stop_loss as stop_loss, recommended_take_profit as take_profit')
+      .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, market_regime, timeframe, created_at')
       .eq('status', 'pending')
-      .gte('confluence_score', 12) // Lower threshold to allow more signals
+      .gte('confluence_score', 12)
       .in('signal_type', ['buy', 'sell'])
       .order('created_at', { ascending: false });
 
@@ -456,7 +456,22 @@ serve(async (req) => {
       signalsQuery = signalsQuery.gte('created_at', sixtyMinutesAgo);
     }
 
-    const { data: signals, error: signalsError } = await signalsQuery.limit(5);
+    const { data: rawSignals, error: signalsError } = await signalsQuery.limit(5);
+    
+    // Map to expected format
+    const signals = rawSignals?.map(s => ({
+      signal_id: s.id,
+      pair: s.symbol,
+      signal_type: s.signal_type,
+      entry_price: s.recommended_entry,
+      stop_loss: s.recommended_stop_loss,
+      take_profit: s.recommended_take_profit,
+      final_confidence: s.final_confidence,
+      confluence_score: s.confluence_score,
+      market_regime: s.market_regime,
+      timeframe: s.timeframe,
+      created_at: s.created_at
+    }));
 
     if (signalsError) {
       console.error('❌ Error fetching signals:', signalsError);
