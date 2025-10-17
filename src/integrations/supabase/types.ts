@@ -3635,9 +3635,9 @@ export type Database = {
         Returns: {
           actual_count: number
           check_name: string
+          check_status: string
           details: string
           expected_count: number
-          status: string
         }[]
       }
       cleanup_anonymous_data: {
