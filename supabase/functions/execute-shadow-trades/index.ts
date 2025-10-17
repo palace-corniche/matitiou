@@ -419,34 +419,45 @@ serve(async (req) => {
     console.log('🚀 Starting shadow trade execution...');
     console.log('📋 Trigger:', trigger || 'cron', 'Signal ID:', signal_id || 'none');
 
-    // Get all active portfolios (removed is_active filter as column doesn't exist)
-    console.log('🔍 Fetching active portfolios...');
-    const { data: portfolios, error: portfoliosError } = await supabase
-      .from('shadow_portfolios')
+    // PHASE 2 FIX: Use global_trading_account instead of shadow_portfolios
+    console.log('🔍 Fetching global trading account...');
+    const globalAccountId = '00000000-0000-0000-0000-000000000001';
+    
+    const { data: globalAccount, error: accountError } = await supabase
+      .from('global_trading_account')
       .select('*')
-      .eq('auto_trading_enabled', true);
+      .eq('id', globalAccountId)
+      .single();
 
-    if (portfoliosError) {
-      console.error('❌ Error fetching portfolios:', portfoliosError);
+    if (accountError) {
+      console.error('❌ Error fetching global account:', accountError);
       return new Response(
-        JSON.stringify({ success: false, error: 'Error fetching portfolios', details: portfoliosError }),
+        JSON.stringify({ success: false, error: 'Error fetching global account', details: accountError }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (!portfolios?.length) {
-      console.log('⚠️ No active portfolios found for trading');
-      console.log('💡 Checking all portfolios...');
-      
-      // Check if any portfolios exist at all
-      const { data: allPortfolios } = await supabase
-        .from('shadow_portfolios')
-        .select('id, auto_trading_enabled, portfolio_name');
-      
-      console.log(`📊 Total portfolios in database: ${allPortfolios?.length || 0}`);
-      allPortfolios?.forEach(p => {
-        console.log(`  - ${p.portfolio_name} (${p.id.slice(0, 8)}): auto_trading=${p.auto_trading_enabled}`);
-      });
+    if (!globalAccount) {
+      console.error('❌ Global trading account not found');
+      return new Response(
+        JSON.stringify({ success: false, error: 'Global trading account not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!globalAccount.auto_trading_enabled) {
+      console.log('⚠️ Auto-trading disabled on global account');
+      return new Response(
+        JSON.stringify({ success: true, message: 'Auto-trading disabled', trades_executed: 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('💼 Found 1 active portfolios');
+    console.log(`   Global Account: Balance=$${globalAccount.balance}, Equity=$${globalAccount.equity}, Auto-trading=${globalAccount.auto_trading_enabled}`);
+    
+    // Create portfolios array with global account (for compatibility with rest of code)
+    const portfolios = [globalAccount];
       
       return new Response(
         JSON.stringify({ 
