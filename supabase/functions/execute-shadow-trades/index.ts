@@ -458,16 +458,6 @@ serve(async (req) => {
     
     // Create portfolios array with global account (for compatibility with rest of code)
     const portfolios = [globalAccount];
-      
-      return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No active portfolios found', 
-          totalPortfolios: allPortfolios?.length || 0,
-          portfolios: allPortfolios 
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
