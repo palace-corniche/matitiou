@@ -458,7 +458,6 @@ serve(async (req) => {
     
     // Create portfolios array with global account (for compatibility with rest of code)
     const portfolios = [globalAccount];
-    }
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
