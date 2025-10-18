@@ -537,22 +537,8 @@ serve(async (req) => {
 
     // Execute trades for each qualifying signal and portfolio
     for (const signal of signals) {
-      // **PHASE 5: CONFLUENCE VALIDATION BEFORE EXECUTION**
-      // Check market conditions using should_trade_now() function
-      console.log(`🔍 Validating trading conditions for ${signal.pair}...`);
-      const { data: tradingConditions, error: conditionsError } = await supabase
-        .rpc('should_trade_now', { 
-          p_symbol: signal.pair,
-          p_min_quality_score: 50 
-        });
-      
-      if (conditionsError) {
-        console.error(`❌ Error checking trading conditions:`, conditionsError);
-      } else if (tradingConditions && !tradingConditions.allowed) {
-        console.log(`🚫 Trading blocked for ${signal.pair}: ${tradingConditions.reason}`);
-        console.log(`   Hour: ${tradingConditions.current_hour}, Volatility: ${tradingConditions.volatility_percent?.toFixed(3)}%`);
-        continue; // Skip this signal
-      }
+      // **PHASE 5: BASIC VALIDATION BEFORE EXECUTION**
+      console.log(`🔍 Validating signal for ${signal.pair}...`);
       
       // Additional validation: Confluence score >= 12
       if (signal.confluence_score < 12) {
@@ -566,9 +552,8 @@ serve(async (req) => {
         continue;
       }
       
-      console.log(`✅ Trading conditions validated for ${signal.pair}:`);
+      console.log(`✅ Signal validated for ${signal.pair}:`);
       console.log(`   Confluence: ${signal.confluence_score}, Quality: ${signal.signal_quality_score || 'N/A'}`);
-      console.log(`   Volatility: ${tradingConditions?.volatility_percent?.toFixed(3)}%`);
       
       for (const portfolio of portfolios) {
         try {
@@ -602,68 +587,8 @@ serve(async (req) => {
             continue;
           }
 
-          // **PHASE 2 OPTIMIZATION: Time-based filter (avoid Asian session, prefer London/NY overlap)**
-          const currentHour = new Date().getUTCHours();
-          const isAsianSession = currentHour >= 22 || currentHour < 8; // 22:00-08:00 UTC
-          const isLondonNYOverlap = currentHour >= 12 && currentHour <= 16; // 12:00-16:00 UTC (London/NY overlap)
-          
-          if (isAsianSession) {
-            console.log(`🌙 Asian session detected (${currentHour}:00 UTC) - skipping low-liquidity period`);
-            continue;
-          }
-          
-          if (isLondonNYOverlap) {
-            console.log(`🌟 London/NY overlap detected (${currentHour}:00 UTC) - optimal trading window`);
-          }
 
-          // **PHASE 2 OPTIMIZATION: Volume confirmation (require 1.5x avg volume)**
-          const { data: recentVolumes } = await supabase
-            .from('market_data_feed')
-            .select('volume')
-            .eq('symbol', signal.pair)
-            .not('volume', 'is', null)
-            .order('timestamp', { ascending: false })
-            .limit(20);
-          
-          if (recentVolumes && recentVolumes.length > 0) {
-            const avgVolume = recentVolumes.reduce((sum, v) => sum + (Number(v.volume) || 0), 0) / recentVolumes.length;
-            
-            // Get current candle volume
-            const { data: currentCandle } = await supabase
-              .from('market_data_feed')
-              .select('volume')
-              .eq('symbol', signal.pair)
-              .not('volume', 'is', null)
-              .order('timestamp', { ascending: false })
-              .limit(1)
-              .single();
-            
-            const currentVolume = Number(currentCandle?.volume) || 0;
-            const volumeRatio = avgVolume > 0 ? currentVolume / avgVolume : 0;
-            
-            if (volumeRatio < 1.5) {
-              console.log(`📊 Volume too low: ${currentVolume.toFixed(0)} vs avg ${avgVolume.toFixed(0)} (${volumeRatio.toFixed(2)}x < 1.5x required) - skipping low-probability trade`);
-              continue;
-            }
-            
-            console.log(`✅ Volume confirmed: ${currentVolume.toFixed(0)} vs avg ${avgVolume.toFixed(0)} (${volumeRatio.toFixed(2)}x >= 1.5x)`);
-          }
 
-          // Rate limit: prevent >1 trade per 5 min per signal type per symbol
-          const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
-          const { data: recentExec } = await supabase
-            .from('trade_execution_rate_limit')
-            .select('*')
-            .eq('portfolio_id', portfolio.id)
-            .eq('signal_type', signal.signal_type)
-            .eq('symbol', signal.pair)
-            .gte('last_execution_time', fiveMinutesAgo)
-            .limit(1);
-
-          if (recentExec && recentExec.length > 0) {
-            console.log(`⏱️ Rate limit hit for ${signal.pair} ${signal.signal_type} on portfolio ${portfolio.id.slice(0,8)} - skipping`);
-            continue;
-          }
 
           // **ENHANCED DUPLICATE DETECTION**: Check by signal_id/analysis_id
           const signalRef = signal.signal_id || signal.id || signal.analysis_id;
@@ -690,44 +615,6 @@ serve(async (req) => {
             continue;
           }
 
-          // Check for opposing trades
-          const { data: opposingTrades } = await supabase
-            .from('shadow_trades')
-            .select('*')
-            .eq('portfolio_id', portfolio.id)
-            .eq('symbol', signal.pair)
-            .eq('status', 'open')
-            .neq('trade_type', signal.signal_type);
-
-          // Close opposing trades first
-          if (opposingTrades?.length) {
-            console.log(`🔄 Closing ${opposingTrades.length} opposing trades`);
-            
-            for (const opposingTrade of opposingTrades) {
-              const pnl = calculatePnL(opposingTrade, signal.entry_price);
-              
-              await supabase
-                .from('shadow_trades')
-                .update({
-                  status: 'closed',
-                  exit_price: signal.entry_price,
-                  exit_time: new Date().toISOString(),
-                  exit_reason: 'opposing_signal',
-                  pnl: pnl.pnl,
-                  pnl_percent: pnl.pnlPercent,
-                  holding_time_minutes: Math.round((Date.now() - new Date(opposingTrade.entry_time).getTime()) / 60000)
-                })
-                .eq('id', opposingTrade.id);
-
-              // Update portfolio balance
-              await supabase
-                .from('shadow_portfolios')
-                .update({
-                  balance: parseFloat(portfolio.balance.toString()) + pnl.pnl,
-                  total_trades: portfolio.total_trades + 1,
-                  winning_trades: pnl.pnl > 0 ? portfolio.winning_trades + 1 : portfolio.winning_trades,
-                  losing_trades: pnl.pnl <= 0 ? portfolio.losing_trades + 1 : portfolio.losing_trades,
-                  updated_at: new Date().toISOString()
                 })
                 .eq('id', portfolio.id);
 
