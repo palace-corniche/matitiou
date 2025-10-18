@@ -615,12 +615,6 @@ serve(async (req) => {
             continue;
           }
 
-                })
-                .eq('id', portfolio.id);
-
-              console.log(`💰 Closed opposing trade: ${pnl.pnl > 0 ? 'WIN' : 'LOSS'} $${pnl.pnl.toFixed(2)}`);
-            }
-          }
 
           // **PHASE 4: Dynamic SL/TP based on ATR**
           // Calculate ATR from recent market data
