@@ -461,15 +461,15 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // **PHASE 1 FIX: Explicit column selection to avoid PostgREST alias bug**
+    // **PHASE 1 FIX: Fetch signals with status='rejected' (new default) awaiting execution**
     console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
       .from('master_signals')
       .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, market_regime, timeframe, created_at')
-      .eq('status', 'pending')
+      .eq('status', 'rejected') // Changed from 'pending' - signals start as rejected
       .gte('confluence_score', 12)
       .in('signal_type', ['buy', 'sell'])
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false});
 
     if (signal_id) {
       signalsQuery = signalsQuery.eq('id', signal_id);
@@ -511,7 +511,7 @@ serve(async (req) => {
       const { data: allSignals } = await supabase
         .from('master_signals')
         .select('confluence_score, signal_type, status, created_at')
-        .eq('status', 'pending')
+        .eq('status', 'rejected') // Changed from 'pending'
         .order('created_at', { ascending: false })
         .limit(10);
       
