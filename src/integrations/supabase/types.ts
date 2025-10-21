@@ -1248,13 +1248,17 @@ export type Database = {
           holding_duration: unknown | null
           id: string
           market_data_snapshot: Json
+          market_price: number | null
           market_regime: string | null
           modular_signal_ids: string[]
           notes: string | null
+          price_source: string | null
+          price_validated: boolean | null
           recommended_entry: number
           recommended_lot_size: number
           recommended_stop_loss: number
           recommended_take_profit: number
+          rejection_reason: string | null
           risk_reward_ratio: number | null
           signal_hash: string | null
           signal_quality_score: number | null
@@ -1288,13 +1292,17 @@ export type Database = {
           holding_duration?: unknown | null
           id?: string
           market_data_snapshot: Json
+          market_price?: number | null
           market_regime?: string | null
           modular_signal_ids: string[]
           notes?: string | null
+          price_source?: string | null
+          price_validated?: boolean | null
           recommended_entry: number
           recommended_lot_size?: number
           recommended_stop_loss: number
           recommended_take_profit: number
+          rejection_reason?: string | null
           risk_reward_ratio?: number | null
           signal_hash?: string | null
           signal_quality_score?: number | null
@@ -1328,13 +1336,17 @@ export type Database = {
           holding_duration?: unknown | null
           id?: string
           market_data_snapshot?: Json
+          market_price?: number | null
           market_regime?: string | null
           modular_signal_ids?: string[]
           notes?: string | null
+          price_source?: string | null
+          price_validated?: boolean | null
           recommended_entry?: number
           recommended_lot_size?: number
           recommended_stop_loss?: number
           recommended_take_profit?: number
+          rejection_reason?: string | null
           risk_reward_ratio?: number | null
           signal_hash?: string | null
           signal_quality_score?: number | null
@@ -1516,6 +1528,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      ml_performance_cache: {
+        Row: {
+          calculated_at: string | null
+          id: string
+          metric_data: Json
+          metric_type: string
+          valid_until: string | null
+        }
+        Insert: {
+          calculated_at?: string | null
+          id?: string
+          metric_data: Json
+          metric_type: string
+          valid_until?: string | null
+        }
+        Update: {
+          calculated_at?: string | null
+          id?: string
+          metric_data?: Json
+          metric_type?: string
+          valid_until?: string | null
+        }
+        Relationships: []
+      }
+      ml_training_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          model_version: string
+          success: boolean | null
+          training_duration_ms: number | null
+          training_samples: number | null
+          trigger_type: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          model_version: string
+          success?: boolean | null
+          training_duration_ms?: number | null
+          training_samples?: number | null
+          trigger_type: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          model_version?: string
+          success?: boolean | null
+          training_duration_ms?: number | null
+          training_samples?: number | null
+          trigger_type?: string
+        }
+        Relationships: []
       }
       models: {
         Row: {
@@ -3550,6 +3619,15 @@ export type Database = {
       }
     }
     Functions: {
+      analyze_ml_exit_timing: {
+        Args: { p_days_back?: number }
+        Returns: {
+          avg_profit_pips: number
+          exit_scenario: string
+          trade_count: number
+          win_rate: number
+        }[]
+      }
       analyze_trade_performance: {
         Args: Record<PropertyKey, never>
         Returns: {
@@ -3721,6 +3799,30 @@ export type Database = {
           used_margin: number
           win_rate: number
           winning_trades: number
+        }[]
+      }
+      get_ml_model_versions_performance: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          actual_win_rate: number
+          avg_profit_pips: number
+          days_active: number
+          model_version: string
+          status: string
+          trades_executed: number
+          trained_date: string
+          training_samples: number
+          training_win_rate: number
+        }[]
+      }
+      get_ml_performance_analytics: {
+        Args: { p_days_back?: number }
+        Returns: {
+          improvement_percent: number
+          metric_name: string
+          ml_exits: number
+          sample_size: number
+          traditional_exits: number
         }[]
       }
       insert_master_signal: {

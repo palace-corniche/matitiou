@@ -11,6 +11,7 @@ import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 import { globalShadowTradingEngine } from '@/services/globalShadowTradingEngine';
+import { useMLModel } from '@/hooks/useMLModel';
 
 // Enhanced Components
 import { PerformanceMetricsPanel } from '@/components/enhanced/PerformanceMetricsPanel';
@@ -39,7 +40,8 @@ import {
   Users,
   Shield,
   Clock,
-  Percent
+  Percent,
+  Brain
 } from 'lucide-react';
 
 const ShadowTradingDashboardUnified: React.FC = () => {
@@ -77,6 +79,16 @@ const ShadowTradingDashboardUnified: React.FC = () => {
   } = useGlobalShadowTrading();
 
   const { toast } = useToast();
+
+  // ML Model hook
+  const {
+    mlModelStatus,
+    mlPerformance,
+    mlAnalytics,
+    isTrainingML,
+    triggerMLTraining,
+    refreshMLData
+  } = useMLModel();
 
   // Local state for UI
   const [quickTradeData, setQuickTradeData] = useState({
@@ -278,6 +290,45 @@ const ShadowTradingDashboardUnified: React.FC = () => {
               </CardContent>
             </Card>
           </div>
+
+          {/* ML Model Status Card */}
+          <Card className="border-l-4 border-l-cyan-500">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">ML Exit Model</p>
+                  <div className="text-2xl font-bold text-cyan-600">
+                    {mlModelStatus.version || 'Not Trained'}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {mlModelStatus.trainingStatus === 'training' ? (
+                      <span className="flex items-center gap-1">
+                        <RefreshCw className="h-3 w-3 animate-spin" />
+                        Training in progress...
+                      </span>
+                    ) : mlModelStatus.lastTrainedDays !== null ? (
+                      `Last trained: ${mlModelStatus.lastTrainedDays}d ago`
+                    ) : (
+                      `Waiting for 20 closed trades (${mlModelStatus.closedTradesCount}/20)`
+                    )}
+                  </p>
+                  <div className="mt-2 flex items-center gap-2">
+                    <Badge variant={mlModelStatus.isActive ? 'default' : 'secondary'}>
+                      {mlModelStatus.isActive ? 'Active' : 'Inactive'}
+                    </Badge>
+                    {mlModelStatus.autoTrainingEnabled && (
+                      <Badge variant="outline" className="text-xs">
+                        Auto-Training ON
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+                <div className="p-3 rounded-full bg-cyan-100">
+                  <Brain className="h-6 w-6 text-cyan-600" />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
 
         {/* Enhanced Action buttons */}
@@ -400,7 +451,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
         {/* Enhanced Main content tabs */}
         <Tabs defaultValue="overview" className="space-y-8">
-          <TabsList className="grid w-full grid-cols-5 h-12">
+          <TabsList className="grid w-full grid-cols-6 h-12">
             <TabsTrigger value="overview" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Overview
@@ -416,6 +467,10 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             <TabsTrigger value="history" className="flex items-center gap-2">
               <Clock className="h-4 w-4" />
               History
+            </TabsTrigger>
+            <TabsTrigger value="ml-analytics" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              ML Analytics
             </TabsTrigger>
             <TabsTrigger value="account" className="flex items-center gap-2">
               <Settings className="h-4 w-4" />
@@ -527,6 +582,137 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             <TradeHistoryTable tradeHistory={tradeHistory} />
           </TabsContent>
 
+          <TabsContent value="ml-analytics" className="space-y-8">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Performance Comparison Card */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>ML vs Traditional Exits</CardTitle>
+                  <CardDescription>Performance comparison (Last 30 days)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mlAnalytics.comparison.length > 0 ? (
+                    <div className="space-y-4">
+                      {mlAnalytics.comparison.map((row, idx) => (
+                        <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium">{row.metric}</p>
+                            <div className="flex items-center gap-4 mt-2 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">ML: </span>
+                                <span className="font-bold text-cyan-600">{row.ml}</span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Traditional: </span>
+                                <span className="font-medium">{row.traditional}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className={`text-lg font-bold ${
+                            row.improvement > 0 ? 'text-green-600' : row.improvement < 0 ? 'text-red-600' : 'text-muted-foreground'
+                          }`}>
+                            {row.improvement > 0 ? '+' : ''}{row.improvement.toFixed(1)}%
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No ML exit data yet</p>
+                      <p className="text-sm">Train a model to see performance comparisons</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Model Version History */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Model Version Performance</CardTitle>
+                  <CardDescription>Historical model accuracy</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mlAnalytics.versions.length > 0 ? (
+                    <ScrollArea className="h-[300px]">
+                      {mlAnalytics.versions.map((version, idx) => (
+                        <div key={idx} className="mb-4 p-3 border rounded-lg">
+                          <div className="flex justify-between items-center mb-2">
+                            <span className="font-mono text-sm">{version.version}</span>
+                            <Badge variant={version.status === 'Active' ? 'default' : 'secondary'}>
+                              {version.status}
+                            </Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-sm">
+                            <div>
+                              <p className="text-muted-foreground">Trained:</p>
+                              <p className="font-medium">{version.trained_date}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Win Rate:</p>
+                              <p className="font-medium">{version.win_rate.toFixed(1)}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Trades:</p>
+                              <p className="font-medium">{version.trades_executed}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Avg Profit:</p>
+                              <p className="font-medium">{version.avg_profit.toFixed(2)} pips</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </ScrollArea>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No model versions yet</p>
+                      <p className="text-sm">Models will appear here after training</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Exit Timing Analysis */}
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle>ML Exit Timing Analysis</CardTitle>
+                  <CardDescription>Exit performance by profit level</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {mlAnalytics.exitTiming.length > 0 ? (
+                    <div className="space-y-4">
+                      {mlAnalytics.exitTiming.map((scenario, idx) => (
+                        <div key={idx} className="flex items-center gap-4 p-3 border rounded-lg">
+                          <div className="flex-1">
+                            <p className="font-medium">{scenario.scenario}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {scenario.trade_count} trades | {scenario.win_rate.toFixed(1)}% win rate
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className={`text-lg font-bold ${
+                              scenario.avg_profit > 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {scenario.avg_profit > 0 ? '+' : ''}{scenario.avg_profit.toFixed(2)} pips
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                      <p>No timing analysis available</p>
+                      <p className="text-sm">Data will appear after ML exits are executed</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           <TabsContent value="account" className="space-y-6">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {/* Account Stats */}
@@ -557,6 +743,81 @@ const ShadowTradingDashboardUnified: React.FC = () => {
                 </CardContent>
               </Card>
 
+              {/* ML Model Performance */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    ML Model Performance
+                  </CardTitle>
+                  <CardDescription>Exit optimization effectiveness</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground">ML Exit Accuracy</p>
+                        <p className="text-2xl font-bold">{mlPerformance.exitAccuracy.toFixed(1)}%</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Avg Profit Improvement</p>
+                        <p className={`text-2xl font-bold ${
+                          mlPerformance.profitImprovement > 0 ? 'text-green-600' : 'text-red-600'
+                        }`}>
+                          {mlPerformance.profitImprovement > 0 ? '+' : ''}{mlPerformance.profitImprovement.toFixed(1)} pips
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <Separator />
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-sm">Training Progress</span>
+                        <span className="text-sm font-medium">
+                          {mlModelStatus.closedTradesCount} / 20 trades
+                        </span>
+                      </div>
+                      <div className="w-full bg-secondary rounded-full h-2">
+                        <div 
+                          className="bg-cyan-600 h-2 rounded-full transition-all" 
+                          style={{ width: `${Math.min((mlModelStatus.closedTradesCount / 20) * 100, 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                    
+                    {mlModelStatus.closedTradesCount >= 20 && (
+                      <Button 
+                        onClick={triggerMLTraining} 
+                        className="w-full"
+                        disabled={isTrainingML}
+                      >
+                        {isTrainingML ? (
+                          <>
+                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            Training Model...
+                          </>
+                        ) : (
+                          <>
+                            <Zap className="h-4 w-4 mr-2" />
+                            Train ML Model Now
+                          </>
+                        )}
+                      </Button>
+                    )}
+                    
+                    {mlModelStatus.autoTrainingEnabled && mlModelStatus.closedTradesCount >= 20 && (
+                      <p className="text-xs text-muted-foreground text-center">
+                        ✨ Auto-training enabled (triggers every 20 trades or when model is &gt;10 days old)
+                      </p>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Account Settings - Full Width */}
+            <div className="grid grid-cols-1 gap-6">
               {/* Settings */}
               <Card>
                 <CardHeader>

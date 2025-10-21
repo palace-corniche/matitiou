@@ -11,11 +11,54 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const startTime = Date.now();
+  let triggerType = 'manual';
+  
   try {
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Parse request body for auto-trigger info
+    const requestBody = req.method === 'POST' ? await req.json() : {};
+    const isAutoTriggered = requestBody.auto_triggered || false;
+    const triggerReason = requestBody.trigger_reason || 'manual';
+    const maxModelAgeDays = requestBody.max_model_age_days || 7;
+    
+    triggerType = isAutoTriggered ? triggerReason : 'manual';
+    
+    console.log(`🤖 Starting ML Exit Model Training (${triggerType})...`);
+
+    // Check if staleness check should skip training
+    if (triggerReason === 'staleness_check') {
+      const { data: activeModel } = await supabase
+        .from('ml_exit_models')
+        .select('created_at')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
+      
+      if (activeModel) {
+        const modelAgeDays = Math.floor((Date.now() - new Date(activeModel.created_at).getTime()) / (1000 * 60 * 60 * 24));
+        
+        if (modelAgeDays < maxModelAgeDays) {
+          console.log(`✅ Model is fresh (${modelAgeDays} days old), skipping training`);
+          return new Response(JSON.stringify({ 
+            success: true,
+            skipped: true,
+            reason: `Model is only ${modelAgeDays} days old (threshold: ${maxModelAgeDays} days)`,
+            modelAge: modelAgeDays
+          }), {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+          });
+        }
+        
+        console.log(`⚠️ Model is stale (${modelAgeDays} days old), proceeding with training`);
+      }
+    }
 
     console.log('🤖 Starting ML Exit Model Training...');
 
@@ -33,6 +76,16 @@ serve(async (req) => {
     if (tradesError) throw tradesError;
 
     if (!historicalTrades || historicalTrades.length < 20) {
+      // Log insufficient data
+      await supabase.from('ml_training_logs').insert({
+        model_version: 'N/A',
+        trigger_type: triggerType,
+        training_samples: historicalTrades?.length || 0,
+        success: false,
+        error_message: `Insufficient training data: ${historicalTrades?.length || 0} trades (need 20)`,
+        training_duration_ms: Date.now() - startTime
+      });
+      
       return new Response(JSON.stringify({ 
         error: 'Insufficient training data', 
         message: `Need at least 20 closed trades, found ${historicalTrades?.length || 0}` 
@@ -133,9 +186,20 @@ serve(async (req) => {
     console.log(`📈 Win Rate: ${(winRate * 100).toFixed(2)}%`);
     console.log(`🎯 Optimal Exit: ${avgWinPips.toFixed(2)} pips`);
 
+    // Log successful training
+    await supabase.from('ml_training_logs').insert({
+      model_version: modelVersion,
+      trigger_type: triggerType,
+      training_samples: trainingData.length,
+      success: true,
+      error_message: null,
+      training_duration_ms: Date.now() - startTime
+    });
+
     return new Response(JSON.stringify({ 
       success: true,
       modelVersion,
+      triggerType,
       trainingStats: {
         samples: trainingData.length,
         winRate: (winRate * 100).toFixed(2),
@@ -151,6 +215,26 @@ serve(async (req) => {
 
   } catch (error) {
     console.error('❌ ML Training Error:', error);
+    
+    // Log failed training
+    try {
+      const supabase = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+      );
+      
+      await supabase.from('ml_training_logs').insert({
+        model_version: 'N/A',
+        trigger_type: triggerType,
+        training_samples: 0,
+        success: false,
+        error_message: error.message,
+        training_duration_ms: Date.now() - startTime
+      });
+    } catch (logError) {
+      console.error('Failed to log training error:', logError);
+    }
+    
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
