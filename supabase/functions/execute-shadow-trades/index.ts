@@ -465,7 +465,7 @@ serve(async (req) => {
     console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
       .from('master_signals')
-      .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, market_regime, timeframe, created_at')
+      .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, signal_quality_score, market_regime, timeframe, created_at')
       .eq('status', 'rejected') // Changed from 'pending' - signals start as rejected
       .gte('confluence_score', 12)
       .in('signal_type', ['buy', 'sell'])
@@ -491,6 +491,7 @@ serve(async (req) => {
       take_profit: s.recommended_take_profit,
       final_confidence: s.final_confidence,
       confluence_score: s.confluence_score,
+      signal_quality_score: s.signal_quality_score,
       market_regime: s.market_regime,
       timeframe: s.timeframe,
       created_at: s.created_at
@@ -533,6 +534,17 @@ serve(async (req) => {
 
     console.log(`🎯 Found ${signals.length} qualifying signals to execute`);
 
+    // Fetch account defaults to get quality threshold
+    console.log('⚙️ Fetching account defaults for quality threshold...');
+    const { data: accountDefaults } = await supabase
+      .from('account_defaults')
+      .select('min_signal_quality')
+      .eq('portfolio_id', globalAccountId)
+      .single();
+    
+    const qualityThreshold = accountDefaults?.min_signal_quality || 60;
+    console.log(`📊 Quality threshold: ${qualityThreshold}`);
+
     const executedTrades = [];
 
     // Execute trades for each qualifying signal and portfolio
@@ -546,14 +558,29 @@ serve(async (req) => {
         continue;
       }
       
-      // Additional validation: Quality score >= 50 (if available)
-      if (signal.signal_quality_score && signal.signal_quality_score < 50) {
-        console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} quality too low: ${signal.signal_quality_score} < 50`);
-        continue;
+      // **ENHANCED QUALITY VALIDATION**: Use dynamic threshold from account_defaults
+      if (signal.signal_quality_score !== null && signal.signal_quality_score !== undefined) {
+        if (signal.signal_quality_score < qualityThreshold) {
+          console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} quality too low: ${signal.signal_quality_score} < ${qualityThreshold}`);
+          
+          // Update signal status to rejected with reason
+          await supabase
+            .from('master_signals')
+            .update({ 
+              status: 'rejected',
+              rejection_reason: `Quality score ${signal.signal_quality_score} below minimum ${qualityThreshold}`,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', signal.signal_id);
+          
+          continue;
+        }
+      } else {
+        console.log(`⚠️ Signal ${signal.signal_id.slice(0, 8)} has no quality score - allowing execution`);
       }
       
       console.log(`✅ Signal validated for ${signal.pair}:`);
-      console.log(`   Confluence: ${signal.confluence_score}, Quality: ${signal.signal_quality_score || 'N/A'}`);
+      console.log(`   Confluence: ${signal.confluence_score}, Quality: ${signal.signal_quality_score || 'N/A'} (threshold: ${qualityThreshold})`);
       
       for (const portfolio of portfolios) {
         try {

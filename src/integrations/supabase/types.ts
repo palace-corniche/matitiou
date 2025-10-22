@@ -27,6 +27,7 @@ export type Database = {
           id: string
           max_open_trades: number
           max_spread_pips: number
+          min_signal_quality: number
           portfolio_id: string
           risk_per_trade_percent: number
           trading_end_hour: number
@@ -46,6 +47,7 @@ export type Database = {
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
+          min_signal_quality?: number
           portfolio_id: string
           risk_per_trade_percent?: number
           trading_end_hour?: number
@@ -65,6 +67,7 @@ export type Database = {
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
+          min_signal_quality?: number
           portfolio_id?: string
           risk_per_trade_percent?: number
           trading_end_hour?: number
@@ -959,7 +962,7 @@ export type Database = {
       }
       intelligence_backtests: {
         Row: {
-          avg_trade_duration: unknown | null
+          avg_trade_duration: unknown
           created_at: string | null
           detailed_results: Json | null
           end_date: string
@@ -977,7 +980,7 @@ export type Database = {
           winning_trades: number
         }
         Insert: {
-          avg_trade_duration?: unknown | null
+          avg_trade_duration?: unknown
           created_at?: string | null
           detailed_results?: Json | null
           end_date: string
@@ -995,7 +998,7 @@ export type Database = {
           winning_trades: number
         }
         Update: {
-          avg_trade_duration?: unknown | null
+          avg_trade_duration?: unknown
           created_at?: string | null
           detailed_results?: Json | null
           end_date?: string
@@ -1245,7 +1248,7 @@ export type Database = {
           final_strength: number
           fusion_algorithm: string
           fusion_parameters: Json
-          holding_duration: unknown | null
+          holding_duration: unknown
           id: string
           market_data_snapshot: Json
           market_price: number | null
@@ -1289,7 +1292,7 @@ export type Database = {
           final_strength: number
           fusion_algorithm: string
           fusion_parameters: Json
-          holding_duration?: unknown | null
+          holding_duration?: unknown
           id?: string
           market_data_snapshot: Json
           market_price?: number | null
@@ -1333,7 +1336,7 @@ export type Database = {
           final_strength?: number
           fusion_algorithm?: string
           fusion_parameters?: Json
-          holding_duration?: unknown | null
+          holding_duration?: unknown
           id?: string
           market_data_snapshot?: Json
           market_price?: number | null
@@ -3629,7 +3632,7 @@ export type Database = {
         }[]
       }
       analyze_trade_performance: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           avg_profit: number
           pattern_type: string
@@ -3642,14 +3645,8 @@ export type Database = {
         Args: { p_current_price: number; p_trade_id: string }
         Returns: Json
       }
-      archive_old_trades: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      auto_detect_support_resistance: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      archive_old_trades: { Args: never; Returns: undefined }
+      auto_detect_support_resistance: { Args: never; Returns: undefined }
       calculate_dynamic_lot_size: {
         Args: {
           p_account_balance?: number
@@ -3673,14 +3670,8 @@ export type Database = {
           pnl_usd: number
         }[]
       }
-      calculate_global_performance_metrics: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      calculate_module_performance: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      calculate_global_performance_metrics: { Args: never; Returns: undefined }
+      calculate_module_performance: { Args: never; Returns: undefined }
       calculate_optimal_lot_size: {
         Args: {
           p_entry_price: number
@@ -3709,7 +3700,7 @@ export type Database = {
         Returns: number
       }
       check_trade_integrity: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           actual_count: number
           check_name: string
@@ -3718,18 +3709,9 @@ export type Database = {
           expected_count: number
         }[]
       }
-      cleanup_anonymous_data: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_old_rate_limits: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_stuck_jobs: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      cleanup_anonymous_data: { Args: never; Returns: undefined }
+      cleanup_old_rate_limits: { Args: never; Returns: undefined }
+      cleanup_stuck_jobs: { Args: never; Returns: undefined }
       close_shadow_trade: {
         Args: {
           p_close_lot_size?: number
@@ -3739,10 +3721,7 @@ export type Database = {
         }
         Returns: Json
       }
-      create_daily_performance_snapshot: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      create_daily_performance_snapshot: { Args: never; Returns: undefined }
       execute_advanced_order: {
         Args: { p_order_data: Json; p_portfolio_id: string }
         Returns: Json
@@ -3766,7 +3745,7 @@ export type Database = {
         }[]
       }
       get_global_trading_account: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           auto_trading_enabled: boolean
           average_loss: number
@@ -3802,7 +3781,7 @@ export type Database = {
         }[]
       }
       get_ml_model_versions_performance: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           actual_win_rate: number
           avg_profit_pips: number
@@ -3855,16 +3834,10 @@ export type Database = {
         }
         Returns: string
       }
-      manage_break_even: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      reset_global_trading_account: {
-        Args: Record<PropertyKey, never>
-        Returns: Json
-      }
+      manage_break_even: { Args: never; Returns: undefined }
+      reset_global_trading_account: { Args: never; Returns: Json }
       run_trading_diagnostics: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           check_name: string
           message: string
@@ -3876,10 +3849,7 @@ export type Database = {
         Args: { p_min_quality_score?: number; p_symbol?: string }
         Returns: Json
       }
-      update_eurusd_pnl: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      update_eurusd_pnl: { Args: never; Returns: undefined }
       update_module_performance_from_trade: {
         Args: {
           p_confidence: number
@@ -3890,14 +3860,8 @@ export type Database = {
         }
         Returns: undefined
       }
-      update_trailing_stops: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      update_winning_patterns: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      update_trailing_stops: { Args: never; Returns: undefined }
+      update_winning_patterns: { Args: never; Returns: undefined }
       upsert_account_defaults: {
         Args: {
           p_allowed_symbols: string[]
