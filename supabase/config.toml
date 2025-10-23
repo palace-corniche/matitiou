@@ -44,3 +44,6 @@ verify_jwt = false
 
 [functions.fetch-social-sentiment]
 verify_jwt = false
+
+[functions.fix-trade-history-balance]
+verify_jwt = false

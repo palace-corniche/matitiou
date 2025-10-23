@@ -460,6 +460,35 @@ serve(async (req) => {
             continue;
           }
 
+          // Insert into trade_history with correct values
+          const newBalance = parseFloat(globalAccount.balance.toString()) + pnlResult.pnl;
+          const newEquity = newBalance; // Simplified - will be updated with floating P&L later
+          
+          const { error: historyError } = await supabase
+            .from('trade_history')
+            .insert({
+              portfolio_id: trade.portfolio_id,
+              original_trade_id: trade.id,
+              action_type: 'close',
+              symbol: trade.symbol,
+              trade_type: trade.trade_type,
+              lot_size: parseFloat(trade.lot_size.toString()),
+              execution_price: currentPrice,
+              profit: pnlResult.pnl,
+              profit_pips: pnlResult.pips,
+              balance_before: parseFloat(globalAccount.balance.toString()),
+              balance_after: newBalance,
+              equity_before: parseFloat(globalAccount.equity.toString()),
+              equity_after: newEquity,
+              execution_time: new Date().toISOString()
+            });
+
+          if (historyError) {
+            console.error(`Error inserting trade history:`, historyError);
+          } else {
+            console.log(`📝 Logged to trade_history: Profit $${pnlResult.pnl.toFixed(2)}, Balance $${globalAccount.balance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+          }
+
           closedTrades.push({
             id: trade.id,
             symbol: trade.symbol,
