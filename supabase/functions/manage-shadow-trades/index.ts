@@ -23,10 +23,27 @@ serve(async (req) => {
 
     console.log('🔄 Starting shadow trade management...');
 
-    // **FIX #1: Get all open trades without broken join - all trades use global_trading_account**
+    // **FIX #1: Get global trading account first**
+    const globalAccountId = '00000000-0000-0000-0000-000000000001';
+    
+    const { data: globalAccount, error: accountError } = await supabase
+      .from('global_trading_account')
+      .select('*')
+      .eq('id', globalAccountId)
+      .single();
+
+    if (accountError || !globalAccount) {
+      console.error('❌ Error fetching global account:', accountError);
+      throw new Error(`Error fetching global account: ${accountError?.message || 'Not found'}`);
+    }
+
+    console.log(`💼 Global Account: Balance=$${globalAccount.balance}, Equity=$${globalAccount.equity}`);
+
+    // Get all open trades for global account
     const { data: openTrades, error: tradesError } = await supabase
       .from('shadow_trades')
       .select('*')
+      .eq('portfolio_id', globalAccountId)
       .eq('status', 'open');
 
     if (tradesError) {
@@ -34,12 +51,9 @@ serve(async (req) => {
       throw new Error(`Error fetching open trades: ${tradesError.message}`);
     }
     
-    // Filter for global trading account trades (all current trades use this)
-    const validTrades = openTrades?.filter(trade => 
-      trade.portfolio_id === '00000000-0000-0000-0000-000000000001'
-    ) || [];
+    const validTrades = openTrades || [];
     
-    console.log(`📊 Found ${openTrades?.length || 0} open trades, ${validTrades.length} for global account`);
+    console.log(`📊 Found ${validTrades.length} open trades for global account`);
 
     if (!validTrades || validTrades.length === 0) {
       console.log('📊 No open trades found to manage');
@@ -457,9 +471,8 @@ serve(async (req) => {
             holdingTimeMinutes
           });
 
-          // Prepare portfolio updates
+          // Track updates for global account
           const portfolioId = trade.portfolio_id;
-          const currentBalance = parseFloat(trade.shadow_portfolios.balance.toString());
           
           if (!portfolioUpdates.has(portfolioId)) {
             portfolioUpdates.set(portfolioId, {
@@ -567,40 +580,28 @@ serve(async (req) => {
       }
     }
 
-    // === PHASE 1: UPDATE GLOBAL ACCOUNT BALANCE ===
+    // === PHASE 1: UPDATE GLOBAL ACCOUNT BALANCE DIRECTLY ===
     if (closedTrades.length > 0) {
       try {
-        // Get latest balance from trade_history
-        const { data: latestHistory, error: historyError } = await supabase
-          .from('trade_history')
-          .select('balance_after, equity_after')
-          .eq('portfolio_id', '00000000-0000-0000-0000-000000000001')
-          .order('execution_time', { ascending: false })
-          .limit(1)
-          .single();
+        // Get update for global account
+        const update = portfolioUpdates.get(globalAccountId);
         
-        if (historyError) {
-          console.error('Error fetching trade history:', historyError);
-        } else if (latestHistory) {
-          const newBalance = parseFloat(latestHistory.balance_after.toString());
+        if (update) {
+          const newBalance = parseFloat(globalAccount.balance.toString()) + update.balanceChange;
           
-          // Calculate equity (balance + floating P&L)
-          const { data: openTrades, error: openTradesError } = await supabase
+          // Calculate floating P&L from remaining open trades
+          const { data: remainingOpenTrades } = await supabase
             .from('shadow_trades')
             .select('unrealized_pnl')
-            .eq('portfolio_id', '00000000-0000-0000-0000-000000000001')
+            .eq('portfolio_id', globalAccountId)
             .eq('status', 'open');
           
-          if (openTradesError) {
-            console.error('Error fetching open trades for P&L:', openTradesError);
-          }
-          
-          const floatingPnl = openTrades?.reduce((sum, t) => 
+          const floatingPnl = remainingOpenTrades?.reduce((sum, t) => 
             sum + parseFloat(t.unrealized_pnl?.toString() || '0'), 0) || 0;
           
           const newEquity = newBalance + floatingPnl;
           
-          // Update global account balance and equity
+          // Update global account with new balance and equity
           const { error: updateError } = await supabase
             .from('global_trading_account')
             .update({
@@ -609,12 +610,12 @@ serve(async (req) => {
               floating_pnl: floatingPnl,
               updated_at: new Date().toISOString()
             })
-            .eq('id', '00000000-0000-0000-0000-000000000001');
+            .eq('id', globalAccountId);
           
           if (updateError) {
             console.error('Error updating global account:', updateError);
           } else {
-            console.log(`💰 Global account updated: Balance $${newBalance.toFixed(2)}, Equity $${newEquity.toFixed(2)}`);
+            console.log(`💰 Global account updated: Balance $${newBalance.toFixed(2)} (${update.balanceChange >= 0 ? '+' : ''}$${update.balanceChange.toFixed(2)}), Equity $${newEquity.toFixed(2)}`);
             
             // === PHASE 3: CALCULATE PERFORMANCE METRICS ===
             const { error: metricsError } = await supabase.rpc('calculate_global_performance_metrics');

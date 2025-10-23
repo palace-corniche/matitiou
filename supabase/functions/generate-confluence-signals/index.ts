@@ -507,8 +507,8 @@ serve(async (req) => {
                 session: 'london',
                 timestamp: new Date().toISOString()
               },
-              status: 'rejected', // Auto-rejected, execute-shadow-trades will set to 'executed' if traded
-              rejection_reason: 'Awaiting execution evaluation'
+              status: 'pending', // Signal awaits execution evaluation
+              rejection_reason: null
             })
             .select()
             .single();

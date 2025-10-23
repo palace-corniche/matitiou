@@ -461,12 +461,12 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // **PHASE 1 FIX: Fetch signals with status='rejected' (new default) awaiting execution**
+    // **PHASE 1 FIX: Fetch signals with status='pending' or 'rejected' awaiting execution**
     console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
       .from('master_signals')
       .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, signal_quality_score, market_regime, timeframe, created_at')
-      .eq('status', 'rejected') // Changed from 'pending' - signals start as rejected
+      .in('status', ['pending', 'rejected']) // Query both pending and rejected signals
       .gte('confluence_score', 12)
       .in('signal_type', ['buy', 'sell'])
       .order('created_at', { ascending: false});
