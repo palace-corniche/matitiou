@@ -20,10 +20,12 @@ export type Database = {
           auto_lot_sizing: boolean
           auto_sl_tp: boolean
           blacklist_symbols: string[]
+          caution_threshold: number | null
           created_at: string
           default_lot_size: number
           default_sl_pips: number
           default_tp_pips: number
+          force_exit_threshold: number | null
           id: string
           max_open_trades: number
           max_spread_pips: number
@@ -34,16 +36,19 @@ export type Database = {
           trading_hours_enabled: boolean
           trading_start_hour: number
           updated_at: string
+          use_intelligent_exit: boolean | null
         }
         Insert: {
           allowed_symbols?: string[]
           auto_lot_sizing?: boolean
           auto_sl_tp?: boolean
           blacklist_symbols?: string[]
+          caution_threshold?: number | null
           created_at?: string
           default_lot_size?: number
           default_sl_pips?: number
           default_tp_pips?: number
+          force_exit_threshold?: number | null
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
@@ -54,16 +59,19 @@ export type Database = {
           trading_hours_enabled?: boolean
           trading_start_hour?: number
           updated_at?: string
+          use_intelligent_exit?: boolean | null
         }
         Update: {
           allowed_symbols?: string[]
           auto_lot_sizing?: boolean
           auto_sl_tp?: boolean
           blacklist_symbols?: string[]
+          caution_threshold?: number | null
           created_at?: string
           default_lot_size?: number
           default_sl_pips?: number
           default_tp_pips?: number
+          force_exit_threshold?: number | null
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
@@ -74,6 +82,7 @@ export type Database = {
           trading_hours_enabled?: boolean
           trading_start_hour?: number
           updated_at?: string
+          use_intelligent_exit?: boolean | null
         }
         Relationships: []
       }
@@ -327,6 +336,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      asset_correlations: {
+        Row: {
+          asset_1: string
+          asset_2: string
+          correlation_strength: string | null
+          correlation_value: number | null
+          created_at: string | null
+          id: string
+          timeframe: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          asset_1: string
+          asset_2: string
+          correlation_strength?: string | null
+          correlation_value?: number | null
+          created_at?: string | null
+          id?: string
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          asset_1?: string
+          asset_2?: string
+          correlation_strength?: string | null
+          correlation_value?: number | null
+          created_at?: string | null
+          id?: string
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
       }
       automated_trading_rules: {
         Row: {
@@ -636,6 +678,7 @@ export type Database = {
           event_time: string
           forecast_value: string | null
           id: string
+          impact: string | null
           impact_level: string
           is_active: boolean | null
           previous_value: string | null
@@ -651,6 +694,7 @@ export type Database = {
           event_time: string
           forecast_value?: string | null
           id?: string
+          impact?: string | null
           impact_level: string
           is_active?: boolean | null
           previous_value?: string | null
@@ -666,6 +710,7 @@ export type Database = {
           event_time?: string
           forecast_value?: string | null
           id?: string
+          impact?: string | null
           impact_level?: string
           is_active?: boolean | null
           previous_value?: string | null
@@ -723,49 +768,136 @@ export type Database = {
       }
       elliott_waves: {
         Row: {
+          completion_level: number | null
           confidence: number | null
           created_at: string | null
           end_price: number
           end_time: string
+          entry_zone_high: number | null
+          entry_zone_low: number | null
           id: string
           pattern_type: string | null
           start_price: number
           start_time: string
+          status: string | null
           symbol: string
+          target_1: number | null
+          target_2: number | null
           timeframe: string
           updated_at: string | null
           wave_degree: string
           wave_label: string
+          wave_score: number | null
         }
         Insert: {
+          completion_level?: number | null
           confidence?: number | null
           created_at?: string | null
           end_price: number
           end_time: string
+          entry_zone_high?: number | null
+          entry_zone_low?: number | null
           id?: string
           pattern_type?: string | null
           start_price: number
           start_time: string
+          status?: string | null
           symbol?: string
+          target_1?: number | null
+          target_2?: number | null
           timeframe?: string
           updated_at?: string | null
           wave_degree: string
           wave_label: string
+          wave_score?: number | null
         }
         Update: {
+          completion_level?: number | null
           confidence?: number | null
           created_at?: string | null
           end_price?: number
           end_time?: string
+          entry_zone_high?: number | null
+          entry_zone_low?: number | null
           id?: string
           pattern_type?: string | null
           start_price?: number
           start_time?: string
+          status?: string | null
           symbol?: string
+          target_1?: number | null
+          target_2?: number | null
           timeframe?: string
           updated_at?: string | null
           wave_degree?: string
           wave_label?: string
+          wave_score?: number | null
+        }
+        Relationships: []
+      }
+      fibonacci_confluence_zones: {
+        Row: {
+          bounce_rate: number | null
+          bounces: number | null
+          breaks: number | null
+          confluence_count: number
+          confluence_score: number
+          created_at: string | null
+          fib_levels: Json
+          id: string
+          last_tested_at: string | null
+          status: string | null
+          symbol: string
+          timeframe: string
+          timeframe_alignment: number
+          touches: number | null
+          updated_at: string | null
+          zone_price: number
+          zone_range_high: number
+          zone_range_low: number
+          zone_type: string
+        }
+        Insert: {
+          bounce_rate?: number | null
+          bounces?: number | null
+          breaks?: number | null
+          confluence_count?: number
+          confluence_score?: number
+          created_at?: string | null
+          fib_levels: Json
+          id?: string
+          last_tested_at?: string | null
+          status?: string | null
+          symbol?: string
+          timeframe: string
+          timeframe_alignment?: number
+          touches?: number | null
+          updated_at?: string | null
+          zone_price: number
+          zone_range_high: number
+          zone_range_low: number
+          zone_type: string
+        }
+        Update: {
+          bounce_rate?: number | null
+          bounces?: number | null
+          breaks?: number | null
+          confluence_count?: number
+          confluence_score?: number
+          created_at?: string | null
+          fib_levels?: Json
+          id?: string
+          last_tested_at?: string | null
+          status?: string | null
+          symbol?: string
+          timeframe?: string
+          timeframe_alignment?: number
+          touches?: number | null
+          updated_at?: string | null
+          zone_price?: number
+          zone_range_high?: number
+          zone_range_low?: number
+          zone_type?: string
         }
         Relationships: []
       }
@@ -873,40 +1005,52 @@ export type Database = {
       }
       harmonic_prz: {
         Row: {
+          activated_at: string | null
           completion_level: number | null
           confidence: number | null
           created_at: string | null
           detected_at: string
           id: string
+          invalidated_at: string | null
           pattern: string
+          pattern_score: number | null
           prz_high: number
           prz_low: number
+          status: string | null
           symbol: string
           timeframe: string | null
           updated_at: string | null
         }
         Insert: {
+          activated_at?: string | null
           completion_level?: number | null
           confidence?: number | null
           created_at?: string | null
           detected_at?: string
           id?: string
+          invalidated_at?: string | null
           pattern: string
+          pattern_score?: number | null
           prz_high: number
           prz_low: number
+          status?: string | null
           symbol?: string
           timeframe?: string | null
           updated_at?: string | null
         }
         Update: {
+          activated_at?: string | null
           completion_level?: number | null
           confidence?: number | null
           created_at?: string | null
           detected_at?: string
           id?: string
+          invalidated_at?: string | null
           pattern?: string
+          pattern_score?: number | null
           prz_high?: number
           prz_low?: number
+          status?: string | null
           symbol?: string
           timeframe?: string | null
           updated_at?: string | null
@@ -1188,6 +1332,39 @@ export type Database = {
           timeframe?: string
           timestamp?: string
           volume?: number | null
+        }
+        Relationships: []
+      }
+      market_sentiment: {
+        Row: {
+          confidence: number | null
+          created_at: string | null
+          id: string
+          sentiment_score: number
+          source: string | null
+          symbol: string
+          timestamp: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          sentiment_score: number
+          source?: string | null
+          symbol?: string
+          timestamp?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string | null
+          id?: string
+          sentiment_score?: number
+          source?: string | null
+          symbol?: string
+          timestamp?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
@@ -2023,14 +2200,93 @@ export type Database = {
         }
         Relationships: []
       }
+      pattern_performance: {
+        Row: {
+          confluence_score: number | null
+          created_at: string | null
+          duration_hours: number | null
+          entry_price: number
+          entry_time: string
+          exit_price: number | null
+          exit_time: string | null
+          id: string
+          max_adverse_excursion: number | null
+          max_favorable_excursion: number | null
+          outcome: string | null
+          pattern_confidence: number | null
+          pattern_signal_id: string | null
+          pattern_type: string
+          profit_pips: number | null
+          profit_usd: number | null
+          timeframe: string
+        }
+        Insert: {
+          confluence_score?: number | null
+          created_at?: string | null
+          duration_hours?: number | null
+          entry_price: number
+          entry_time: string
+          exit_price?: number | null
+          exit_time?: string | null
+          id?: string
+          max_adverse_excursion?: number | null
+          max_favorable_excursion?: number | null
+          outcome?: string | null
+          pattern_confidence?: number | null
+          pattern_signal_id?: string | null
+          pattern_type: string
+          profit_pips?: number | null
+          profit_usd?: number | null
+          timeframe: string
+        }
+        Update: {
+          confluence_score?: number | null
+          created_at?: string | null
+          duration_hours?: number | null
+          entry_price?: number
+          entry_time?: string
+          exit_price?: number | null
+          exit_time?: string | null
+          id?: string
+          max_adverse_excursion?: number | null
+          max_favorable_excursion?: number | null
+          outcome?: string | null
+          pattern_confidence?: number | null
+          pattern_signal_id?: string | null
+          pattern_type?: string
+          profit_pips?: number | null
+          profit_usd?: number | null
+          timeframe?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pattern_performance_pattern_signal_id_fkey"
+            columns: ["pattern_signal_id"]
+            isOneToOne: false
+            referencedRelation: "pattern_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pattern_signals: {
         Row: {
           confidence: number | null
+          confluence_score: number | null
           created_at: string | null
           detected_at: string
           entry_price: number | null
+          executed_at: string | null
           id: string
+          invalidated_at: string | null
+          mtf_15m_confirmed: boolean | null
+          mtf_1h_confirmed: boolean | null
+          mtf_4h_confirmed: boolean | null
+          mtf_score: number | null
+          overall_score: number | null
+          pattern_confidence: number | null
           pattern_type: string
+          shadow_trade_id: string | null
+          status: string | null
           stop_loss: number | null
           strength: number | null
           symbol: string
@@ -2040,11 +2296,22 @@ export type Database = {
         }
         Insert: {
           confidence?: number | null
+          confluence_score?: number | null
           created_at?: string | null
           detected_at?: string
           entry_price?: number | null
+          executed_at?: string | null
           id?: string
+          invalidated_at?: string | null
+          mtf_15m_confirmed?: boolean | null
+          mtf_1h_confirmed?: boolean | null
+          mtf_4h_confirmed?: boolean | null
+          mtf_score?: number | null
+          overall_score?: number | null
+          pattern_confidence?: number | null
           pattern_type: string
+          shadow_trade_id?: string | null
+          status?: string | null
           stop_loss?: number | null
           strength?: number | null
           symbol?: string
@@ -2054,11 +2321,22 @@ export type Database = {
         }
         Update: {
           confidence?: number | null
+          confluence_score?: number | null
           created_at?: string | null
           detected_at?: string
           entry_price?: number | null
+          executed_at?: string | null
           id?: string
+          invalidated_at?: string | null
+          mtf_15m_confirmed?: boolean | null
+          mtf_1h_confirmed?: boolean | null
+          mtf_4h_confirmed?: boolean | null
+          mtf_score?: number | null
+          overall_score?: number | null
+          pattern_confidence?: number | null
           pattern_type?: string
+          shadow_trade_id?: string | null
+          status?: string | null
           stop_loss?: number | null
           strength?: number | null
           symbol?: string
@@ -2861,6 +3139,7 @@ export type Database = {
       system_health: {
         Row: {
           created_at: string
+          details: Json | null
           error_message: string | null
           execution_time_ms: number
           function_name: string
@@ -2871,6 +3150,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          details?: Json | null
           error_message?: string | null
           execution_time_ms: number
           function_name: string
@@ -2881,6 +3161,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          details?: Json | null
           error_message?: string | null
           execution_time_ms?: number
           function_name?: string
@@ -3180,6 +3461,11 @@ export type Database = {
           equity_before: number
           execution_price: number
           execution_time: string
+          exit_factors: Json | null
+          exit_price: number | null
+          exit_reasoning: string | null
+          exit_recommendation: string | null
+          exit_score: number | null
           id: string
           lot_size: number
           margin_used: number | null
@@ -3204,6 +3490,11 @@ export type Database = {
           equity_before: number
           execution_price: number
           execution_time?: string
+          exit_factors?: Json | null
+          exit_price?: number | null
+          exit_reasoning?: string | null
+          exit_recommendation?: string | null
+          exit_score?: number | null
           id?: string
           lot_size: number
           margin_used?: number | null
@@ -3228,6 +3519,11 @@ export type Database = {
           equity_before?: number
           execution_price?: number
           execution_time?: string
+          exit_factors?: Json | null
+          exit_price?: number | null
+          exit_reasoning?: string | null
+          exit_recommendation?: string | null
+          exit_score?: number | null
           id?: string
           lot_size?: number
           margin_used?: number | null
@@ -3682,6 +3978,10 @@ export type Database = {
         }
         Returns: Json
       }
+      calculate_pattern_confluence: {
+        Args: { p_price: number; p_price_range?: number; p_symbol: string }
+        Returns: number
+      }
       calculate_trade_pnl: {
         Args: { p_current_price: number; p_trade_id: string }
         Returns: {
@@ -3721,6 +4021,23 @@ export type Database = {
         }
         Returns: Json
       }
+      close_trade_with_balance_update: {
+        Args: {
+          p_exit_factors?: Json
+          p_exit_price: number
+          p_exit_reasoning?: string
+          p_exit_recommendation?: string
+          p_exit_score?: number
+          p_exit_time?: string
+          p_trade_id: string
+        }
+        Returns: {
+          message: string
+          new_balance: number
+          profit_usd: number
+          success: boolean
+        }[]
+      }
       create_daily_performance_snapshot: { Args: never; Returns: undefined }
       execute_advanced_order: {
         Args: { p_order_data: Json; p_portfolio_id: string }
@@ -3742,6 +4059,18 @@ export type Database = {
           trading_end_hour: number
           trading_hours_enabled: boolean
           trading_start_hour: number
+        }[]
+      }
+      get_best_pattern_types: {
+        Args: { p_min_trades?: number }
+        Returns: {
+          avg_profit_pips: number
+          avg_profit_usd: number
+          max_profit_pips: number
+          pattern_type: string
+          total_trades: number
+          win_rate: number
+          wins: number
         }[]
       }
       get_global_trading_account: {
@@ -3822,6 +4151,10 @@ export type Database = {
           p_tp: number
         }
         Returns: string
+      }
+      link_pattern_to_trade: {
+        Args: { p_pattern_signal_id: string; p_shadow_trade_id: string }
+        Returns: undefined
       }
       log_trade_decision: {
         Args: {
