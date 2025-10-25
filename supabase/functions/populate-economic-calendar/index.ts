@@ -38,7 +38,7 @@ serve(async (req) => {
     if (events.length > 0) {
       const { error: insertError } = await supabase
         .from('economic_events')
-        .upsert(events, { onConflict: 'event_name, event_time' });
+        .upsert(events, { onConflict: 'economic_events_name_time_unique' });
 
       if (insertError) {
         console.error('❌ Failed to insert events:', insertError);
@@ -67,7 +67,7 @@ serve(async (req) => {
     if (newsEvents.length > 0) {
       const { error: newsError } = await supabase
         .from('news_events')
-        .upsert(newsEvents, { onConflict: 'title, published_at' });
+        .upsert(newsEvents, { onConflict: 'news_events_title_published_at_unique' });
 
       if (newsError) {
         console.error('❌ Failed to insert news:', newsError);
