@@ -617,34 +617,21 @@ serve(async (req) => {
 
 
 
-          // **FIXED DUPLICATE DETECTION**: Check by master_signal_id field (not comment)
-          const { data: existingSignalTrades } = await supabase
+          // **FIXED DUPLICATE DETECTION**: Only check for OPEN trades (allow re-trading closed signals)
+          const { data: existingOpenTrades } = await supabase
             .from('shadow_trades')
-            .select('id, status')
+            .select('id')
             .eq('portfolio_id', portfolio.id)
             .eq('master_signal_id', signal.signal_id)
-            .in('status', ['open', 'closed'])
+            .eq('status', 'open')
             .limit(1);
           
-          if (existingSignalTrades && existingSignalTrades.length > 0) {
-            const existingTrade = existingSignalTrades[0];
-            console.log(`⏭️ Skipping: Signal ${signal.signal_id.slice(0, 8)} already has ${existingTrade.status} trade (${existingTrade.id.slice(0, 8)})`);
-            
-            // Mark signal as executed if not already
-            await supabase
-              .from('master_signals')
-              .update({ 
-                status: 'executed',
-                execution_timestamp: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-              })
-              .eq('id', signal.signal_id)
-              .neq('status', 'executed');
-            
+          if (existingOpenTrades && existingOpenTrades.length > 0) {
+            console.log(`⏭️ Skipping: Signal ${signal.signal_id.slice(0, 8)} already has open trade (${existingOpenTrades[0].id.slice(0, 8)})`);
             continue;
           }
           
-          console.log(`✅ No existing trade found for signal ${signal.signal_id.slice(0, 8)} - proceeding with execution`);
+          console.log(`✅ No existing open trade for signal ${signal.signal_id.slice(0, 8)} - proceeding with execution`);
 
 
           // **PHASE 4: Dynamic SL/TP based on ATR**
