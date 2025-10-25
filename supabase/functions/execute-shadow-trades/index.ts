@@ -153,6 +153,31 @@ class EnhancedEdgeEngine {
   }
 }
 
+// Market Hours Validation - Forex market is closed on weekends
+function isMarketOpen(): { open: boolean; reason?: string } {
+  const now = new Date();
+  const dayOfWeek = now.getUTCDay(); // 0 = Sunday, 6 = Saturday
+  const hour = now.getUTCHours();
+  
+  // Saturday - Market closed all day
+  if (dayOfWeek === 6) {
+    return { open: false, reason: 'Market closed: Saturday' };
+  }
+  
+  // Sunday - Market closed until 22:00 UTC
+  if (dayOfWeek === 0 && hour < 22) {
+    return { open: false, reason: `Market closed: Sunday before 22:00 UTC (current: ${hour}:00 UTC)` };
+  }
+  
+  // Friday - Market closes at 22:00 UTC
+  if (dayOfWeek === 5 && hour >= 22) {
+    return { open: false, reason: 'Market closed: Friday after 22:00 UTC' };
+  }
+  
+  // Market is open
+  return { open: true };
+}
+
 // Continuous Learning Engine - integrated directly into edge function
 interface LearningMetrics {
   accuracy: number;
@@ -453,6 +478,22 @@ serve(async (req) => {
       );
     }
 
+    // Check if forex market is open (avoid weekend trading)
+    const marketStatus = isMarketOpen();
+    if (!marketStatus.open) {
+      console.log(`⏸️ Market is closed: ${marketStatus.reason}`);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Market closed', 
+          reason: marketStatus.reason,
+          trades_executed: 0 
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('✅ Market is open - proceeding with trade execution');
     console.log('💼 Found 1 active portfolios');
     console.log(`   Global Account: Balance=$${globalAccount.balance}, Equity=$${globalAccount.equity}, Auto-trading=${globalAccount.auto_trading_enabled}`);
     
