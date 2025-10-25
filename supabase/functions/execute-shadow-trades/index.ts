@@ -617,30 +617,34 @@ serve(async (req) => {
 
 
 
-          // **ENHANCED DUPLICATE DETECTION**: Check by signal_id/analysis_id
-          const signalRef = signal.signal_id || signal.id || signal.analysis_id;
-          const { data: existingSignalTrade } = await supabase
+          // **FIXED DUPLICATE DETECTION**: Check by master_signal_id field (not comment)
+          const { data: existingSignalTrades } = await supabase
             .from('shadow_trades')
-            .select('id')
+            .select('id, status')
             .eq('portfolio_id', portfolio.id)
-            .eq('status', 'open')
-            .ilike('comment', `%${signalRef}%`)
+            .eq('master_signal_id', signal.signal_id)
+            .in('status', ['open', 'closed'])
             .limit(1);
           
-          if (existingSignalTrade) {
-            console.log(`🚫 Duplicate: Signal ${String(signalRef).slice(0, 8)} already executed`);
+          if (existingSignalTrades && existingSignalTrades.length > 0) {
+            const existingTrade = existingSignalTrades[0];
+            console.log(`⏭️ Skipping: Signal ${signal.signal_id.slice(0, 8)} already has ${existingTrade.status} trade (${existingTrade.id.slice(0, 8)})`);
             
-            // Log to audit table
-            await supabase.from('trade_execution_audit').insert({
-              signal_id: String(signalRef),
-              analysis_id: signal.analysis_id,
-              portfolio_id: portfolio.id,
-              result: 'skipped_duplicate',
-              reason: `Signal already has open trade: ${existingSignalTrade.id}`,
-              metadata: { signal_type: signal.signal_type, symbol: signal.pair }
-            });
+            // Mark signal as executed if not already
+            await supabase
+              .from('master_signals')
+              .update({ 
+                status: 'executed',
+                execution_timestamp: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', signal.signal_id)
+              .neq('status', 'executed');
+            
             continue;
           }
+          
+          console.log(`✅ No existing trade found for signal ${signal.signal_id.slice(0, 8)} - proceeding with execution`);
 
 
           // **PHASE 4: Dynamic SL/TP based on ATR**
