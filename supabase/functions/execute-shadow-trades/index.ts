@@ -395,6 +395,80 @@ async function reconcilePortfolioState(supabase: any, portfolioId: string): Prom
   }
 }
 
+// Reconciliation for global_trading_account
+async function reconcileGlobalAccount(supabase: any, accountId: string): Promise<boolean> {
+  try {
+    // Get actual open trades
+    const { data: openTrades } = await supabase
+      .from('shadow_trades')
+      .select('*')
+      .eq('portfolio_id', accountId)
+      .eq('status', 'open');
+
+    const actualOpenPositions = openTrades?.length || 0;
+    
+    // Get account state
+    const { data: account } = await supabase
+      .from('global_trading_account')
+      .select('*')
+      .eq('id', accountId)
+      .single();
+
+    if (!account) return false;
+
+    // Calculate actual margin
+    const actualMargin = openTrades?.reduce((total: number, trade: any) => {
+      return total + (trade.margin_required || 0);
+    }, 0) || 0;
+
+    const reportedMargin = parseFloat(account.used_margin.toString());
+
+    // Fix ghost positions
+    if (actualOpenPositions === 0 && reportedMargin > 0) {
+      console.log(`👻 Clearing ghost margin for global account: $${reportedMargin.toFixed(2)}`);
+      
+      await supabase
+        .from('global_trading_account')
+        .update({
+          used_margin: 0,
+          free_margin: account.balance,
+          margin_level: 0,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', accountId);
+      
+      return true;
+    }
+
+    // Fix margin inconsistencies
+    if (Math.abs(actualMargin - reportedMargin) > 0.01) {
+      const newFreeMargin = parseFloat(account.balance.toString()) - actualMargin;
+      const newMarginLevel = actualMargin > 0 
+        ? (parseFloat(account.equity.toString()) / actualMargin) * 100 
+        : 0;
+
+      console.log(`🔧 Fixing margin inconsistency: Reported=$${reportedMargin.toFixed(2)}, Actual=$${actualMargin.toFixed(2)}`);
+
+      await supabase
+        .from('global_trading_account')
+        .update({
+          used_margin: actualMargin,
+          free_margin: Math.max(0, newFreeMargin),
+          margin_level: newMarginLevel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', accountId);
+      
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error(`Error reconciling global account ${accountId}:`, error);
+    return false;
+  }
+}
+
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
@@ -625,8 +699,12 @@ serve(async (req) => {
       
       for (const portfolio of portfolios) {
         try {
-          // Reconcile portfolio state first
-          await reconcilePortfolioState(supabase, portfolio.id);
+          // Reconcile account state first (global account vs regular portfolio)
+          if (portfolio.id === '00000000-0000-0000-0000-000000000001') {
+            await reconcileGlobalAccount(supabase, portfolio.id);
+          } else {
+            await reconcilePortfolioState(supabase, portfolio.id);
+          }
           
           // Check if portfolio can accept new trades
           const { data: openTrades } = await supabase
@@ -795,20 +873,8 @@ serve(async (req) => {
               });
           }
 
-          // Update portfolio metrics
-          const margin = newTrade.margin_required;
-          await supabase
-            .from('shadow_portfolios')
-            .update({
-              used_margin: parseFloat(portfolio.used_margin.toString()) + margin,
-              free_margin: parseFloat(portfolio.free_margin.toString()) - margin,
-              margin_level: (parseFloat(portfolio.equity.toString()) / (parseFloat(portfolio.used_margin.toString()) + margin)) * 100,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', portfolio.id);
-
           executedTrades.push({
-            trade_id: insertedTrade.id,
+            trade_id: trade_id,
             portfolio_id: portfolio.id,
             signal_type: signal.signal_type,
             entry_price: signal.entry_price,
