@@ -810,6 +810,7 @@ serve(async (req) => {
             entry_price: signal.entry_price,
             stop_loss: dynamicStopLoss || signal.stop_loss || 0,
             take_profit: dynamicTakeProfit || signal.take_profit || 0,
+            trailing_stop_distance: 15 * 0.0001, // 15 pips default trailing stop
             order_type: 'market',
             comment: `Advanced Fusion | Signal ${signal.signal_id.slice(0, 8)} | Confluence: ${signal.confluence_score} | ATR: ${atr.toFixed(5)}`,
             magic_number: 100001

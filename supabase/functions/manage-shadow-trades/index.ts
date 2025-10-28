@@ -133,8 +133,68 @@ serve(async (req) => {
           }
         }
 
-        // **PHASE 2: PARTIAL CLOSE AT 75 PIPS (Secondary TP)**
+        // **SAFETY RULE 1: Move SL to break-even at +10 pips**
         const profitPips = calculateProfitPips(trade, currentPrice);
+        
+        if (!shouldClose && profitPips >= 10) {
+          const isBreakEvenNeeded = trade.trade_type === 'buy' 
+            ? stopLoss < entryPrice 
+            : stopLoss > entryPrice;
+            
+          if (isBreakEvenNeeded) {
+            console.log(`🛡️ Moving SL to break-even for trade ${trade.id.slice(0, 8)} (+${profitPips.toFixed(1)} pips)`);
+            
+            await supabase
+              .from('shadow_trades')
+              .update({
+                stop_loss: entryPrice,
+                break_even_triggered: true,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', trade.id);
+            
+            // Update local variable
+            trade.stop_loss = entryPrice;
+            
+            // Continue to next trade
+            processedItems++;
+            continue;
+          }
+        }
+        
+        // **SAFETY RULE 2: Activate trailing stop at +20 pips**
+        if (!shouldClose && profitPips >= 20 && (!trade.trailing_stop_distance || trade.trailing_stop_distance === 0)) {
+          const trailingDistance = 15 * 0.0001; // 15 pips
+          let newStopLoss;
+          
+          if (trade.trade_type === 'buy') {
+            newStopLoss = currentPrice - trailingDistance;
+          } else {
+            newStopLoss = currentPrice + trailingDistance;
+          }
+          
+          console.log(`🎯 Activating trailing stop for trade ${trade.id.slice(0, 8)} at +${profitPips.toFixed(1)} pips`);
+          
+          await supabase
+            .from('shadow_trades')
+            .update({
+              trailing_stop_distance: trailingDistance,
+              stop_loss: newStopLoss,
+              trailing_stop_triggered: true,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', trade.id);
+          
+          // Update local variables
+          trade.trailing_stop_distance = trailingDistance;
+          trade.stop_loss = newStopLoss;
+          
+          // Continue to next trade
+          processedItems++;
+          continue;
+        }
+        
+        // **PHASE 2: PARTIAL CLOSE AT 75 PIPS (Secondary TP)**
         const partialCloseThreshold = 75; // 75 pips for 50% partial close
         
         if (!shouldClose && profitPips >= partialCloseThreshold && !trade.partial_close_triggered) {
@@ -419,14 +479,14 @@ serve(async (req) => {
           }
         }
 
-        // **PHASE 3 FIX: Time-based exit (24 hours) with debug logging**
+        // **PHASE 3 FIX: Time-based exit (12 hours) with debug logging**
         if (!shouldClose) {
           const entryTime = new Date(trade.entry_time).getTime();
           const hoursOpen = (Date.now() - entryTime) / (1000 * 60 * 60);
           
-          console.log(`⏰ Time check for ${trade.id.slice(0,8)}: ${hoursOpen.toFixed(1)}h open (threshold: 24h)`);
+          console.log(`⏰ Time check for ${trade.id.slice(0,8)}: ${hoursOpen.toFixed(1)}h open (threshold: 12h)`);
           
-          if (hoursOpen >= 24) {
+          if (hoursOpen >= 12) {
             console.log(`🔴 FORCING TIME-BASED EXIT for trade ${trade.id.slice(0,8)} - Open for ${hoursOpen.toFixed(1)} hours`);
             shouldClose = true;
             exitReason = 'time';
