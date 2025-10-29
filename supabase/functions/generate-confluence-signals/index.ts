@@ -395,7 +395,11 @@ serve(async (req) => {
     // Generate comprehensive signal analysis using Enhanced Master Signal Engine with Real Data
     const pair = 'EUR/USD';
     const timeframe = '15m';
-    const regime = 'trending';
+    
+    // **PHASE 2 FIX: Detect actual market regime instead of hardcoding**
+    const regimeDetection = detectMarketRegime(candles, candles.map(() => 1));
+    const regime = regimeDetection.type;
+    console.log(`📊 Market regime detected: ${regime} (strength: ${(regimeDetection.strength * 100).toFixed(1)}%, confidence: ${(regimeDetection.confidence * 100).toFixed(1)}%)`);
     
     console.log(`🎯 Starting comprehensive analysis for ${pair} (${timeframe}) with ${candles.length} candles`);
     
@@ -861,7 +865,7 @@ async function generateMasterSignalAnalysis(supabase: any, candles: any[], pair:
     // Validate modular signals input
     if (!modularSignals || !Array.isArray(modularSignals.allSignals)) {
       console.warn('⚠️ Invalid modular signals input, using fallback');
-      return generateFallbackMasterSignal(candles, pair, timeframe);
+      return generateFallbackMasterSignal(candles, pair, timeframe, regime);
     }
 
     // FIX: Correct parameter order for fuseSignalsWithBayesian
@@ -870,8 +874,12 @@ async function generateMasterSignalAnalysis(supabase: any, candles: any[], pair:
     // Validate fusion result
     if (!masterSignal || (!masterSignal.signal && masterSignal.signal !== 'hold')) {
       console.warn('⚠️ Invalid fusion result, using fallback');
-      return generateFallbackMasterSignal(candles, pair, timeframe);
+      return generateFallbackMasterSignal(candles, pair, timeframe, regime);
     }
+    
+    // **PHASE 2 FIX: Attach market regime to master signal**
+    masterSignal.market_regime = regime;
+    masterSignal.regime = regime; // Dual field for compatibility
     
     return masterSignal;
   } catch (error) {
@@ -890,7 +898,7 @@ async function generateMasterSignalAnalysis(supabase: any, candles: any[], pair:
     }
     
     // Return fallback master signal
-    return generateFallbackMasterSignal(candles, pair, timeframe);
+    return generateFallbackMasterSignal(candles, pair, timeframe, regime);
   }
 }
 
@@ -965,6 +973,9 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     console.warn('⚠️ Using fallback price for signal conversion');
   }
   
+  // **PHASE 2 FIX: Include market_regime from analysis**
+  const marketRegime = masterSignal.market_regime || analysis.masterSignal?.regime || 'unknown';
+  
   return {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     pair: analysis.pair,
@@ -976,6 +987,7 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     stop_loss: masterSignal.stopLoss || currentPrice * 0.995,
     take_profit: masterSignal.takeProfit || currentPrice * 1.015,
     risk_reward_ratio: masterSignal.riskRewardRatio || 2.0,
+    market_regime: marketRegime,  // **ADDED: Pass through market regime**
     description: masterSignal.reasoning || 'Master signal generated',
     alert_level: (masterSignal.confidence || 0.5) > 0.8 ? 'high' : 
                  (masterSignal.confidence || 0.5) > 0.6 ? 'medium' : 'low',
@@ -1722,7 +1734,7 @@ function generateFallbackSignal(source: string, candles: any[], pair: string, ti
 }
 
 // Generate fallback master signal when fusion fails
-function generateFallbackMasterSignal(candles: any[], pair: string, timeframe: string): any {
+function generateFallbackMasterSignal(candles: any[], pair: string, timeframe: string, regime: string = 'unknown'): any {
   const currentPrice = candles[candles.length - 1]?.close || 1.17065;
   const prices = candles.map(c => c.close);
   
@@ -1743,6 +1755,8 @@ function generateFallbackMasterSignal(candles: any[], pair: string, timeframe: s
     kellyFraction: 0.02,
     entropy: 0.7,
     consensusLevel: 0.3,
+    market_regime: regime,  // **PHASE 2 FIX: Include regime in fallback**
+    regime: regime,  // Dual field for compatibility
     reasoning: 'Fallback signal generated due to system error - basic trend analysis',
     warnings: ['System fallback mode active', 'Reduced signal reliability'],
     contributingSignals: [generateFallbackSignal('fallback_technical', candles, pair, timeframe)],
