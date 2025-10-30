@@ -879,13 +879,13 @@ serve(async (req) => {
             portfolio_id: portfolio.id,
             signal_type: signal.signal_type,
             entry_price: signal.entry_price,
-            position_size: positionSize,
+            position_size: fixedLotSize,
             confluence_score: signal.confluence_score,
             success: true
           });
 
           processedItems++;
-          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade for portfolio ${portfolio.id.slice(0, 8)}: ${positionSize} lots @ ${signal.entry_price}`);
+          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade for portfolio ${portfolio.id.slice(0, 8)}: ${fixedLotSize} lots @ ${signal.entry_price}`);
 
         } catch (tradeError) {
           console.error(`❌ Error executing trade for portfolio ${portfolio.id}:`, tradeError);

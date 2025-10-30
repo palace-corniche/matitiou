@@ -180,8 +180,8 @@ async function optimizeSignalExecutionLogic(supabase: any) {
 
     let validatedSignals = 0;
     for (const signal of pendingSignals || []) {
-      // Validate signal quality
-      if (signal.confluence_score >= 15 && signal.final_confidence >= 0.65) {
+      // Validate signal quality using quality score threshold
+      if (signal.signal_quality_score >= 30) {
         // Update signal as validated and ready for execution
         await supabase
           .from('master_signals')

@@ -1391,10 +1391,10 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
     const strength = signals.reduce((sum, s) => sum + s.strength * s.confidence, 0) / signals.length;
 
     // Calculate risk metrics using weighted average (confidence-weighted)
-    const totalWeight = signals.reduce((sum, s) => sum + s.confidence, 0);
-    const avgEntry = signals.reduce((sum, s) => sum + (s.entryPrice * s.confidence), 0) / totalWeight;
-    const avgSL = signals.reduce((sum, s) => sum + (s.stopLoss * s.confidence), 0) / totalWeight;
-    const avgTP = signals.reduce((sum, s) => sum + (s.takeProfit * s.confidence), 0) / totalWeight;
+    const totalConfidenceWeight = signals.reduce((sum, s) => sum + s.confidence, 0);
+    const avgEntry = signals.reduce((sum, s) => sum + (s.entryPrice * s.confidence), 0) / totalConfidenceWeight;
+    const avgSL = signals.reduce((sum, s) => sum + (s.stopLoss * s.confidence), 0) / totalConfidenceWeight;
+    const avgTP = signals.reduce((sum, s) => sum + (s.takeProfit * s.confidence), 0) / totalConfidenceWeight;
     
     const riskRewardRatio = dominantSignal === 'buy' 
       ? Math.abs(avgTP - avgEntry) / Math.abs(avgEntry - avgSL)
