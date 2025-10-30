@@ -477,6 +477,38 @@ serve(async (req) => {
         console.log(`🎯 Storing ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
         
         try {
+          // **CRITICAL FIX: Get fresh tick data for accurate entry price**
+          const { data: freshTickData } = await supabase
+            .from('tick_data')
+            .select('bid, ask, timestamp')
+            .eq('symbol', 'EUR/USD')
+            .eq('is_live', true)
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .single();
+          
+          // Override entry price with REAL current market price
+          if (freshTickData) {
+            const freshPrice = (freshTickData.bid + freshTickData.ask) / 2;
+            const tickAge = Date.now() - new Date(freshTickData.timestamp).getTime();
+            
+            console.log(`🔄 Updating entry price from ${confluenceSignal.entry_price.toFixed(5)} to fresh tick ${freshPrice.toFixed(5)} (${tickAge}ms old)`);
+            
+            // Update all price-dependent values with fresh price
+            const originalEntry = confluenceSignal.entry_price;
+            const priceRatio = freshPrice / originalEntry;
+            
+            confluenceSignal.entry_price = freshPrice;
+            confluenceSignal.stop_loss = confluenceSignal.signal_type === 'buy'
+              ? freshPrice - (originalEntry - confluenceSignal.stop_loss)
+              : freshPrice + (confluenceSignal.stop_loss - originalEntry);
+            confluenceSignal.take_profit = confluenceSignal.signal_type === 'buy'
+              ? freshPrice + (confluenceSignal.take_profit - originalEntry)
+              : freshPrice - (originalEntry - confluenceSignal.take_profit);
+          } else {
+            console.warn('⚠️ No fresh tick data available - using candle price (may be stale!)');
+          }
+          
           // **CRITICAL FIX: Generate proper UUID instead of using string ID**
           const analysisId = crypto.randomUUID();
           
