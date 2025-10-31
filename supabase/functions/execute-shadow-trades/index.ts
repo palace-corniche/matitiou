@@ -765,18 +765,22 @@ serve(async (req) => {
           const atr = calculateATR(recentCandles || []);
           console.log(`📊 Calculated ATR: ${atr.toFixed(5)} for ${signal.pair}`);
           
-          // Dynamic SL/TP based on ATR with MINIMUM 30 PIPS constraint
+          // Fix #3: Regime-aware dynamic SL/TP
+          const regime = signal.market_regime || 'unknown';
           let dynamicStopLoss = signal.stop_loss;
           let dynamicTakeProfit = signal.take_profit;
           
           if (atr > 0) {
-            // Calculate ATR-based stops
-            const atrStopDistance = 1.5 * atr;
-            const atrTakeProfitDistance = 4 * atr;
+            // Adjust ATR multiplier based on regime
+            const atrStopMultiplier = regime === 'ranging' ? 2.5 : 2.0;  // Wider in ranging
+            const atrTpMultiplier = regime === 'ranging' ? 5.0 : 4.0;
             
-            // CRITICAL FIX: Ensure minimum 30 pips (0.0030 for EUR/USD)
-            const MIN_STOP_DISTANCE = 0.0030; // 30 pips minimum
-            const MIN_TP_DISTANCE = 0.0050; // 50 pips minimum for TP
+            const atrStopDistance = atrStopMultiplier * atr;
+            const atrTakeProfitDistance = atrTpMultiplier * atr;
+            
+            // Minimum stops: 25 pips in ranging, 15 in trending
+            const MIN_STOP_DISTANCE = regime === 'ranging' ? 0.0025 : 0.0015; // 25 or 15 pips
+            const MIN_TP_DISTANCE = regime === 'ranging' ? 0.0050 : 0.0040; // 50 or 40 pips
             
             const actualStopDistance = Math.max(atrStopDistance, MIN_STOP_DISTANCE);
             const actualTpDistance = Math.max(atrTakeProfitDistance, MIN_TP_DISTANCE);
@@ -792,7 +796,7 @@ serve(async (req) => {
             const stopPips = Math.round(actualStopDistance / 0.0001);
             const tpPips = Math.round(actualTpDistance / 0.0001);
             
-            console.log(`🎯 Optimized SL/TP: SL=${dynamicStopLoss.toFixed(5)} (${stopPips} pips), TP=${dynamicTakeProfit.toFixed(5)} (${tpPips} pips)`);
+            console.log(`🎯 ${regime.toUpperCase()} Market - Optimized SL/TP: SL=${dynamicStopLoss.toFixed(5)} (${stopPips} pips), TP=${dynamicTakeProfit.toFixed(5)} (${tpPips} pips)`);
           }
           
           // **PHASE 1: Fixed lot size for all trades - simple and predictable**

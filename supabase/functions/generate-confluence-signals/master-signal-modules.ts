@@ -1309,12 +1309,15 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
       .limit(10);
 
     // Dynamic source weighting based on recent performance
+    // Fix #2: Regime-aware weight adjustment
+    const regime = signals[0]?.regime || 'unknown';
+    
     const sourceWeights: { [key: string]: number } = {
-      'quantitative': 0.23,  // Adjusted for new module
-      'intermarket': 0.22,   // NEW: High weight for intermarket
-      'technical': 0.18,
+      'quantitative': regime === 'ranging' ? 0.28 : 0.23,  // Boost quant in ranging
+      'intermarket': regime === 'ranging' ? 0.15 : 0.22,   // Reduce intermarket in ranging
+      'technical': regime === 'ranging' ? 0.20 : 0.18,     // Boost technical in ranging
       'fundamental': 0.16,
-      'sentiment': 0.12,
+      'sentiment': regime === 'ranging' ? 0.15 : 0.12,     // Boost sentiment in ranging
       'pattern': 0.09,
       'multitimeframe': 0.08
     };
@@ -1372,11 +1375,18 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
     sellProbability = sellProbability / totalWeight;
     const holdProbability = 1 - buyProbability - sellProbability;
 
-    // Determine dominant signal
+    // Determine dominant signal with ranging market filter
     let dominantSignal = 'hold';
     let dominantProbability = holdProbability;
     
-    if (buyProbability > sellProbability && buyProbability > holdProbability) {
+    // Fix #2: Require higher consensus in ranging markets
+    const minConsensus = regime === 'ranging' ? 0.65 : 0.50;
+    const maxSignalProb = Math.max(buyProbability, sellProbability);
+    
+    if (maxSignalProb < minConsensus) {
+      dominantSignal = 'hold';
+      dominantProbability = holdProbability;
+    } else if (buyProbability > sellProbability && buyProbability > holdProbability) {
       dominantSignal = 'buy';
       dominantProbability = buyProbability;
     } else if (sellProbability > holdProbability) {
