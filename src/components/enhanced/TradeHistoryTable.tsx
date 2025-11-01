@@ -26,6 +26,7 @@ import {
   Target,
   Clock
 } from 'lucide-react';
+import { TradeDetailsDialog } from './TradeDetailsDialog';
 
 interface TradeHistoryItem {
   id: string;
@@ -304,6 +305,7 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                 <TableHead>Pips</TableHead>
                 <TableHead>Fees</TableHead>
                 <TableHead>Balance</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -361,6 +363,27 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   </TableCell>
                   
                   <TableCell className="font-mono">${trade.balance_after.toFixed(2)}</TableCell>
+                  
+                  <TableCell className="text-right">
+                    <TradeDetailsDialog 
+                      trade={{
+                        id: trade.id,
+                        symbol: trade.symbol,
+                        trade_type: trade.trade_type,
+                        entry_price: trade.execution_price,
+                        exit_price: trade.execution_price,
+                        entry_time: trade.execution_time,
+                        exit_time: trade.execution_time,
+                        exit_reason: trade.action_type,
+                        lot_size: trade.lot_size,
+                        pnl: trade.profit,
+                        profit_pips: trade.profit_pips,
+                        commission: trade.commission,
+                        swap: trade.swap,
+                        status: 'closed'
+                      }}
+                    />
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>

@@ -442,7 +442,7 @@ serve(async (req) => {
               
               if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
                 shouldClose = true;
-                exitReason = 'intelligence_exit';
+                exitReason = 'intelligence'; // FIXED: Changed from 'intelligence_exit' to 'intelligence'
                 console.log(`🧠 ✅ Intelligence EXIT APPROVED for ${trade.id.slice(0, 8)}`);
                 console.log(`   Profit: ${profitPips.toFixed(1)} pips | Hold: ${holdingTimeMinutes.toFixed(0)}min`);
                 console.log(`   Reasoning: ${exitIntelligence.reasoning}`);

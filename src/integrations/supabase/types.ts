@@ -4039,10 +4039,27 @@ export type Database = {
         }[]
       }
       create_daily_performance_snapshot: { Args: never; Returns: undefined }
-      execute_advanced_order: {
-        Args: { p_order_data: Json; p_portfolio_id: string }
-        Returns: Json
-      }
+      execute_advanced_order:
+        | {
+            Args: { p_order_data: Json; p_portfolio_id: string }
+            Returns: Json
+          }
+        | {
+            Args: {
+              p_comment?: string
+              p_entry_price?: number
+              p_lot_size: number
+              p_magic_number?: number
+              p_order_type: string
+              p_portfolio_id: string
+              p_signal_id?: string
+              p_stop_loss?: number
+              p_symbol: string
+              p_take_profit?: number
+              p_trade_type: string
+            }
+            Returns: Json
+          }
       get_account_defaults: {
         Args: { p_portfolio_id: string }
         Returns: {
