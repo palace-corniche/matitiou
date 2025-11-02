@@ -541,12 +541,13 @@ serve(async (req) => {
                 volatility: 'normal',
                 trend: confluenceSignal.signal_type,
                 session: 'london',
-                timestamp: new Date().toISOString()
+                timestamp: new Date().toISOString(),
+                // Store regime details in snapshot since columns don't exist
+                regime_strength: regimeDetection.strength,
+                regime_confidence: regimeDetection.confidence
               },
-              // ✅ FIX #1: Add market regime data to database
+              // ✅ FIX #1: Save market regime (regime_strength/confidence stored in market_data_snapshot)
               market_regime: regime,
-              regime_strength: regimeDetection.strength,
-              regime_confidence: regimeDetection.confidence,
               status: 'pending', // Signal awaits execution evaluation
               rejection_reason: null
             })

@@ -1288,7 +1288,7 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
       }
     }
     
-    // ✅ FIX #3: In ranging markets, generate counter-trend signals
+    // ✅ FIX #3: In ranging markets, generate counter-trend signals (STRENGTHENED)
     if (regime?.includes('ranging') && candles && candles.length >= 20) {
       const currentPrice = candles[candles.length - 1]?.close || 1.17065;
       const closes = candles.map((c: any) => c.close);
@@ -1298,10 +1298,14 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
         const avgPrice = sma20[sma20.length - 1];
         const deviation = (currentPrice - avgPrice) / avgPrice;
         
-        // Generate counter-trend signal at range extremes
-        if (Math.abs(deviation) > 0.001) { // 10 pips from average
+        // ✅ STRENGTHENED: Generate counter-trend signal at 5 pips deviation (was 10 pips)
+        if (Math.abs(deviation) > 0.0005) { // 5 pips from average (more aggressive)
           const counterSignal: 'buy' | 'sell' = currentPrice > avgPrice ? 'sell' : 'buy';
-          const strength = Math.min(1, Math.abs(deviation) * 100);
+          const strength = Math.min(1, Math.abs(deviation) * 150); // Increased sensitivity
+          
+          // ✅ Higher confidence for counter-trend in ranging markets
+          const baseConfidence = 0.70; // Increased from 0.65
+          const confidenceBoost = Math.min(0.20, strength * 0.20); // Up to 20% boost
           
           signals.push({
             source: 'intermarket_ranging_reversion',
@@ -1309,18 +1313,19 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
             pair,
             timeframe,
             signal: counterSignal,
-            confidence: 0.65 + strength * 0.15,
+            confidence: baseConfidence + confidenceBoost,
             strength: strength,
             entryPrice: currentPrice,
-            stopLoss: counterSignal === 'buy' ? currentPrice * 0.997 : currentPrice * 1.003,
-            takeProfit: avgPrice,
+            stopLoss: counterSignal === 'buy' ? currentPrice * 0.9965 : currentPrice * 1.0035, // 35 pips SL
+            takeProfit: avgPrice, // Target mean reversion
             factors: [
               { name: 'range_deviation', value: Math.abs(deviation), weight: 0.6, contribution: strength * 0.6 },
               { name: 'ranging_regime', value: 1, weight: 0.4, contribution: 0.4 }
             ]
           });
           
-          console.log(`✅ Generated RANGING counter-trend ${counterSignal} signal (deviation: ${(deviation * 100).toFixed(2)}%)`);
+          console.log(`✅ STRENGTHENED RANGING counter-trend ${counterSignal.toUpperCase()} signal generated`);
+          console.log(`   📊 Deviation: ${(deviation * 100).toFixed(2)}% | Confidence: ${(baseConfidence + confidenceBoost).toFixed(2)} | Strength: ${strength.toFixed(2)}`);
         }
       }
     }
