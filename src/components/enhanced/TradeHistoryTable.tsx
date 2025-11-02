@@ -30,19 +30,21 @@ import { TradeDetailsDialog } from './TradeDetailsDialog';
 
 interface TradeHistoryItem {
   id: string;
-  action_type: string;
   symbol: string;
-  trade_type: string;
+  trade_type: 'buy' | 'sell';
   lot_size: number;
-  execution_price: number;
-  profit?: number;
+  entry_price: number;
+  exit_price?: number;
+  entry_time: string;
+  exit_time?: string;
+  exit_reason?: string;
+  stop_loss?: number;
+  take_profit?: number;
+  pnl?: number;
   profit_pips?: number;
   commission?: number;
   swap?: number;
-  balance_before: number;
-  balance_after: number;
-  execution_time: string;
-  original_trade_id?: string;
+  status: string;
 }
 
 interface TradeHistoryTableProps {
@@ -57,7 +59,7 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterAction, setFilterAction] = useState('all');
   const [filterSymbol, setFilterSymbol] = useState('all');
-  const [sortBy, setSortBy] = useState('execution_time');
+  const [sortBy, setSortBy] = useState('exit_time');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   // Filter and sort trades
@@ -65,10 +67,12 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
     let filtered = tradeHistory.filter(trade => {
       const matchesSearch = 
         trade.symbol.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        trade.action_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        trade.trade_type.toLowerCase().includes(searchTerm.toLowerCase());
+        trade.trade_type.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (trade.exit_reason && trade.exit_reason.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesAction = filterAction === 'all' || trade.action_type === filterAction;
+      const matchesAction = filterAction === 'all' || 
+        (filterAction === 'close' && trade.status === 'closed') ||
+        (filterAction === 'open' && trade.status === 'open');
       const matchesSymbol = filterSymbol === 'all' || trade.symbol === filterSymbol;
       
       return matchesSearch && matchesAction && matchesSymbol;
@@ -79,9 +83,9 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
       let aVal: any = a[sortBy as keyof TradeHistoryItem];
       let bVal: any = b[sortBy as keyof TradeHistoryItem];
       
-      if (sortBy === 'execution_time') {
-        aVal = new Date(aVal).getTime();
-        bVal = new Date(bVal).getTime();
+      if (sortBy === 'exit_time' || sortBy === 'entry_time') {
+        aVal = new Date(aVal || 0).getTime();
+        bVal = new Date(bVal || 0).getTime();
       }
       
       if (typeof aVal === 'string') {
@@ -101,11 +105,11 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
 
   // Calculate summary statistics
   const summaryStats = useMemo(() => {
-    const closedTrades = filteredTrades.filter(t => t.action_type === 'close');
+    const closedTrades = filteredTrades.filter(t => t.status === 'closed');
     const totalTrades = closedTrades.length;
-    const winningTrades = closedTrades.filter(t => (t.profit || 0) > 0).length;
-    const losingTrades = closedTrades.filter(t => (t.profit || 0) < 0).length;
-    const totalProfit = closedTrades.reduce((sum, t) => sum + (t.profit || 0), 0);
+    const winningTrades = closedTrades.filter(t => (t.pnl || 0) > 0).length;
+    const losingTrades = closedTrades.filter(t => (t.pnl || 0) < 0).length;
+    const totalProfit = closedTrades.reduce((sum, t) => sum + (t.pnl || 0), 0);
     const totalVolume = filteredTrades.reduce((sum, t) => sum + t.lot_size, 0);
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
     
@@ -139,21 +143,29 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
     }
   };
 
+  const calculateDuration = (entryTime: string, exitTime?: string): number => {
+    if (!exitTime) return 0;
+    const entry = new Date(entryTime).getTime();
+    const exit = new Date(exitTime).getTime();
+    return (exit - entry) / (1000 * 60); // Returns minutes
+  };
+
   const exportData = () => {
     const csvContent = [
-      ['Date', 'Action', 'Symbol', 'Type', 'Volume', 'Price', 'P&L', 'Pips', 'Commission', 'Swap', 'Balance'].join(','),
+      ['Entry Time', 'Exit Time', 'Symbol', 'Type', 'Volume', 'Entry Price', 'Exit Price', 'P&L', 'Pips', 'Commission', 'Swap', 'Exit Reason'].join(','),
       ...filteredTrades.map(trade => [
-        new Date(trade.execution_time).toISOString(),
-        trade.action_type,
+        new Date(trade.entry_time).toISOString(),
+        trade.exit_time ? new Date(trade.exit_time).toISOString() : '',
         trade.symbol,
         trade.trade_type,
         trade.lot_size,
-        trade.execution_price,
-        trade.profit || 0,
+        trade.entry_price,
+        trade.exit_price || 0,
+        trade.pnl || 0,
         trade.profit_pips || 0,
         trade.commission || 0,
         trade.swap || 0,
-        trade.balance_after
+        trade.exit_reason || ''
       ].join(','))
     ].join('\n');
 
@@ -249,13 +261,12 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
           
           <Select value={filterAction} onValueChange={setFilterAction}>
             <SelectTrigger className="w-[140px]">
-              <SelectValue placeholder="Action" />
+              <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Actions</SelectItem>
+              <SelectItem value="all">All Status</SelectItem>
               <SelectItem value="open">Open</SelectItem>
-              <SelectItem value="close">Close</SelectItem>
-              <SelectItem value="partial_close">Partial Close</SelectItem>
+              <SelectItem value="close">Closed</SelectItem>
             </SelectContent>
           </Select>
 
@@ -280,10 +291,10 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="execution_time-desc">Newest First</SelectItem>
-              <SelectItem value="execution_time-asc">Oldest First</SelectItem>
-              <SelectItem value="profit-desc">Highest P&L</SelectItem>
-              <SelectItem value="profit-asc">Lowest P&L</SelectItem>
+              <SelectItem value="exit_time-desc">Newest First</SelectItem>
+              <SelectItem value="exit_time-asc">Oldest First</SelectItem>
+              <SelectItem value="pnl-desc">Highest P&L</SelectItem>
+              <SelectItem value="pnl-asc">Lowest P&L</SelectItem>
               <SelectItem value="lot_size-desc">Largest Volume</SelectItem>
               <SelectItem value="symbol-asc">Symbol A-Z</SelectItem>
             </SelectContent>
@@ -295,16 +306,16 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Date & Time</TableHead>
-                <TableHead>Action</TableHead>
+                <TableHead>Exit Time</TableHead>
+                <TableHead>Status</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Volume</TableHead>
-                <TableHead>Price</TableHead>
+                <TableHead>Entry → Exit</TableHead>
                 <TableHead>P&L</TableHead>
                 <TableHead>Pips</TableHead>
                 <TableHead>Fees</TableHead>
-                <TableHead>Balance</TableHead>
+                <TableHead>Exit Reason</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -314,13 +325,13 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   <TableCell className="text-sm">
                     <div className="flex items-center gap-1">
                       <Clock className="h-3 w-3 text-muted-foreground" />
-                      {new Date(trade.execution_time).toLocaleString()}
+                      {trade.exit_time ? new Date(trade.exit_time).toLocaleString() : 'Open'}
                     </div>
                   </TableCell>
                   
                   <TableCell>
-                    <Badge variant={getActionBadgeVariant(trade.action_type)} className="capitalize">
-                      {trade.action_type.replace('_', ' ')}
+                    <Badge variant={trade.status === 'closed' ? 'default' : 'secondary'} className="capitalize">
+                      {trade.status}
                     </Badge>
                   </TableCell>
                   
@@ -337,11 +348,19 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                   
                   <TableCell className="font-mono">{trade.lot_size.toFixed(2)}</TableCell>
                   
-                  <TableCell className="font-mono">{trade.execution_price.toFixed(5)}</TableCell>
+                  <TableCell className="font-mono text-sm">
+                    <div>{trade.entry_price.toFixed(5)}</div>
+                    {trade.exit_price && (
+                      <>
+                        <div className="text-muted-foreground">↓</div>
+                        <div>{trade.exit_price.toFixed(5)}</div>
+                      </>
+                    )}
+                  </TableCell>
                   
                   <TableCell>
-                    <div className={`font-semibold ${getPnLColor(trade.profit || 0)}`}>
-                      {(trade.profit || 0) >= 0 ? '+' : ''}${(trade.profit || 0).toFixed(2)}
+                    <div className={`font-semibold ${getPnLColor(trade.pnl || 0)}`}>
+                      {(trade.pnl || 0) >= 0 ? '+' : ''}${(trade.pnl || 0).toFixed(2)}
                     </div>
                   </TableCell>
                   
@@ -362,7 +381,11 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                     </div>
                   </TableCell>
                   
-                  <TableCell className="font-mono">${trade.balance_after.toFixed(2)}</TableCell>
+                  <TableCell className="text-xs">
+                    <Badge variant="outline" className="text-xs">
+                      {trade.exit_reason ? trade.exit_reason.replace('_', ' ') : 'Open'}
+                    </Badge>
+                  </TableCell>
                   
                   <TableCell className="text-right">
                     <TradeDetailsDialog 
@@ -370,17 +393,20 @@ export const TradeHistoryTable: React.FC<TradeHistoryTableProps> = ({
                         id: trade.id,
                         symbol: trade.symbol,
                         trade_type: trade.trade_type,
-                        entry_price: trade.execution_price,
-                        exit_price: trade.execution_price,
-                        entry_time: trade.execution_time,
-                        exit_time: trade.execution_time,
-                        exit_reason: trade.action_type,
+                        entry_price: trade.entry_price,
+                        exit_price: trade.exit_price,
+                        entry_time: trade.entry_time,
+                        exit_time: trade.exit_time,
+                        exit_reason: trade.exit_reason,
                         lot_size: trade.lot_size,
-                        pnl: trade.profit,
+                        stop_loss: trade.stop_loss,
+                        take_profit: trade.take_profit,
+                        pnl: trade.pnl,
                         profit_pips: trade.profit_pips,
                         commission: trade.commission,
                         swap: trade.swap,
-                        status: 'closed'
+                        status: trade.status,
+                        duration_minutes: calculateDuration(trade.entry_time, trade.exit_time)
                       }}
                     />
                   </TableCell>

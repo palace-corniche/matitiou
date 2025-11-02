@@ -296,19 +296,20 @@ class GlobalShadowTradingEngine {
     }
   }
 
-  async getTradeHistory(limit: number = 50): Promise<any[]> {
+  async getTradeHistory(limit: number = 50): Promise<GlobalShadowTrade[]> {
     try {
       const { data, error } = await supabase
-        .from('trade_history')
+        .from('shadow_trades')
         .select('*')
-        .order('execution_time', { ascending: false })
+        .eq('status', 'closed')
+        .order('exit_time', { ascending: false })
         .limit(limit);
 
       if (error) {
         throw new Error(`Failed to fetch trade history: ${error.message}`);
       }
 
-      return data;
+      return data as GlobalShadowTrade[];
     } catch (error) {
       console.error('Trade history fetch error:', error);
       throw error;
