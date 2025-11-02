@@ -4060,6 +4060,17 @@ export type Database = {
             }
             Returns: Json
           }
+        | {
+            Args: {
+              p_lot_size: number
+              p_portfolio_id: string
+              p_stop_loss?: number
+              p_symbol: string
+              p_take_profit?: number
+              p_trade_type: string
+            }
+            Returns: Json
+          }
       get_account_defaults: {
         Args: { p_portfolio_id: string }
         Returns: {
