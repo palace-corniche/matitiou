@@ -543,6 +543,10 @@ serve(async (req) => {
                 session: 'london',
                 timestamp: new Date().toISOString()
               },
+              // ✅ FIX #1: Add market regime data to database
+              market_regime: regime,
+              regime_strength: regimeDetection.strength,
+              regime_confidence: regimeDetection.confidence,
               status: 'pending', // Signal awaits execution evaluation
               rejection_reason: null
             })
@@ -795,7 +799,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
 
   // Sentiment signals with enhanced error handling
   try {
-    const sentimentSignals = await generateSentimentSignals(candles, pair, timeframe, supabase);
+    const sentimentSignals = await generateSentimentSignals(candles, pair, timeframe, supabase, regime);
     if (sentimentSignals?.length > 0) {
       signals.push(...sentimentSignals);
       console.log(`✅ Generated ${sentimentSignals.length} sentiment signals`);
@@ -845,7 +849,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
 
   // Intermarket signals with enhanced error handling
   try {
-    const intermarketSignals = await generateIntermarketSignals(supabase, pair, timeframe);
+    const intermarketSignals = await generateIntermarketSignals(supabase, pair, timeframe, regime, candles);
     if (intermarketSignals?.length > 0) {
       signals.push(...intermarketSignals);
       console.log(`✅ Generated ${intermarketSignals.length} intermarket signals`);

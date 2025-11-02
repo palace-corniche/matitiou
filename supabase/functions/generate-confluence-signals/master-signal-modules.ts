@@ -467,7 +467,8 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
 }
 
 // ===================== ENHANCED SENTIMENT ANALYSIS SIGNALS =====================
-export async function generateSentimentSignals(candles: any[], pair: string, timeframe: string, supabase: any): Promise<StandardSignal[]> {
+// ✅ FIX #3: Added regime parameter to balance sentiment signals
+export async function generateSentimentSignals(candles: any[], pair: string, timeframe: string, supabase: any, regime?: string): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
   const currentPrice = candles[candles.length - 1]?.close || 1.17065;
 
@@ -489,19 +490,29 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
         const cotData = signal.intermediate_values?.cot_data || {};
         const retailPositioning = signal.intermediate_values?.retail_positioning || {};
         
+        // ✅ FIX #3: Balance sentiment scores towards neutral baseline
+        let adjustedConfidence = signal.confidence;
+        
+        // In ranging markets, reduce extreme bullish/bearish bias
+        if (regime?.includes('ranging')) {
+          // Pull confidence closer to 0.5 (neutral) by 20%
+          adjustedConfidence = 0.5 + (signal.confidence - 0.5) * 0.8;
+          console.log(`📊 Sentiment signal in RANGING - balancing confidence from ${signal.confidence.toFixed(2)} to ${adjustedConfidence.toFixed(2)}`);
+        }
+        
         signals.push({
           source: `sentiment_${signal.module_id}`,
           timestamp: new Date(),
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.1),
+          confidence: Math.min(1, adjustedConfidence * 1.1),
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.995 : 1.005)),
           takeProfit: signal.suggested_take_profit || (currentPrice * (signal.signal_type === 'buy' ? 1.02 : 0.98)),
           factors: [
-            { name: 'sentiment_confidence', value: signal.confidence, weight: 0.3, contribution: signal.confidence * 0.3 },
+            { name: 'sentiment_confidence', value: adjustedConfidence, weight: 0.3, contribution: adjustedConfidence * 0.3 },
             { name: 'cot_positioning', value: cotData.commercial_long || 0, weight: 0.25, contribution: 0.25 },
             { name: 'retail_sentiment', value: retailPositioning.long_percentage || 50, weight: 0.25, contribution: 0.25 },
             { name: 'fear_greed', value: signal.calculation_parameters?.fear_greed_index || 50, weight: 0.2, contribution: 0.2 }
@@ -1206,7 +1217,8 @@ export async function generateStrategySignals(candles: any[], pair: string, time
 }
 
 // ===================== ENHANCED INTERMARKET ANALYSIS SIGNALS =====================
-export async function generateIntermarketSignals(supabase: any, pair: string, timeframe: string): Promise<StandardSignal[]> {
+// ✅ FIX #3: Added regime parameter to balance BUY/SELL signals
+export async function generateIntermarketSignals(supabase: any, pair: string, timeframe: string, regime?: string, candles?: any[]): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
   
   try {
@@ -1227,9 +1239,14 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
         const intermarketData = signal.intermediate_values?.intermarket_data || {};
         const analysisResult = signal.intermediate_values?.analysis_result || {};
         
-        // Apply regime-based confidence boost
+        // ✅ FIX #3: Regime-aware confidence adjustment
         let confidenceBoost = 1.0;
-        if (analysisResult.risk_environment === 'risk_off' && 
+        
+        // In ranging markets, reduce intermarket signal confidence (counter-trend focus)
+        if (regime?.includes('ranging')) {
+          confidenceBoost = 0.7; // Reduce by 30% in ranging markets
+          console.log(`📊 Intermarket signal in RANGING market - reducing confidence to ${(signal.confidence * confidenceBoost).toFixed(2)}`);
+        } else if (analysisResult.risk_environment === 'risk_off' && 
             (analysisResult.primary_driver === 'safe_haven_flow' || analysisResult.primary_driver === 'USD_strength')) {
           confidenceBoost = 1.3; // 30% boost in risk-off for safe haven signals
         } else if (analysisResult.risk_environment === 'risk_on' && analysisResult.primary_driver === 'commodity_correlation') {
@@ -1268,6 +1285,43 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
             }
           ]
         });
+      }
+    }
+    
+    // ✅ FIX #3: In ranging markets, generate counter-trend signals
+    if (regime?.includes('ranging') && candles && candles.length >= 20) {
+      const currentPrice = candles[candles.length - 1]?.close || 1.17065;
+      const closes = candles.map((c: any) => c.close);
+      const sma20 = calculateSMA(closes, 20);
+      
+      if (sma20 && sma20.length > 0) {
+        const avgPrice = sma20[sma20.length - 1];
+        const deviation = (currentPrice - avgPrice) / avgPrice;
+        
+        // Generate counter-trend signal at range extremes
+        if (Math.abs(deviation) > 0.001) { // 10 pips from average
+          const counterSignal: 'buy' | 'sell' = currentPrice > avgPrice ? 'sell' : 'buy';
+          const strength = Math.min(1, Math.abs(deviation) * 100);
+          
+          signals.push({
+            source: 'intermarket_ranging_reversion',
+            timestamp: new Date(),
+            pair,
+            timeframe,
+            signal: counterSignal,
+            confidence: 0.65 + strength * 0.15,
+            strength: strength,
+            entryPrice: currentPrice,
+            stopLoss: counterSignal === 'buy' ? currentPrice * 0.997 : currentPrice * 1.003,
+            takeProfit: avgPrice,
+            factors: [
+              { name: 'range_deviation', value: Math.abs(deviation), weight: 0.6, contribution: strength * 0.6 },
+              { name: 'ranging_regime', value: 1, weight: 0.4, contribution: 0.4 }
+            ]
+          });
+          
+          console.log(`✅ Generated RANGING counter-trend ${counterSignal} signal (deviation: ${(deviation * 100).toFixed(2)}%)`);
+        }
       }
     }
   } catch (error) {

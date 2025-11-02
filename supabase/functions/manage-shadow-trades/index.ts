@@ -427,30 +427,53 @@ serve(async (req) => {
               console.log(`✅ Intelligence score ${exitIntelligence.overallExitScore.toFixed(2)} stored, trigger: ${exitIntelligence.recommendation === 'FORCE_EXIT'}`);
             }
 
-            // Decision based on intelligence score with minimum requirements
+            // ✅ FIX #2: Loosened intelligence exit conditions
             if (exitIntelligence.recommendation === 'FORCE_EXIT') {
-              // PHASE 3: Apply minimum profit/time requirements
               const profitPips = calculateProfitPips(trade, currentPrice);
               const holdingTimeMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
               
-              const MIN_PROFIT_PIPS = 5;
-              const MIN_HOLD_TIME_MINUTES = 10;
+              // Three exit scenarios:
+              // 1. Profit >= 5 pips after 10 min (original - secure profit)
+              const shouldExitProfit = profitPips >= 5 && holdingTimeMinutes >= 10;
               
-              console.log(`⚠️ FORCE_EXIT recommendation - Checking minimums:`);
-              console.log(`   Current profit: ${profitPips.toFixed(1)} pips (min: ${MIN_PROFIT_PIPS})`);
-              console.log(`   Holding time: ${holdingTimeMinutes.toFixed(0)}min (min: ${MIN_HOLD_TIME_MINUTES})`);
+              // 2. Loss >= -15 pips after 30 min (NEW - cut losses early)
+              const shouldExitLoss = profitPips <= -15 && holdingTimeMinutes >= 30;
               
-              if (profitPips >= MIN_PROFIT_PIPS && holdingTimeMinutes >= MIN_HOLD_TIME_MINUTES) {
+              // 3. Exit score < 20 after 60 min (NEW - deteriorating conditions)
+              const shouldExitDeteriorating = exitIntelligence.overallExitScore < 20 && holdingTimeMinutes >= 60;
+              
+              console.log(`⚠️ FORCE_EXIT recommendation - Checking conditions:`);
+              console.log(`   Profit: ${profitPips.toFixed(1)} pips | Hold: ${holdingTimeMinutes.toFixed(0)}min | Score: ${exitIntelligence.overallExitScore.toFixed(1)}`);
+              console.log(`   Exit Profit? ${shouldExitProfit} | Exit Loss? ${shouldExitLoss} | Exit Deteriorating? ${shouldExitDeteriorating}`);
+              
+              if (shouldExitProfit || shouldExitLoss || shouldExitDeteriorating) {
                 shouldClose = true;
-                exitReason = 'intelligence'; // FIXED: Changed from 'intelligence_exit' to 'intelligence'
-                console.log(`🧠 ✅ Intelligence EXIT APPROVED for ${trade.id.slice(0, 8)}`);
+                exitReason = 'intelligence';
+                
+                const exitType = shouldExitProfit ? 'PROFIT SECURE' : 
+                                shouldExitLoss ? 'LOSS CUT' : 
+                                'DETERIORATING';
+                
+                console.log(`🧠 ✅ Intelligence ${exitType} EXIT APPROVED for ${trade.id.slice(0, 8)}`);
                 console.log(`   Profit: ${profitPips.toFixed(1)} pips | Hold: ${holdingTimeMinutes.toFixed(0)}min`);
                 console.log(`   Reasoning: ${exitIntelligence.reasoning}`);
                 console.log(`   Score: ${exitIntelligence.overallExitScore.toFixed(2)}/100`);
+                
+                // Log to diagnostics
+                await supabase.from('trading_diagnostics').insert({
+                  diagnostic_type: 'intelligence_exit_triggered',
+                  severity_level: shouldExitLoss ? 'warning' : 'info',
+                  metadata: {
+                    trade_id: trade.id.slice(0, 8),
+                    exit_type: exitType,
+                    profit_pips: profitPips,
+                    holding_minutes: holdingTimeMinutes,
+                    exit_score: exitIntelligence.overallExitScore,
+                    recommendation: exitIntelligence.recommendation
+                  }
+                });
               } else {
-                console.log(`⏳ Intelligence wants exit but BLOCKED by minimums:`);
-                console.log(`   Need: ${MIN_PROFIT_PIPS} pips & ${MIN_HOLD_TIME_MINUTES}min`);
-                console.log(`   Have: ${profitPips.toFixed(1)} pips & ${holdingTimeMinutes.toFixed(0)}min`);
+                console.log(`⏳ Intelligence wants exit but conditions not met yet`);
               }
             } else if (exitIntelligence.recommendation === 'HOLD_CONFIDENT') {
               console.log(`✅ Intelligence HOLD_CONFIDENT for ${trade.id.slice(0, 8)}`);
