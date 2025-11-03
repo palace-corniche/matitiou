@@ -296,7 +296,7 @@ class GlobalShadowTradingEngine {
     }
   }
 
-  async getTradeHistory(limit: number = 50): Promise<GlobalShadowTrade[]> {
+  async getTradeHistory(limit: number = 200): Promise<GlobalShadowTrade[]> {
     try {
       const { data, error } = await supabase
         .from('shadow_trades')

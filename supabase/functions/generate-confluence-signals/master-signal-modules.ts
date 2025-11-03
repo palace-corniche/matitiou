@@ -179,6 +179,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
   // Determine trend direction (CRITICAL FOR SIGNAL FILTERING)
   const isTrendingUp = sma20 && sma50 && sma20.length > 0 && sma50.length > 0 && sma20[sma20.length - 1] > sma50[sma50.length - 1];
   const isTrendingDown = sma20 && sma50 && sma20.length > 0 && sma50.length > 0 && sma20[sma20.length - 1] < sma50[sma50.length - 1];
+  const isRanging = !isTrendingUp && !isTrendingDown;
   const trendDirection = isTrendingUp ? 'up' : isTrendingDown ? 'down' : 'sideways';
   
   console.log(`📈 Trend Direction: ${trendDirection} (SMA20: ${sma20?.[sma20.length - 1]?.toFixed(5)}, SMA50: ${sma50?.[sma50.length - 1]?.toFixed(5)})`);
@@ -193,11 +194,13 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     const macdCrossover = (latestMACD.macd - latestMACD.signal) * (previousMACD.macd - previousMACD.signal) < 0;
     const histogramTrend = latestMACD.histogram > previousMACD.histogram ? 'bullish' : 'bearish';
     
-    // CRITICAL: Only generate signal if aligned with trend
+    // PHASE 2 FIX: Allow counter-trend SELL signals in ranging markets
     const isTrendAligned = (macdSignal === 'buy' && isTrendingUp) || (macdSignal === 'sell' && isTrendingDown);
+    const isValidRangingSell = isRanging && macdSignal === 'sell' && currentPrice > sma20[sma20.length - 1];
     
-    if ((macdCrossover || Math.abs(latestMACD.histogram) > 0.0001) && isTrendAligned) {
+    if ((macdCrossover || Math.abs(latestMACD.histogram) > 0.0001) && (isTrendAligned || isValidRangingSell)) {
       const macdStrength = Math.min(1, Math.abs(latestMACD.histogram) * 10000);
+      const confidenceBoost = isValidRangingSell ? 0.75 : (macdCrossover ? 0.85 : 0.65);
       
       signals.push({
         source: 'technical_macd',
@@ -205,7 +208,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
         pair,
         timeframe,
         signal: macdSignal,
-        confidence: macdCrossover ? 0.85 : 0.65, // Boosted for trend-aligned signals
+        confidence: confidenceBoost,
         strength: macdStrength,
         entryPrice: currentPrice,
         stopLoss: currentPrice * (macdSignal === 'buy' ? 0.995 : 1.005),
@@ -216,9 +219,9 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           { name: 'histogram', value: latestMACD.histogram, weight: 0.3, contribution: Math.abs(latestMACD.histogram) * 10000 * 0.3 }
         ]
       });
-      console.log(`✅ MACD ${macdSignal} signal (trend-aligned)`);
-    } else if (!isTrendAligned) {
-      console.log(`❌ REJECTED: MACD ${macdSignal} signal (counter-trend)`);
+      console.log(`✅ MACD ${macdSignal} signal ${isValidRangingSell ? '(ranging counter-trend)' : '(trend-aligned)'}`);
+    } else if (!isTrendAligned && !isValidRangingSell) {
+      console.log(`❌ REJECTED: MACD ${macdSignal} signal (counter-trend in trending market)`);
     }
   }
 
@@ -261,17 +264,20 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
   if (sma20 && sma50 && ema12 && ema26) {
     const maAlignment = calculateMAAlignment(currentPrice, sma20[sma20.length - 1], sma50[sma50.length - 1], ema12[ema12.length - 1], ema26[ema26.length - 1]);
     
-    // CRITICAL: Only generate signal if aligned with trend
+    // PHASE 2 FIX: Allow counter-trend SELL signals in ranging markets
     const isTrendAligned = (maAlignment.signal === 'buy' && isTrendingUp) || (maAlignment.signal === 'sell' && isTrendingDown);
+    const isValidRangingSell = isRanging && maAlignment.signal === 'sell' && currentPrice > sma20[sma20.length - 1];
     
-    if (maAlignment.strength > 0.4 && isTrendAligned) {
+    if (maAlignment.strength > 0.4 && (isTrendAligned || isValidRangingSell)) {
+      const confidenceBoost = isValidRangingSell ? maAlignment.strength * 0.9 : maAlignment.strength * 1.1;
+      
       signals.push({
         source: 'technical_ma_confluence',
         timestamp: new Date(),
         pair,
         timeframe,
         signal: maAlignment.signal,
-        confidence: maAlignment.strength * 1.1, // Boosted for trend-aligned signals
+        confidence: confidenceBoost,
         strength: maAlignment.strength,
         entryPrice: currentPrice,
         stopLoss: currentPrice * (maAlignment.signal === 'buy' ? 0.996 : 1.004),
@@ -282,9 +288,9 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           { name: 'price_position', value: maAlignment.pricePosition, weight: 0.4, contribution: maAlignment.pricePosition * 0.4 }
         ]
       });
-      console.log(`✅ MA Confluence ${maAlignment.signal} signal (trend-aligned)`);
-    } else if (!isTrendAligned) {
-      console.log(`❌ REJECTED: MA Confluence ${maAlignment.signal} signal (counter-trend)`);
+      console.log(`✅ MA Confluence ${maAlignment.signal} signal ${isValidRangingSell ? '(ranging counter-trend)' : '(trend-aligned)'}`);
+    } else if (!isTrendAligned && !isValidRangingSell) {
+      console.log(`❌ REJECTED: MA Confluence ${maAlignment.signal} signal (counter-trend in trending market)`);
     }
   }
 
@@ -1371,14 +1377,15 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
     // Fix #2: Regime-aware weight adjustment
     const regime = signals[0]?.regime || 'unknown';
     
+    // PHASE 2 FIX: Increased weights for Technical, Sentiment, and Intermarket signals
     const sourceWeights: { [key: string]: number } = {
       'quantitative': regime === 'ranging' ? 0.28 : 0.23,  // Boost quant in ranging
-      'intermarket': regime === 'ranging' ? 0.15 : 0.22,   // Reduce intermarket in ranging
-      'technical': regime === 'ranging' ? 0.20 : 0.18,     // Boost technical in ranging
-      'fundamental': 0.16,
-      'sentiment': regime === 'ranging' ? 0.15 : 0.12,     // Boost sentiment in ranging
-      'pattern': 0.09,
-      'multitimeframe': 0.08
+      'intermarket': regime === 'ranging' ? 0.18 : 0.25,   // INCREASED from 0.15/0.22
+      'technical': regime === 'ranging' ? 0.25 : 0.22,     // INCREASED from 0.20/0.18
+      'fundamental': 0.14,                                  // Slightly reduced to compensate
+      'sentiment': regime === 'ranging' ? 0.18 : 0.15,     // INCREASED from 0.15/0.12
+      'pattern': 0.08,                                      // Slightly reduced
+      'multitimeframe': 0.07                                // Slightly reduced
     };
 
     // Adjust weights based on recent performance
@@ -1438,8 +1445,8 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
     let dominantSignal = 'hold';
     let dominantProbability = holdProbability;
     
-    // Fix #2: Require higher consensus in ranging markets
-    const minConsensus = regime === 'ranging' ? 0.65 : 0.50;
+    // PHASE 2 FIX: Lower consensus requirement to allow more SELL signals
+    const minConsensus = regime === 'ranging' ? 0.55 : 0.45;  // Reduced from 0.65/0.50
     const maxSignalProb = Math.max(buyProbability, sellProbability);
     
     if (maxSignalProb < minConsensus) {

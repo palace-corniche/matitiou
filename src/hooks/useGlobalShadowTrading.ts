@@ -248,7 +248,7 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
       const [accountData, openTradesData, historyData, metricsData] = await Promise.all([
         globalShadowTradingEngine.getGlobalAccount(),
         globalShadowTradingEngine.getOpenTrades(),
-        globalShadowTradingEngine.getTradeHistory(50),
+        globalShadowTradingEngine.getTradeHistory(200), // Increased from 50 to 200
         globalShadowTradingEngine.getPerformanceMetrics()
       ]);
 
