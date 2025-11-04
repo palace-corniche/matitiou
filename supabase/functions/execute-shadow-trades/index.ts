@@ -715,6 +715,57 @@ serve(async (req) => {
 
           const actualOpenPositions = openTrades?.length || 0;
 
+          // **AUTO-CLOSE OPPOSITE DIRECTION TRADES**
+          const oppositeDirection = signal.signal_type === 'buy' ? 'sell' : 'buy';
+          const oppositeTrades = openTrades?.filter(t => t.trade_type === oppositeDirection) || [];
+          
+          if (oppositeTrades.length > 0) {
+            console.log(`🔄 Closing ${oppositeTrades.length} opposite ${oppositeDirection.toUpperCase()} trades before executing new ${signal.signal_type.toUpperCase()} signal`);
+            
+            // Get current market price for closing
+            const { data: latestTick } = await supabase
+              .from('tick_data')
+              .select('bid, ask')
+              .eq('symbol', signal.pair)
+              .order('timestamp', { ascending: false })
+              .limit(1)
+              .single();
+            
+            const closePrice = oppositeDirection === 'buy' 
+              ? latestTick?.bid || signal.entry_price 
+              : latestTick?.ask || signal.entry_price;
+            
+            // Close all opposite trades
+            for (const oppTrade of oppositeTrades) {
+              const { data: closeResult, error: closeError } = await supabase
+                .rpc('close_shadow_trade', {
+                  p_trade_id: oppTrade.id,
+                  p_close_price: closePrice,
+                  p_close_reason: `Opposite signal triggered (${signal.signal_type.toUpperCase()})`
+                });
+              
+              if (closeError) {
+                console.error(`❌ Failed to close opposite trade ${oppTrade.id}:`, closeError);
+              } else {
+                console.log(`✅ Closed ${oppositeDirection.toUpperCase()} trade ${oppTrade.id.slice(0, 8)}: ${closeResult.profit?.toFixed(2) || 'N/A'} pips`);
+              }
+            }
+            
+            // Refresh open trades count after closing opposites
+            const { data: refreshedTrades } = await supabase
+              .from('shadow_trades')
+              .select('id')
+              .eq('portfolio_id', portfolio.id)
+              .eq('status', 'open');
+            
+            const updatedOpenPositions = refreshedTrades?.length || 0;
+            
+            if (updatedOpenPositions >= portfolio.max_open_positions) {
+              console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${updatedOpenPositions}/${portfolio.max_open_positions})`);
+              continue;
+            }
+          }
+
           if (actualOpenPositions >= portfolio.max_open_positions) {
             console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${actualOpenPositions}/${portfolio.max_open_positions})`);
             continue;
