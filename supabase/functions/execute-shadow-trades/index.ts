@@ -777,26 +777,27 @@ serve(async (req) => {
           let dynamicTakeProfit = signal.take_profit;
           let targetsReasoning = 'Using signal defaults';
           let targetsConfidence = 50;
+          let intelligentTargets: any = null;
           
           if (targetsResponse.ok) {
-            const targets = await targetsResponse.json();
-            dynamicStopLoss = targets.stop_loss;
-            dynamicTakeProfit = targets.take_profit_1; // Use first target
-            targetsReasoning = targets.reasoning;
-            targetsConfidence = targets.confidence;
+            intelligentTargets = await targetsResponse.json();
+            dynamicStopLoss = intelligentTargets.stop_loss;
+            dynamicTakeProfit = intelligentTargets.take_profit_1; // Use first target
+            targetsReasoning = intelligentTargets.reasoning;
+            targetsConfidence = intelligentTargets.confidence;
             
             const stopPips = Math.round(Math.abs(signal.entry_price - dynamicStopLoss) / 0.0001);
-            const tp1Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_1) / 0.0001);
-            const tp2Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_2) / 0.0001);
-            const tp3Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_3) / 0.0001);
+            const tp1Pips = Math.round(Math.abs(signal.entry_price - intelligentTargets.take_profit_1) / 0.0001);
+            const tp2Pips = Math.round(Math.abs(signal.entry_price - intelligentTargets.take_profit_2) / 0.0001);
+            const tp3Pips = Math.round(Math.abs(signal.entry_price - intelligentTargets.take_profit_3) / 0.0001);
             
             console.log(`🎯 INTELLIGENT TARGETS (${targetsConfidence}% confidence):`);
             console.log(`   SL: ${dynamicStopLoss.toFixed(5)} (${stopPips} pips)`);
-            console.log(`   TP1: ${targets.take_profit_1.toFixed(5)} (${tp1Pips} pips)`);
-            console.log(`   TP2: ${targets.take_profit_2.toFixed(5)} (${tp2Pips} pips)`);
-            console.log(`   TP3: ${targets.take_profit_3.toFixed(5)} (${tp3Pips} pips)`);
+            console.log(`   TP1: ${intelligentTargets.take_profit_1.toFixed(5)} (${tp1Pips} pips)`);
+            console.log(`   TP2: ${intelligentTargets.take_profit_2.toFixed(5)} (${tp2Pips} pips)`);
+            console.log(`   TP3: ${intelligentTargets.take_profit_3.toFixed(5)} (${tp3Pips} pips)`);
             console.log(`   Reasoning: ${targetsReasoning}`);
-            console.log(`   Key levels: ${targets.key_levels.length}`);
+            console.log(`   Key levels: ${intelligentTargets.key_levels.length}`);
           } else {
             console.warn(`⚠️ Intelligent targets failed, using signal defaults`);
           }
@@ -853,6 +854,23 @@ serve(async (req) => {
             data_source: tradeResult.data_source,
             price_deviation: tradeResult.price_deviation_percent
           });
+
+          // Update trade with intelligent targets if available
+          if (intelligentTargets) {
+            await supabase
+              .from('shadow_trades')
+              .update({
+                take_profit_1: intelligentTargets.take_profit_1,
+                take_profit_2: intelligentTargets.take_profit_2,
+                take_profit_3: intelligentTargets.take_profit_3,
+                target_confidence: intelligentTargets.confidence,
+                target_reasoning: intelligentTargets.reasoning,
+                key_levels: intelligentTargets.key_levels
+              })
+              .eq('id', trade_id);
+            
+            console.log(`📊 Intelligent targets stored in database`);
+          }
 
           // Upsert/update rate limit record
           const { data: existingRate } = await supabase

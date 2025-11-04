@@ -2734,6 +2734,7 @@ export type Database = {
           holding_time_minutes: number | null
           id: string
           intelligence_exit_triggered: boolean | null
+          key_levels: Json | null
           lot_size: number
           magic_number: number | null
           margin_required: number | null
@@ -2765,6 +2766,11 @@ export type Database = {
           swap: number | null
           symbol: string
           take_profit: number
+          take_profit_1: number | null
+          take_profit_2: number | null
+          take_profit_3: number | null
+          target_confidence: number | null
+          target_reasoning: string | null
           tick_value: number | null
           trade_type: string
           trailing_stop_distance: number | null
@@ -2794,6 +2800,7 @@ export type Database = {
           holding_time_minutes?: number | null
           id?: string
           intelligence_exit_triggered?: boolean | null
+          key_levels?: Json | null
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null
@@ -2825,6 +2832,11 @@ export type Database = {
           swap?: number | null
           symbol?: string
           take_profit: number
+          take_profit_1?: number | null
+          take_profit_2?: number | null
+          take_profit_3?: number | null
+          target_confidence?: number | null
+          target_reasoning?: string | null
           tick_value?: number | null
           trade_type: string
           trailing_stop_distance?: number | null
@@ -2854,6 +2866,7 @@ export type Database = {
           holding_time_minutes?: number | null
           id?: string
           intelligence_exit_triggered?: boolean | null
+          key_levels?: Json | null
           lot_size?: number
           magic_number?: number | null
           margin_required?: number | null
@@ -2885,6 +2898,11 @@ export type Database = {
           swap?: number | null
           symbol?: string
           take_profit?: number
+          take_profit_1?: number | null
+          take_profit_2?: number | null
+          take_profit_3?: number | null
+          target_confidence?: number | null
+          target_reasoning?: string | null
           tick_value?: number | null
           trade_type?: string
           trailing_stop_distance?: number | null
