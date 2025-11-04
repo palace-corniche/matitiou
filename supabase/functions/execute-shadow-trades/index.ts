@@ -753,50 +753,52 @@ serve(async (req) => {
           console.log(`✅ No existing open trade for signal ${signal.signal_id.slice(0, 8)} - proceeding with execution`);
 
 
-          // **PHASE 4: Dynamic SL/TP based on ATR**
-          // Calculate ATR from recent market data
-          const { data: recentCandles } = await supabase
-            .from('market_data_feed')
-            .select('*')
-            .eq('symbol', signal.pair)
-            .order('timestamp', { ascending: false })
-            .limit(14);
+          // **PHASE 4: INTELLIGENT SL/TP based on multiple factors**
+          console.log(`🧠 Calculating intelligent targets for ${signal.pair}...`);
           
-          const atr = calculateATR(recentCandles || []);
-          console.log(`📊 Calculated ATR: ${atr.toFixed(5)} for ${signal.pair}`);
+          // Call intelligent targets function
+          const targetsResponse = await fetch(
+            `${supabaseUrl}/functions/v1/calculate-intelligent-targets`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${supabaseKey}`
+              },
+              body: JSON.stringify({
+                symbol: signal.pair,
+                trade_type: signal.signal_type,
+                entry_price: signal.entry_price
+              })
+            }
+          );
           
-          // Fix #3: Regime-aware dynamic SL/TP
-          const regime = signal.market_regime || 'unknown';
           let dynamicStopLoss = signal.stop_loss;
           let dynamicTakeProfit = signal.take_profit;
+          let targetsReasoning = 'Using signal defaults';
+          let targetsConfidence = 50;
           
-          if (atr > 0) {
-            // Adjust ATR multiplier based on regime
-            const atrStopMultiplier = regime === 'ranging' ? 2.5 : 2.0;  // Wider in ranging
-            const atrTpMultiplier = regime === 'ranging' ? 5.0 : 4.0;
+          if (targetsResponse.ok) {
+            const targets = await targetsResponse.json();
+            dynamicStopLoss = targets.stop_loss;
+            dynamicTakeProfit = targets.take_profit_1; // Use first target
+            targetsReasoning = targets.reasoning;
+            targetsConfidence = targets.confidence;
             
-            const atrStopDistance = atrStopMultiplier * atr;
-            const atrTakeProfitDistance = atrTpMultiplier * atr;
+            const stopPips = Math.round(Math.abs(signal.entry_price - dynamicStopLoss) / 0.0001);
+            const tp1Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_1) / 0.0001);
+            const tp2Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_2) / 0.0001);
+            const tp3Pips = Math.round(Math.abs(signal.entry_price - targets.take_profit_3) / 0.0001);
             
-            // Minimum stops: 25 pips in ranging, 15 in trending
-            const MIN_STOP_DISTANCE = regime === 'ranging' ? 0.0025 : 0.0015; // 25 or 15 pips
-            const MIN_TP_DISTANCE = regime === 'ranging' ? 0.0050 : 0.0040; // 50 or 40 pips
-            
-            const actualStopDistance = Math.max(atrStopDistance, MIN_STOP_DISTANCE);
-            const actualTpDistance = Math.max(atrTakeProfitDistance, MIN_TP_DISTANCE);
-            
-            if (signal.signal_type === 'buy') {
-              dynamicStopLoss = signal.entry_price - actualStopDistance;
-              dynamicTakeProfit = signal.entry_price + actualTpDistance;
-            } else {
-              dynamicStopLoss = signal.entry_price + actualStopDistance;
-              dynamicTakeProfit = signal.entry_price - actualTpDistance;
-            }
-            
-            const stopPips = Math.round(actualStopDistance / 0.0001);
-            const tpPips = Math.round(actualTpDistance / 0.0001);
-            
-            console.log(`🎯 ${regime.toUpperCase()} Market - Optimized SL/TP: SL=${dynamicStopLoss.toFixed(5)} (${stopPips} pips), TP=${dynamicTakeProfit.toFixed(5)} (${tpPips} pips)`);
+            console.log(`🎯 INTELLIGENT TARGETS (${targetsConfidence}% confidence):`);
+            console.log(`   SL: ${dynamicStopLoss.toFixed(5)} (${stopPips} pips)`);
+            console.log(`   TP1: ${targets.take_profit_1.toFixed(5)} (${tp1Pips} pips)`);
+            console.log(`   TP2: ${targets.take_profit_2.toFixed(5)} (${tp2Pips} pips)`);
+            console.log(`   TP3: ${targets.take_profit_3.toFixed(5)} (${tp3Pips} pips)`);
+            console.log(`   Reasoning: ${targetsReasoning}`);
+            console.log(`   Key levels: ${targets.key_levels.length}`);
+          } else {
+            console.warn(`⚠️ Intelligent targets failed, using signal defaults`);
           }
           
           // **PHASE 1: Fixed lot size for all trades - simple and predictable**
@@ -816,7 +818,7 @@ serve(async (req) => {
             take_profit: dynamicTakeProfit || signal.take_profit || 0,
             trailing_stop_distance: 15 * 0.0001, // 15 pips default trailing stop
             order_type: 'market',
-            comment: `Advanced Fusion | Signal ${signal.signal_id.slice(0, 8)} | Confluence: ${signal.confluence_score} | ATR: ${atr.toFixed(5)}`,
+            comment: `Intelligent Targets | Signal ${signal.signal_id.slice(0, 8)} | Confluence: ${signal.confluence_score} | Confidence: ${targetsConfidence}%`,
             magic_number: 100001
           };
 
