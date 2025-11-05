@@ -722,18 +722,23 @@ serve(async (req) => {
           if (oppositeTrades.length > 0) {
             console.log(`🔄 Closing ${oppositeTrades.length} opposite ${oppositeDirection.toUpperCase()} trades before executing new ${signal.signal_type.toUpperCase()} signal`);
             
-            // Get current market price for closing
-            const { data: latestTick } = await supabase
+            // Get FRESH tick data for closing
+            const { data: freshTickForClose } = await supabase
               .from('tick_data')
-              .select('bid, ask')
-              .eq('symbol', signal.pair)
+              .select('bid, ask, timestamp')
+              .eq('symbol', signal.symbol)
               .order('timestamp', { ascending: false })
               .limit(1)
               .single();
             
+            if (!freshTickForClose) {
+              console.error('❌ No tick data available for closing opposite trades');
+              continue;
+            }
+            
             const closePrice = oppositeDirection === 'buy' 
-              ? latestTick?.bid || signal.entry_price 
-              : latestTick?.ask || signal.entry_price;
+              ? freshTickForClose.bid 
+              : freshTickForClose.ask;
             
             // Close all opposite trades
             for (const oppTrade of oppositeTrades) {
@@ -747,7 +752,7 @@ serve(async (req) => {
               if (closeError) {
                 console.error(`❌ Failed to close opposite trade ${oppTrade.id}:`, closeError);
               } else {
-                console.log(`✅ Closed ${oppositeDirection.toUpperCase()} trade ${oppTrade.id.slice(0, 8)}: ${closeResult.profit?.toFixed(2) || 'N/A'} pips`);
+                console.log(`✅ Closed ${oppositeDirection.toUpperCase()} trade ${oppTrade.id.slice(0, 8)}: ${closeResult?.profit?.toFixed(2) || 'N/A'} pips`);
               }
             }
             
@@ -765,6 +770,90 @@ serve(async (req) => {
               continue;
             }
           }
+
+          // **PHASE 2: GET FRESH TICK DATA - NO FALLBACK**
+          const { data: freshTick, error: tickError } = await supabase
+            .from('tick_data')
+            .select('bid, ask, timestamp')
+            .eq('symbol', signal.symbol)
+            .order('timestamp', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (tickError || !freshTick) {
+            console.error(`❌ No tick data available for ${signal.symbol}:`, tickError);
+            
+            // Log validation failure
+            await supabase.from('trade_execution_log').insert({
+              signal_id: signal.id,
+              success: false,
+              error_message: 'No tick data available',
+              validation_result: { valid: false, errors: ['No tick data'] }
+            });
+            
+            continue; // SKIP THIS TRADE
+          }
+
+          // Validate tick freshness (< 5 seconds)
+          const tickAge = Date.now() - new Date(freshTick.timestamp).getTime();
+          if (tickAge > 5000) {
+            console.warn(`⚠️ Tick data too old (${tickAge}ms), skipping trade for signal ${signal.id.slice(0, 8)}`);
+            
+            await supabase.from('trade_execution_log').insert({
+              signal_id: signal.id,
+              success: false,
+              tick_age_ms: tickAge,
+              error_message: `Tick data too old: ${tickAge}ms`,
+              validation_result: { valid: false, errors: ['Tick data too old'] }
+            });
+            
+            continue; // SKIP THIS TRADE
+          }
+
+          // Use ONLY fresh tick data - NO FALLBACK
+          const entryPrice = signal.signal_type === 'buy' ? freshTick.ask : freshTick.bid;
+
+          // **PHASE 2: VALIDATE ENTRY PRICE IS REALISTIC**
+          if (signal.symbol === 'EUR/USD' && (entryPrice < 0.9 || entryPrice > 1.5)) {
+            console.error(`❌ Invalid entry price ${entryPrice} for EUR/USD, skipping trade`);
+            
+            await supabase.from('trade_execution_log').insert({
+              signal_id: signal.id,
+              success: false,
+              entry_price: entryPrice,
+              error_message: `Invalid entry price: ${entryPrice}`,
+              validation_result: { valid: false, errors: ['Entry price out of range'] }
+            });
+            
+            continue; // SKIP THIS TRADE
+          }
+
+          // **PHASE 4: COMPREHENSIVE VALIDATION**
+          const { data: validationResult } = await supabase.rpc('validate_trade_execution', {
+            p_symbol: signal.symbol,
+            p_signal_id: signal.id,
+            p_entry_price: entryPrice,
+            p_tick_timestamp: freshTick.timestamp,
+            p_tick_bid: freshTick.bid,
+            p_tick_ask: freshTick.ask
+          });
+
+          if (validationResult && !validationResult.valid) {
+            console.warn(`⚠️ Trade validation failed for signal ${signal.id.slice(0, 8)}:`, validationResult.errors);
+            
+            await supabase.from('trade_execution_log').insert({
+              signal_id: signal.id,
+              success: false,
+              validation_result: validationResult,
+              entry_price: entryPrice,
+              tick_age_ms: tickAge,
+              error_message: validationResult.errors?.join(', ')
+            });
+            
+            continue; // SKIP THIS TRADE
+          }
+
+          console.log(`✅ Validation passed - Tick age: ${tickAge}ms, Entry: ${entryPrice}, Deviation: ${validationResult?.price_deviation_percent?.toFixed(4)}%`);
 
           if (actualOpenPositions >= portfolio.max_open_positions) {
             console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${actualOpenPositions}/${portfolio.max_open_positions})`);
@@ -858,52 +947,56 @@ serve(async (req) => {
           
           console.log(`🔒 Using fixed lot size: ${fixedLotSize}`);
 
-          // ===================== PHASE 3: CREATE TRADE VIA execute_advanced_order =====================
-          // Use RPC to get full validation (price freshness, deviation, signal freshness, etc.)
-          const tradeOrderData = {
-            master_signal_id: signal.signal_id,
-            symbol: signal.pair,
-            trade_type: signal.signal_type,
-            lot_size: fixedLotSize,
-            entry_price: signal.entry_price,
-            stop_loss: dynamicStopLoss || signal.stop_loss || 0,
-            take_profit: dynamicTakeProfit || signal.take_profit || 0,
-            trailing_stop_distance: 15 * 0.0001, // 15 pips default trailing stop
-            order_type: 'market',
-            comment: `Intelligent Targets | Signal ${signal.signal_id.slice(0, 8)} | Confluence: ${signal.confluence_score} | Confidence: ${targetsConfidence}%`,
-            magic_number: 100001
-          };
+          // ===================== PHASE 3: EXECUTE TRADE WITH SIGNAL LINKAGE =====================
+          console.log(`🚀 Executing trade with signal linkage for signal ${signal.signal_id.slice(0, 8)}`);
 
-          console.log(`🚀 Executing via execute_advanced_order:`, tradeOrderData);
-
-          const { data: tradeResult, error: tradeError } = await supabase
-            .rpc('execute_advanced_order', {
-              p_portfolio_id: portfolio.id,
-              p_order_data: tradeOrderData
+          const { data: trade_id, error: tradeError } = await supabase
+            .rpc('execute_global_shadow_trade', {
+              p_symbol: signal.pair,
+              p_trade_type: signal.signal_type,
+              p_entry_price: entryPrice,
+              p_lot_size: fixedLotSize,
+              p_stop_loss: dynamicStopLoss || signal.stop_loss || 0,
+              p_take_profit: dynamicTakeProfit || signal.take_profit || 0,
+              p_comment: `Master Signal: ${signal.signal_id.slice(0, 8)} | Quality: ${signal.signal_quality_score || 'N/A'} | Confluence: ${signal.confluence_score}`,
+              p_signal_id: signal.signal_id,
+              p_master_signal_id: signal.signal_id
             });
 
-          if (tradeError || !tradeResult?.success) {
-            console.error(`❌ Trade execution failed:`, tradeError || tradeResult);
+          if (tradeError || !trade_id) {
+            console.error(`❌ Trade execution failed:`, tradeError);
             
-            // Log rejection reason
+            // Log execution failure
+            await supabase.from('trade_execution_log').insert({
+              signal_id: signal.signal_id,
+              success: false,
+              entry_price: entryPrice,
+              tick_age_ms: tickAge,
+              error_message: tradeError?.message || 'Unknown error',
+              validation_result: { valid: true, executed: false, error: tradeError?.message }
+            });
+            
             await supabase.from('ea_logs').insert({
               portfolio_id: portfolio.id,
               ea_name: 'Execute Shadow Trades',
               log_level: 'ERROR',
-              message: `Trade rejected: ${tradeResult?.error || tradeError?.message}`,
+              message: `Trade rejected: ${tradeError?.message}`,
               symbol: signal.pair
             });
             
             continue; // Skip to next signal
           }
 
-          const trade_id = tradeResult.trade_id;
-          console.log(`✅ Trade created via advanced pipeline:`, {
-            trade_id,
-            execution_path: tradeResult.execution_path,
-            data_freshness_ms: tradeResult.data_freshness_ms,
-            data_source: tradeResult.data_source,
-            price_deviation: tradeResult.price_deviation_percent
+          console.log(`✅ Trade created successfully: ${trade_id}`);
+
+          // Log successful execution
+          await supabase.from('trade_execution_log').insert({
+            signal_id: signal.signal_id,
+            success: true,
+            entry_price: entryPrice,
+            tick_age_ms: tickAge,
+            price_deviation_percent: validationResult?.price_deviation_percent,
+            validation_result: { valid: true, executed: true }
           });
 
           // Update trade with intelligent targets if available
@@ -953,14 +1046,14 @@ serve(async (req) => {
             trade_id: trade_id,
             portfolio_id: portfolio.id,
             signal_type: signal.signal_type,
-            entry_price: signal.entry_price,
+            entry_price: entryPrice,  // Use validated entry price
             position_size: fixedLotSize,
             confluence_score: signal.confluence_score,
             success: true
           });
 
           processedItems++;
-          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade for portfolio ${portfolio.id.slice(0, 8)}: ${fixedLotSize} lots @ ${signal.entry_price}`);
+          console.log(`✅ Executed ${signal.signal_type.toUpperCase()} trade: ${fixedLotSize} lots @ ${entryPrice.toFixed(5)} (validated fresh price)`);
 
         } catch (tradeError) {
           console.error(`❌ Error executing trade for portfolio ${portfolio.id}:`, tradeError);

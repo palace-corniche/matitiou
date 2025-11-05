@@ -2912,6 +2912,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "fk_shadow_trades_signal"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "shadow_trades_master_signal_id_fkey"
             columns: ["master_signal_id"]
             isOneToOne: false
@@ -3487,10 +3494,11 @@ export type Database = {
           id: string
           lot_size: number
           margin_used: number | null
+          master_signal_id: string | null
           original_trade_id: string | null
           portfolio_id: string | null
-          profit: number | null
-          profit_pips: number | null
+          profit: number
+          profit_pips: number
           slippage_pips: number | null
           stop_loss: number | null
           swap: number | null
@@ -3516,10 +3524,11 @@ export type Database = {
           id?: string
           lot_size: number
           margin_used?: number | null
+          master_signal_id?: string | null
           original_trade_id?: string | null
           portfolio_id?: string | null
-          profit?: number | null
-          profit_pips?: number | null
+          profit?: number
+          profit_pips?: number
           slippage_pips?: number | null
           stop_loss?: number | null
           swap?: number | null
@@ -3545,10 +3554,11 @@ export type Database = {
           id?: string
           lot_size?: number
           margin_used?: number | null
+          master_signal_id?: string | null
           original_trade_id?: string | null
           portfolio_id?: string | null
-          profit?: number | null
-          profit_pips?: number | null
+          profit?: number
+          profit_pips?: number
           slippage_pips?: number | null
           stop_loss?: number | null
           swap?: number | null
@@ -4089,6 +4099,20 @@ export type Database = {
             }
             Returns: Json
           }
+      execute_global_shadow_trade: {
+        Args: {
+          p_comment?: string
+          p_entry_price: number
+          p_lot_size: number
+          p_master_signal_id?: string
+          p_signal_id?: string
+          p_stop_loss: number
+          p_symbol: string
+          p_take_profit: number
+          p_trade_type: string
+        }
+        Returns: string
+      }
       get_account_defaults: {
         Args: { p_portfolio_id: string }
         Returns: {
@@ -4260,12 +4284,32 @@ export type Database = {
         }
         Returns: undefined
       }
+      validate_entry_price: {
+        Args: {
+          p_entry_price: number
+          p_symbol: string
+          p_tick_timestamp: string
+        }
+        Returns: Json
+      }
       validate_signal_freshness: {
         Args: { p_signal_id: string }
         Returns: Json
       }
       validate_signal_reproducibility: {
         Args: { p_analysis_id: string; p_signal_table?: string }
+        Returns: Json
+      }
+      validate_trade_execution: {
+        Args: {
+          p_account_id?: string
+          p_entry_price: number
+          p_signal_id: string
+          p_symbol: string
+          p_tick_ask: number
+          p_tick_bid: number
+          p_tick_timestamp: string
+        }
         Returns: Json
       }
       validate_trade_preflight: {
