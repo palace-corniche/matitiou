@@ -6,7 +6,8 @@ import MasterSignalDashboard from '@/components/MasterSignalDashboard';
 import SignalOutcomeTracker from '@/components/SignalOutcomeTracker';
 import ModulePerformanceTracker from '@/components/ModulePerformanceTracker';
 import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
-import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';  // PHASE 3: Pipeline monitor
+import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
+import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
 
 const ShadowTrading: React.FC = () => {
   return (
@@ -23,7 +24,10 @@ const ShadowTrading: React.FC = () => {
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
-            <TradeExecutionMonitor />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <DataIntegrityMonitor />
+              <TradeExecutionMonitor />
+            </div>
             <ShadowTradingDashboardUnified />
           </TabsContent>
           

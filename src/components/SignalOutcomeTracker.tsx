@@ -87,7 +87,7 @@ const SignalOutcomeTracker: React.FC = () => {
       for (const signal of signals || []) {
         const { data: trades } = await supabase
           .from('shadow_trades')
-          .select('pnl, profit_pips, exit_price, status')
+          .select('profit, profit_pips, exit_price, status')
           .ilike('comment', `%${signal.signal_id}%`);
 
         const trade = trades?.[0];
@@ -104,9 +104,9 @@ const SignalOutcomeTracker: React.FC = () => {
 
         if (trade) {
           if (trade.status === 'closed') {
-            outcome.outcome = trade.pnl > 0 ? 'win' : 'loss';
+            outcome.outcome = trade.profit > 0 ? 'win' : 'loss';
             outcome.actual_exit_price = trade.exit_price;
-            outcome.pnl = trade.pnl;
+            outcome.pnl = trade.profit;
             outcome.pnl_pips = trade.profit_pips;
           } else {
             outcome.outcome = 'pending';
@@ -129,7 +129,7 @@ const SignalOutcomeTracker: React.FC = () => {
       // Get completed trades with signal data
       const { data: completedTrades } = await supabase
         .from('shadow_trades')
-        .select('pnl, profit_pips, comment')
+        .select('profit, profit_pips, comment')
         .eq('status', 'closed')
         .not('comment', 'is', null);
 
@@ -140,12 +140,12 @@ const SignalOutcomeTracker: React.FC = () => {
       if (completedTrades && allSignals) {
         const total = allSignals.length;
         const executed = allSignals.filter(s => s.was_executed).length;
-        const winning = completedTrades.filter(t => t.pnl > 0).length;
-        const losing = completedTrades.filter(t => t.pnl <= 0).length;
-        const totalPnL = completedTrades.reduce((sum, t) => sum + t.pnl, 0);
+        const winning = completedTrades.filter(t => t.profit > 0).length;
+        const losing = completedTrades.filter(t => t.profit <= 0).length;
+        const totalPnL = completedTrades.reduce((sum, t) => sum + t.profit, 0);
         const totalPips = completedTrades.reduce((sum, t) => sum + t.profit_pips, 0);
-        const best = Math.max(...completedTrades.map(t => t.pnl), 0);
-        const worst = Math.min(...completedTrades.map(t => t.pnl), 0);
+        const best = Math.max(...completedTrades.map(t => t.profit), 0);
+        const worst = Math.min(...completedTrades.map(t => t.profit), 0);
 
         setStats({
           totalSignals: total,

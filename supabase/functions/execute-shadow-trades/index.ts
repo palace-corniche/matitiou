@@ -794,20 +794,36 @@ serve(async (req) => {
             continue; // SKIP THIS TRADE
           }
 
-          // Validate tick freshness (< 5 seconds)
+          // PHASE 5: Relaxed tick freshness (< 60 seconds instead of 5)
           const tickAge = Date.now() - new Date(freshTick.timestamp).getTime();
-          if (tickAge > 5000) {
-            console.warn(`⚠️ Tick data too old (${tickAge}ms), skipping trade for signal ${signal.id.slice(0, 8)}`);
+          if (tickAge > 60000) {
+            console.warn(`⚠️ Tick data too old (${tickAge}ms), trying alternative sources...`);
             
-            await supabase.from('trade_execution_log').insert({
-              signal_id: signal.id,
-              success: false,
-              tick_age_ms: tickAge,
-              error_message: `Tick data too old: ${tickAge}ms`,
-              validation_result: { valid: false, errors: ['Tick data too old'] }
-            });
+            // Try market_data_enhanced as fallback
+            const { data: enhancedData } = await supabase
+              .from('market_data_enhanced')
+              .select('close_price, timestamp')
+              .eq('symbol', signal.symbol)
+              .order('timestamp', { ascending: false })
+              .limit(1)
+              .single();
             
-            continue; // SKIP THIS TRADE
+            if (enhancedData && (Date.now() - new Date(enhancedData.timestamp).getTime()) < 300000) {
+              console.log(`✅ Using market_data_enhanced fallback (age: ${Date.now() - new Date(enhancedData.timestamp).getTime()}ms)`);
+              freshTick.bid = enhancedData.close_price;
+              freshTick.ask = enhancedData.close_price;
+              freshTick.timestamp = enhancedData.timestamp;
+            } else {
+              // Log rejection with reason
+              await supabase.from('trade_decision_log').insert({
+                signal_id: signal.id,
+                decision: 'rejected',
+                decision_reason: `No fresh price data (tick age: ${tickAge}ms, enhanced age: ${enhancedData ? Date.now() - new Date(enhancedData.timestamp).getTime() : 'N/A'}ms)`,
+                timestamp: new Date().toISOString()
+              });
+              
+              continue; // SKIP THIS TRADE
+            }
           }
 
           // Use ONLY fresh tick data - NO FALLBACK

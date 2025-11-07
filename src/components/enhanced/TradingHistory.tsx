@@ -97,7 +97,7 @@ export const TradingHistory: React.FC<TradingHistoryProps> = ({ portfolioId }) =
         action_type: 'close',
         lot_size: trade.lot_size,
         execution_price: trade.exit_price || trade.entry_price,
-        profit: trade.pnl || 0,
+        profit: trade.profit || 0,
         profit_pips: trade.profit_pips || 0,
         commission: trade.commission || 0,
         swap: trade.swap || 0,
