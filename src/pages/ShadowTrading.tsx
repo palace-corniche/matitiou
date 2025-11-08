@@ -9,10 +9,8 @@ import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
 import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
 import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
 import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
-
 const ShadowTrading: React.FC = () => {
-  return (
-    <div className="min-h-screen bg-background">
+  return <div className="min-h-screen bg-background">
       <NavigationBar />
       <div className="container mx-auto px-4 py-6">
         <Tabs defaultValue="trading" className="space-y-6">
@@ -25,7 +23,7 @@ const ShadowTrading: React.FC = () => {
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mx-[29px]">
               <DataIntegrityMonitor />
               <TradeExecutionMonitor />
               <PriceIntegrityMonitor />
@@ -50,8 +48,6 @@ const ShadowTrading: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>
-  );
+    </div>;
 };
-
 export default ShadowTrading;
