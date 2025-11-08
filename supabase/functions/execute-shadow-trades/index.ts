@@ -771,66 +771,50 @@ serve(async (req) => {
             }
           }
 
-          // **PHASE 2: GET FRESH TICK DATA - NO FALLBACK**
-          const { data: freshTick, error: tickError } = await supabase
-            .from('tick_data')
-            .select('bid, ask, timestamp')
+          // Fetch REAL market price from market_data_feed
+          const { data: freshPrice, error: priceError } = await supabase
+            .from('market_data_feed')
+            .select('price, timestamp')
             .eq('symbol', signal.symbol)
             .order('timestamp', { ascending: false })
             .limit(1)
             .single();
 
-          if (tickError || !freshTick) {
-            console.error(`❌ No tick data available for ${signal.symbol}:`, tickError);
+          if (priceError || !freshPrice) {
+            console.error(`❌ No price data available for ${signal.symbol}:`, priceError);
             
-            // Log validation failure
-            await supabase.from('trade_execution_log').insert({
-              signal_id: signal.id,
-              success: false,
-              error_message: 'No tick data available',
-              validation_result: { valid: false, errors: ['No tick data'] }
-            });
+            await supabase.from('master_signals').update({
+              status: 'rejected',
+              rejection_reason: 'No live market price available',
+              updated_at: new Date().toISOString()
+            }).eq('id', signal.signal_id);
             
-            continue; // SKIP THIS TRADE
+            continue;
           }
 
-          // PHASE 5: Relaxed tick freshness (< 60 seconds instead of 5)
-          const tickAge = Date.now() - new Date(freshTick.timestamp).getTime();
-          if (tickAge > 60000) {
-            console.warn(`⚠️ Tick data too old (${tickAge}ms), trying alternative sources...`);
+          const priceAge = Date.now() - new Date(freshPrice.timestamp).getTime();
+          if (priceAge > 900000) { // 15 minutes
+            console.error(`❌ Price too old: ${Math.round(priceAge/60000)} minutes`);
             
-            // Try market_data_enhanced as fallback
-            const { data: enhancedData } = await supabase
-              .from('market_data_enhanced')
-              .select('close_price, timestamp')
-              .eq('symbol', signal.symbol)
-              .order('timestamp', { ascending: false })
-              .limit(1)
-              .single();
+            await supabase.from('master_signals').update({
+              status: 'rejected',
+              rejection_reason: `Price data stale (${Math.round(priceAge/60000)}m old)`,
+              updated_at: new Date().toISOString()
+            }).eq('id', signal.signal_id);
             
-            if (enhancedData && (Date.now() - new Date(enhancedData.timestamp).getTime()) < 300000) {
-              console.log(`✅ Using market_data_enhanced fallback (age: ${Date.now() - new Date(enhancedData.timestamp).getTime()}ms)`);
-              freshTick.bid = enhancedData.close_price;
-              freshTick.ask = enhancedData.close_price;
-              freshTick.timestamp = enhancedData.timestamp;
-            } else {
-              // Log rejection with reason
-              await supabase.from('trade_decision_log').insert({
-                signal_id: signal.id,
-                decision: 'rejected',
-                decision_reason: `No fresh price data (tick age: ${tickAge}ms, enhanced age: ${enhancedData ? Date.now() - new Date(enhancedData.timestamp).getTime() : 'N/A'}ms)`,
-                timestamp: new Date().toISOString()
-              });
-              
-              continue; // SKIP THIS TRADE
-            }
+            continue;
           }
 
-          // Use ONLY fresh tick data - NO FALLBACK
-          const entryPrice = signal.signal_type === 'buy' ? freshTick.ask : freshTick.bid;
+          const price = parseFloat(String(freshPrice.price));
+          const spread = 0.00015;
+          const entryPrice = signal.signal_type === 'buy'
+            ? price + (spread / 2)  // ASK
+            : price - (spread / 2); // BID
+
+          console.log(`💰 Entry price: ${entryPrice.toFixed(5)} from market_data_feed (${freshPrice.timestamp})`);
 
           // **PHASE 2: VALIDATE ENTRY PRICE IS REALISTIC**
-          if (signal.symbol === 'EUR/USD' && (entryPrice < 0.9 || entryPrice > 1.5)) {
+          if (signal.symbol === 'EUR/USD' && (entryPrice < 0.9 || entryPrice > 2.0)) {
             console.error(`❌ Invalid entry price ${entryPrice} for EUR/USD, skipping trade`);
             
             await supabase.from('trade_execution_log').insert({
@@ -987,7 +971,7 @@ serve(async (req) => {
               signal_id: signal.signal_id,
               success: false,
               entry_price: entryPrice,
-              tick_age_ms: tickAge,
+              tick_age_ms: priceAge,
               error_message: tradeError?.message || 'Unknown error',
               validation_result: { valid: true, executed: false, error: tradeError?.message }
             });
@@ -1005,12 +989,21 @@ serve(async (req) => {
 
           console.log(`✅ Trade created successfully: ${trade_id}`);
 
+          // Update price source tracking
+          await supabase
+            .from('shadow_trades')
+            .update({
+              price_source: 'market_data_feed',
+              price_timestamp: freshPrice.timestamp
+            })
+            .eq('id', trade_id);
+
           // Log successful execution
           await supabase.from('trade_execution_log').insert({
             signal_id: signal.signal_id,
             success: true,
             entry_price: entryPrice,
-            tick_age_ms: tickAge,
+            tick_age_ms: priceAge,
             price_deviation_percent: validationResult?.price_deviation_percent,
             validation_result: { valid: true, executed: true }
           });

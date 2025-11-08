@@ -108,6 +108,32 @@ async function createMasterSignalFromModular(supabase: any, modularSignals: any[
     finalConfidence = sellSignals.reduce((sum, s) => sum + s.confidence, 0) / sellSignals.length;
   }
 
+  // Fetch REAL market price from market_data_feed
+  const { data: currentPrice, error: priceError } = await supabase
+    .from('market_data_feed')
+    .select('price, timestamp')
+    .eq('symbol', 'EUR/USD')
+    .order('timestamp', { ascending: false })
+    .limit(1)
+    .single();
+  
+  if (!currentPrice || priceError) {
+    console.error('❌ Cannot create signal without current market price');
+    return null;
+  }
+  
+  const priceAge = Date.now() - new Date(currentPrice.timestamp).getTime();
+  if (priceAge > 900000) { // 15 minutes
+    console.error(`❌ Price data too old: ${Math.round(priceAge/60000)} minutes`);
+    return null;
+  }
+  
+  const price = parseFloat(currentPrice.price);
+  const spread = 0.00015; // 1.5 pips
+  const pipSize = 0.0001;
+  const slPips = 50;
+  const tpPips = 100;
+
   // Only create master signal if confluence is strong enough
   if (confluenceScore >= 15 && finalConfidence >= 0.65) {
     const masterSignal = {
@@ -119,9 +145,15 @@ async function createMasterSignalFromModular(supabase: any, modularSignals: any[
       final_confidence: finalConfidence,
       final_strength: Math.round(confluenceScore / 2),
       confluence_score: confluenceScore,
-      recommended_entry: 1.17070,
-      recommended_stop_loss: finalSignalType === 'buy' ? 1.16850 : 1.17290,
-      recommended_take_profit: finalSignalType === 'buy' ? 1.17490 : 1.16650,
+      recommended_entry: finalSignalType === 'buy' 
+        ? price + (spread / 2)  // ASK
+        : price - (spread / 2), // BID
+      recommended_stop_loss: finalSignalType === 'buy'
+        ? price - (slPips * pipSize)
+        : price + (slPips * pipSize),
+      recommended_take_profit: finalSignalType === 'buy'
+        ? price + (tpPips * pipSize)
+        : price - (tpPips * pipSize),
       recommended_lot_size: 0.1,
       modular_signal_ids: modularSignals.map(s => s.id),
       contributing_modules: modularSignals.map(s => s.module_id),
@@ -133,9 +165,14 @@ async function createMasterSignalFromModular(supabase: any, modularSignals: any[
         weight_distribution: 'equal'
       },
       market_data_snapshot: {
-        price: 1.17070,
-        timestamp: new Date().toISOString()
+        price: price,
+        bid: price - (spread / 2),
+        ask: price + (spread / 2),
+        timestamp: currentPrice.timestamp,
+        source: 'market_data_feed'
       },
+      expires_at: new Date(Date.now() + 4 * 60 * 60 * 1000).toISOString(),
+      signal_quality_score: confluenceScore * finalConfidence,
       status: 'pending',
       timestamp: new Date().toISOString()
     };
@@ -143,7 +180,7 @@ async function createMasterSignalFromModular(supabase: any, modularSignals: any[
     const { error } = await supabase.from('master_signals').insert([masterSignal]);
     if (error) throw error;
 
-    console.log(`✅ Master signal created: ${finalSignalType} with confluence ${confluenceScore}`);
+    console.log(`✅ Master signal created: ${finalSignalType} at ${masterSignal.recommended_entry.toFixed(5)} (REAL price ${price.toFixed(5)})`);
     return { 
       success: true, 
       master_signal_created: true, 

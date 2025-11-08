@@ -31,41 +31,57 @@ export const RealTimePriceTicker: React.FC<RealTimePriceTickerProps> = ({
 
     const fetchLatestTicks = async () => {
       try {
+        // Fetch latest price from market_data_feed (REAL market prices)
+        const { data: marketPrices, error } = await supabase
+          .from('market_data_feed')
+          .select('symbol, price, timestamp')
+          .in('symbol', symbols)
+          .order('timestamp', { ascending: false })
+          .limit(symbols.length * 2);
+
+        if (error) {
+          console.error('Error fetching market prices:', error);
+          setIsConnected(false);
+          return;
+        }
+
+        if (!marketPrices || marketPrices.length === 0) {
+          setIsConnected(false);
+          return;
+        }
+
+        // Calculate bid/ask from mid price with spread
+        const spread = 0.00015; // 1.5 pips for EUR/USD
+        
         for (const symbol of symbols) {
-          const { data, error } = await supabase
-            .from('tick_data')
-            .select('*')
-            .eq('symbol', symbol)
-            .order('timestamp', { ascending: false })
-            .limit(2);
+          const symbolPrices = marketPrices.filter(p => p.symbol === symbol);
+          if (symbolPrices.length === 0) continue;
 
-          if (!error && data && data.length > 0) {
-            const latest = data[0];
-            const previous = data[1];
-            
-            const change = previous ? latest.bid - previous.bid : 0;
-            const changePercent = previous && previous.bid > 0 
-              ? ((latest.bid - previous.bid) / previous.bid) * 100 
-              : 0;
+          const latest = symbolPrices[0];
+          const previous = symbolPrices[1] || latest;
 
-            const tickData: TickData = {
-              symbol: latest.symbol,
-              bid: latest.bid,
-              ask: latest.ask,
-              spread: latest.spread,
-              timestamp: latest.timestamp,
-              change,
-              changePercent
-            };
+          const currentPrice = parseFloat(String(latest.price));
+          const previousPrice = parseFloat(String(previous.price));
+          const change = currentPrice - previousPrice;
+          const changePercent = previousPrice > 0 ? (change / previousPrice) * 100 : 0;
 
-            setTicks(prev => ({
-              ...prev,
-              [symbol]: tickData
-            }));
+          const tickData: TickData = {
+            symbol: latest.symbol,
+            bid: currentPrice - (spread / 2),
+            ask: currentPrice + (spread / 2),
+            spread: spread * 10000, // in pips
+            timestamp: latest.timestamp,
+            change,
+            changePercent
+          };
 
-            onPriceUpdate?.(tickData);
-            setIsConnected(true);
-          }
+          setTicks(prev => ({
+            ...prev,
+            [symbol]: tickData
+          }));
+
+          onPriceUpdate?.(tickData);
+          setIsConnected(true);
         }
       } catch (error) {
         console.error('Error fetching tick data:', error);

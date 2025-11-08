@@ -8,6 +8,7 @@ import ModulePerformanceTracker from '@/components/ModulePerformanceTracker';
 import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
 import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
 import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
+import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
 
 const ShadowTrading: React.FC = () => {
   return (
@@ -24,9 +25,10 @@ const ShadowTrading: React.FC = () => {
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <DataIntegrityMonitor />
               <TradeExecutionMonitor />
+              <PriceIntegrityMonitor />
             </div>
             <ShadowTradingDashboardUnified />
           </TabsContent>

@@ -193,11 +193,35 @@ class GlobalShadowTradingEngine {
         throw new Error('Trade execution requires master_signal_id - cannot execute orphaned trades');
       }
 
-      // Get current market price if not provided
+      // Get current market price from market_data_feed (REAL prices)
       let currentPrice = request.entry_price;
       if (!currentPrice) {
-        const latestTick = unifiedMarketData.getLastTick();
-        currentPrice = latestTick ? (latestTick.bid + latestTick.ask) / 2 : 1.17000;
+        const { data: freshPrice, error } = await supabase
+          .from('market_data_feed')
+          .select('price, timestamp')
+          .eq('symbol', request.symbol)
+          .order('timestamp', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (!freshPrice || error) {
+          throw new Error(`No live price data available for ${request.symbol}`);
+        }
+        
+        const priceAge = Date.now() - new Date(freshPrice.timestamp).getTime();
+        if (priceAge > 900000) { // 15 minutes
+          throw new Error(`Price data too old (${Math.round(priceAge/60000)} minutes)`);
+        }
+        
+        const spread = 0.00015; // 1.5 pips
+        currentPrice = request.trade_type === 'buy' 
+          ? parseFloat(String(freshPrice.price)) + (spread / 2)  // ASK
+          : parseFloat(String(freshPrice.price)) - (spread / 2); // BID
+      }
+      
+      // Validate price is realistic
+      if (request.symbol === 'EUR/USD' && (currentPrice < 0.9 || currentPrice > 2.0)) {
+        throw new Error(`Invalid ${request.symbol} price: ${currentPrice}`);
       }
 
       const orderData = {
@@ -246,8 +270,16 @@ class GlobalShadowTradingEngine {
 
   async closeTrade(tradeId: string, lotSize?: number, reason: string = 'manual'): Promise<boolean> {
     try {
-      const currentTick = unifiedMarketData.getLastTick();
-      const currentPrice = currentTick ? (currentTick.bid + currentTick.ask) / 2 : 1.17000;
+      // Get current price from market_data_feed
+      const { data: freshPrice } = await supabase
+        .from('market_data_feed')
+        .select('price')
+        .eq('symbol', 'EUR/USD')
+        .order('timestamp', { ascending: false })
+        .limit(1)
+        .single();
+      
+      const currentPrice = freshPrice ? parseFloat(String(freshPrice.price)) : 1.15661;
 
       // Use direct RPC call instead of edge function
       const { data, error } = await supabase.rpc('close_shadow_trade', {

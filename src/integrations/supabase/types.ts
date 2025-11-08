@@ -2754,6 +2754,8 @@ export type Database = {
           point_value: number | null
           portfolio_id: string | null
           position_size: number
+          price_source: string | null
+          price_timestamp: string | null
           profit: number | null
           profit_pips: number | null
           realized_pnl: number | null
@@ -2820,6 +2822,8 @@ export type Database = {
           point_value?: number | null
           portfolio_id?: string | null
           position_size: number
+          price_source?: string | null
+          price_timestamp?: string | null
           profit?: number | null
           profit_pips?: number | null
           realized_pnl?: number | null
@@ -2886,6 +2890,8 @@ export type Database = {
           point_value?: number | null
           portfolio_id?: string | null
           position_size?: number
+          price_source?: string | null
+          price_timestamp?: string | null
           profit?: number | null
           profit_pips?: number | null
           realized_pnl?: number | null
