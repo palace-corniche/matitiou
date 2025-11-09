@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
-import { AlertCircle, TrendingUp, TrendingDown, Activity, Clock, Target } from 'lucide-react';
+import { AlertCircle, TrendingUp, TrendingDown, Activity, Clock, Target, RefreshCw } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { toast } from 'sonner';
 
 interface PerformanceSummary {
   total_closed_trades: number;
@@ -45,6 +47,13 @@ export const TradePerformanceAnalytics: React.FC = () => {
   const [patterns, setPatterns] = useState<PerformancePattern[]>([]);
   const [winningPatterns, setWinningPatterns] = useState<WinningPattern[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [systemHealth, setSystemHealth] = useState<{
+    priceDataStatus: string;
+    lastFetchAge: number;
+    signalGenerationStatus: string;
+    lastSignalAge: number;
+  }>();
 
   const loadAnalytics = async () => {
     try {
@@ -77,6 +86,26 @@ export const TradePerformanceAnalytics: React.FC = () => {
         setWinningPatterns(winningData as WinningPattern[]);
       }
 
+      // Load system health
+      const { data: healthData } = await supabase
+        .from('system_health')
+        .select('function_name, status, created_at, execution_time_ms')
+        .in('function_name', ['fetch-market-data', 'generate-confluence-signals'])
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (healthData && healthData.length > 0) {
+        const priceData = healthData.find(h => h.function_name === 'fetch-market-data');
+        const signalData = healthData.find(h => h.function_name === 'generate-confluence-signals');
+        
+        setSystemHealth({
+          priceDataStatus: priceData?.status === 'success' ? '✅ Active' : '❌ Failing',
+          lastFetchAge: priceData ? Math.round((Date.now() - new Date(priceData.created_at).getTime()) / 60000) : 0,
+          signalGenerationStatus: signalData?.status === 'success' ? '✅ Active' : '❌ Failing',
+          lastSignalAge: signalData ? Math.round((Date.now() - new Date(signalData.created_at).getTime()) / 60000) : 0
+        });
+      }
+
     } catch (error) {
       console.error('Error loading analytics:', error);
     } finally {
@@ -84,10 +113,53 @@ export const TradePerformanceAnalytics: React.FC = () => {
     }
   };
 
+  const refreshWinningPatterns = async () => {
+    setIsRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-winning-patterns', {});
+      if (error) throw error;
+      toast.success(`Generated ${data.patterns_identified} winning patterns`);
+      await loadAnalytics();
+    } catch (error) {
+      console.error('Error refreshing patterns:', error);
+      toast.error('Failed to refresh patterns');
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const formatPatternCriteria = (criteria: any) => {
+    if (!criteria) return 'N/A';
+    
+    return Object.entries(criteria)
+      .map(([key, value]) => {
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        return `${label}: ${value}`;
+      })
+      .join(' • ');
+  };
+
   useEffect(() => {
     loadAnalytics();
-    const interval = setInterval(loadAnalytics, 30000); // Refresh every 30s
-    return () => clearInterval(interval);
+    const interval = setInterval(loadAnalytics, 30000);
+    
+    // Subscribe to real-time updates
+    const channel = supabase
+      .channel('analytics-updates')
+      .on('postgres_changes', 
+        { event: 'INSERT', schema: 'public', table: 'shadow_trades' },
+        () => loadAnalytics()
+      )
+      .on('postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'shadow_trades' },
+        () => loadAnalytics()
+      )
+      .subscribe();
+    
+    return () => {
+      clearInterval(interval);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const getRecommendationVariant = (rec: string) => {
@@ -253,9 +325,15 @@ export const TradePerformanceAnalytics: React.FC = () => {
 
       {/* Winning Patterns Library */}
       <Card>
-        <CardHeader>
-          <CardTitle>Winning Patterns Library</CardTitle>
-          <CardDescription>Identified patterns with proven success rates</CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
+          <div>
+            <CardTitle>Winning Patterns Library</CardTitle>
+            <CardDescription>Identified patterns with proven success rates</CardDescription>
+          </div>
+          <Button onClick={refreshWinningPatterns} disabled={isRefreshing} size="sm" variant="outline">
+            <RefreshCw className={`h-4 w-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
         </CardHeader>
         <CardContent>
           {winningPatterns.length > 0 ? (
@@ -265,7 +343,7 @@ export const TradePerformanceAnalytics: React.FC = () => {
                   <div>
                     <p className="font-medium">{pattern.pattern_type}</p>
                     <p className="text-sm text-muted-foreground">
-                      {JSON.stringify(pattern.pattern_criteria)}
+                      {formatPatternCriteria(pattern.pattern_criteria)}
                     </p>
                   </div>
                   <div className="text-right">
@@ -296,8 +374,18 @@ export const TradePerformanceAnalytics: React.FC = () => {
         <CardContent>
           <div className="space-y-3">
             <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
-              <span className="text-sm font-medium">Price Data Pipeline</span>
-              <Badge variant="default">✅ Active (market_data_feed)</Badge>
+              <span className="text-sm font-medium">Price Data Pipeline (market_data_feed)</span>
+              <Badge variant={systemHealth?.priceDataStatus.includes('✅') ? 'default' : 'destructive'}>
+                {systemHealth?.priceDataStatus || 'Unknown'}
+                {systemHealth && ` (${systemHealth.lastFetchAge}m ago)`}
+              </Badge>
+            </div>
+            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
+              <span className="text-sm font-medium">Signal Generation (confluence engine)</span>
+              <Badge variant={systemHealth?.signalGenerationStatus.includes('✅') ? 'default' : 'destructive'}>
+                {systemHealth?.signalGenerationStatus || 'Unknown'}
+                {systemHealth && ` (${systemHealth.lastSignalAge}m ago)`}
+              </Badge>
             </div>
             <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
               <span className="text-sm font-medium">Trailing Stop Protection</span>
@@ -310,10 +398,6 @@ export const TradePerformanceAnalytics: React.FC = () => {
             <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
               <span className="text-sm font-medium">Entry Price Validation</span>
               <Badge variant="default">✅ Enabled (0.5% deviation limit)</Badge>
-            </div>
-            <div className="flex items-center justify-between p-3 bg-secondary/30 rounded-lg">
-              <span className="text-sm font-medium">Trade History Logging</span>
-              <Badge variant="default">✅ Fixed (close_shadow_trade)</Badge>
             </div>
           </div>
         </CardContent>
