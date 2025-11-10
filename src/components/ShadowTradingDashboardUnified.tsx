@@ -109,7 +109,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         symbol: 'EUR/USD',
         trade_type: quickTradeData.tradeType,
         lot_size: quickTradeData.lotSize,
-        entry_price: marketData?.price || 1.17000,
+        entry_price: undefined, // Let engine fetch fresh price from market_data_feed
         comment: `Quick ${quickTradeData.tradeType} trade`
       });
     } catch (error) {
@@ -285,7 +285,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
             <Card className="bg-muted/30">
               <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold font-mono">{marketData?.price?.toFixed(5) || '1.17000'}</div>
+                <div className="text-lg font-bold font-mono">{marketData?.price?.toFixed(5) || 'Loading...'}</div>
                 <div className="text-xs text-muted-foreground">EUR/USD</div>
               </CardContent>
             </Card>

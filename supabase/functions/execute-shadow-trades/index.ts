@@ -722,23 +722,21 @@ serve(async (req) => {
           if (oppositeTrades.length > 0) {
             console.log(`🔄 Closing ${oppositeTrades.length} opposite ${oppositeDirection.toUpperCase()} trades before executing new ${signal.signal_type.toUpperCase()} signal`);
             
-            // Get FRESH tick data for closing
-            const { data: freshTickForClose } = await supabase
-              .from('tick_data')
-              .select('bid, ask, timestamp')
+            // Get FRESH market data for closing
+            const { data: freshMarketForClose } = await supabase
+              .from('market_data_feed')
+              .select('price, timestamp')
               .eq('symbol', signal.symbol)
               .order('timestamp', { ascending: false })
               .limit(1)
               .single();
             
-            if (!freshTickForClose) {
-              console.error('❌ No tick data available for closing opposite trades');
+            if (!freshMarketForClose) {
+              console.error('❌ No market data available for closing opposite trades');
               continue;
             }
             
-            const closePrice = oppositeDirection === 'buy' 
-              ? freshTickForClose.bid 
-              : freshTickForClose.ask;
+            const closePrice = freshMarketForClose.price;
             
             // Close all opposite trades
             for (const oppTrade of oppositeTrades) {

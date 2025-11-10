@@ -350,13 +350,9 @@ serve(async (req) => {
     if (!marketData || marketData.length < 10) {
       console.warn('Insufficient market data, trying to fetch from backup sources...');
       
-      // Phase 4: Fallback to tick data if market_data_feed is insufficient
-      const { data: tickData } = await supabase
-        .from('tick_data')
-        .select('timestamp, bid, ask')
-        .eq('symbol', 'EUR/USD')
-        .order('timestamp', { ascending: false })
-        .limit(100);
+      // Phase 4: No fallback to tick_data - all sources should use market_data_feed
+      console.error('Insufficient market data - cannot generate signals without real market data');
+      throw new Error('Insufficient market data from market_data_feed (need at least 10 candles)');
         
       if (tickData && tickData.length >= 10) {
         console.log('Using tick data as fallback');
@@ -477,22 +473,21 @@ serve(async (req) => {
         console.log(`🎯 Storing ${confluenceSignal.signal_type.toUpperCase()} signal (Score: ${confluenceSignal.confluence_score})`);
         
         try {
-          // **CRITICAL FIX: Get fresh tick data for accurate entry price**
-          const { data: freshTickData } = await supabase
-            .from('tick_data')
-            .select('bid, ask, timestamp')
+          // **CRITICAL FIX: Get fresh market data for accurate entry price**
+          const { data: freshMarketData } = await supabase
+            .from('market_data_feed')
+            .select('price, timestamp')
             .eq('symbol', 'EUR/USD')
-            .eq('is_live', true)
             .order('timestamp', { ascending: false })
             .limit(1)
             .single();
           
           // Override entry price with REAL current market price
-          if (freshTickData) {
-            const freshPrice = (freshTickData.bid + freshTickData.ask) / 2;
-            const tickAge = Date.now() - new Date(freshTickData.timestamp).getTime();
+          if (freshMarketData) {
+            const freshPrice = freshMarketData.price;
+            const dataAge = Date.now() - new Date(freshMarketData.timestamp).getTime();
             
-            console.log(`🔄 Updating entry price from ${confluenceSignal.entry_price.toFixed(5)} to fresh tick ${freshPrice.toFixed(5)} (${tickAge}ms old)`);
+            console.log(`🔄 Updating entry price from ${confluenceSignal.entry_price.toFixed(5)} to fresh market ${freshPrice.toFixed(5)} (${dataAge}ms old)`);
             
             // Update all price-dependent values with fresh price
             const originalEntry = confluenceSignal.entry_price;

@@ -32,13 +32,15 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    console.log('🚀 Master Signal Generation V2 starting...');
+  // DISABLED: This fake signal generator has been replaced with real generate-confluence-signals
+  return new Response(JSON.stringify({
+    disabled: true,
+    message: "Fake signal generator disabled - system now uses real generate-confluence-signals instead",
+    timestamp: new Date().toISOString()
+  }), { 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    status: 200
+  });
 
     // Get latest market data for context
     const { data: latestTick, error: tickError } = await supabase

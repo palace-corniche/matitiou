@@ -71,16 +71,16 @@ serve(async (req) => {
       .order('detected_at', { ascending: false })
       .limit(1);
 
-    const { data: tickData } = await supabase
-      .from('tick_data')
-      .select('bid, ask')
+    const { data: marketDataPrice } = await supabase
+      .from('market_data_feed')
+      .select('price')
       .eq('symbol', 'EUR/USD')
       .order('timestamp', { ascending: false })
       .limit(1)
       .maybeSingle();
 
-    if (srLevels && srLevels.length > 0 && tickData) {
-      const currentPrice = (tickData.bid + tickData.ask) / 2;
+    if (srLevels && srLevels.length > 0 && marketDataPrice) {
+      const currentPrice = marketDataPrice.price;
       const levels = srLevels[0].levels || [];
       
       // Find closest S/R level
@@ -98,7 +98,7 @@ serve(async (req) => {
           action: `Monitor S/R level at ${closestLevel.price.toFixed(5)}`,
           reasoning: `Price is only ${distancePips.toFixed(1)} pips from ${closestLevel.type} at ${closestLevel.price.toFixed(5)}. Strength: ${closestLevel.strength.toFixed(2)}. Expect ${closestLevel.type === 'resistance' ? 'rejection or breakout' : 'bounce or breakdown'}.`,
           confidence_score: closestLevel.strength,
-          data_sources: ['support_resistance', 'tick_data'],
+          data_sources: ['support_resistance', 'market_data_feed'],
           metrics: {
             sr_level: closestLevel.price,
             sr_type: closestLevel.type,

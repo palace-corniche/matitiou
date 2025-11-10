@@ -19,22 +19,12 @@ class RealTimeTickEngine {
 
   async start() {
     if (this.isRunning) {
-      console.log('⚠️ Tick engine already running');
+      console.log('⚠️ Tick engine already running (DISABLED - using market_data_feed)');
       return;
     }
 
-    console.log('🚀 Starting real-time tick engine...');
-    this.isRunning = true;
-
-    // Start immediate tick
-    await this.generateTick();
-
-    // Generate ticks every 500ms (2 ticks per second for high frequency)
-    this.intervalId = setInterval(async () => {
-      if (this.isRunning) {
-        await this.generateTick();
-      }
-    }, 500);
+    console.log('⚠️ Real-time tick engine is DISABLED - system uses market_data_feed instead');
+    // Engine disabled - all price data comes from market_data_feed via fetch-market-data
   }
 
   stop() {
@@ -54,53 +44,54 @@ class RealTimeTickEngine {
   }
 
   private async generateTick() {
-    try {
-      // Call the edge function to generate real-time tick
-      const { data, error } = await supabase.functions.invoke('real-time-tick-engine', {
-        body: {}
-      });
-
-      if (error) {
-        console.error('❌ Error generating tick:', error);
-        return;
-      }
-
-      if (data?.success && data?.tick) {
-        // Notify all subscribers
-        this.tickCallbacks.forEach(callback => {
-          try {
-            callback(data.tick);
-          } catch (callbackError) {
-            console.error('❌ Error in tick callback:', callbackError);
-          }
-        });
-      }
-    } catch (error) {
-      console.error('❌ Error in tick engine:', error);
-    }
+    // Disabled - no longer generating fake ticks
+    console.warn('generateTick called but engine is disabled');
   }
 
   async getLatestTick(): Promise<TickData | null> {
     try {
+      // Now uses market_data_feed instead of tick_data
       const { data, error } = await supabase
-        .from('tick_data')
+        .from('market_data_feed')
         .select('*')
         .eq('symbol', 'EUR/USD')
-        .eq('data_source', 'real_market_data')
         .order('timestamp', { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (error) {
-        console.error('❌ Error getting latest tick:', error);
+        console.error('❌ Error getting latest market data:', error);
         return null;
       }
 
-      return data as TickData;
+      if (!data) return null;
+
+      // Convert market_data_feed to TickData format
+      const spread = 0.00015; // 1.5 pip spread
+      return {
+        symbol: data.symbol,
+        timestamp: data.timestamp,
+        bid: data.price - (spread / 2),
+        ask: data.price + (spread / 2),
+        spread: spread,
+        tick_volume: data.volume || 1000,
+        data_source: 'market_data_feed',
+        session_type: this.getSessionType(new Date(data.timestamp)),
+        is_live: true
+      };
     } catch (error) {
-      console.error('❌ Error fetching latest tick:', error);
+      console.error('❌ Error fetching latest market data:', error);
       return null;
     }
+  }
+
+  private getSessionType(date: Date): string {
+    const hour = date.getUTCHours();
+    if (hour >= 22 || hour < 7) return 'sydney';
+    if (hour >= 1 && hour < 10) return 'tokyo';
+    if (hour >= 8 && hour < 17) return 'london';
+    if (hour >= 13 && hour < 22) return 'new_york';
+    return 'off_market';
   }
 
   async getDataSourceStatus(): Promise<{

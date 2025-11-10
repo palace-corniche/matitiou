@@ -11,13 +11,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    console.log('🎯 Starting EUR/USD tick data engine...');
+  // DISABLED: This fake tick engine has been replaced with real market_data_feed
+  return new Response(JSON.stringify({
+    disabled: true,
+    message: "Fake tick engine disabled - system now uses real market_data_feed instead",
+    timestamp: new Date().toISOString()
+  }), { 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+  });
 
     // Generate realistic EUR/USD tick data with proper spreads
     const tickData = generateRealisticTickData();

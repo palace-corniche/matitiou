@@ -12,15 +12,14 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    console.log('🚀 Starting analysis pipeline...');
-    
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-
-    console.log('📊 Fetching latest tick data...');
+  // DISABLED: This fake pipeline has been replaced with real generate-confluence-signals
+  return new Response(JSON.stringify({
+    disabled: true,
+    message: "Fake analysis pipeline disabled - system now uses real generate-confluence-signals instead",
+    timestamp: new Date().toISOString()
+  }), { 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+  });
     
     // Try to get latest tick data, fallback to creating synthetic data if none exists
     let latestTick;

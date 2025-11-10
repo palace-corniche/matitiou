@@ -23,13 +23,14 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  try {
-    // Initialize Supabase client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
-
-    console.log('🚀 Real-time tick engine starting...');
+  // DISABLED: This fake tick engine has been replaced with real market_data_feed
+  return new Response(JSON.stringify({
+    disabled: true,
+    message: "Fake real-time tick engine disabled - system now uses real market_data_feed instead",
+    timestamp: new Date().toISOString()
+  }), { 
+    headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+  });
 
     // Get current market price from real API or generate realistic tick
     const currentTick = await generateRealisticEURUSDTick();

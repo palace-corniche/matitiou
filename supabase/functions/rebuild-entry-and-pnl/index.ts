@@ -46,29 +46,28 @@ serve(async (req) => {
           continue;
         }
 
-        // Try to find accurate entry price from tick data
+        // Try to find accurate entry price from market data sources (in order of accuracy)
         let entryPrice = trade.entry_price;
         let dataSource = 'existing';
         
         const entryTime = new Date(trade.entry_time);
         const timeWindow = new Date(entryTime.getTime() - 120000); // 2 min before
 
-        // Try tick_data first (most accurate)
-        const { data: tickData } = await supabase
-          .from('tick_data')
-          .select('bid, ask, timestamp')
+        // Try market_data_feed first (most reliable real data)
+        const { data: feedData } = await supabase
+          .from('market_data_feed')
+          .select('price, timestamp')
           .eq('symbol', trade.symbol)
           .gte('timestamp', timeWindow.toISOString())
           .lte('timestamp', entryTime.toISOString())
           .order('timestamp', { ascending: false })
           .limit(1);
 
-        if (tickData && tickData.length > 0) {
-          const tick = tickData[0];
-          entryPrice = trade.trade_type === 'buy' ? tick.ask : tick.bid;
-          dataSource = 'tick_data';
+        if (feedData && feedData.length > 0) {
+          entryPrice = feedData[0].price;
+          dataSource = 'market_data_feed';
         } else {
-          // Try market_data_enhanced
+          // Try market_data_enhanced as fallback
           const { data: enhancedData } = await supabase
             .from('market_data_enhanced')
             .select('open_price, high_price, low_price, close_price, timestamp')
@@ -83,21 +82,6 @@ serve(async (req) => {
             const candle = enhancedData[0];
             entryPrice = (candle.open_price + candle.high_price + candle.low_price + candle.close_price) / 4;
             dataSource = 'market_data_enhanced';
-          } else {
-            // Try market_data_feed
-            const { data: feedData } = await supabase
-              .from('market_data_feed')
-              .select('price, timestamp')
-              .eq('symbol', trade.symbol)
-              .gte('timestamp', timeWindow.toISOString())
-              .lte('timestamp', entryTime.toISOString())
-              .order('timestamp', { ascending: false })
-              .limit(1);
-
-            if (feedData && feedData.length > 0) {
-              entryPrice = feedData[0].price;
-              dataSource = 'market_data_feed';
-            }
           }
         }
 

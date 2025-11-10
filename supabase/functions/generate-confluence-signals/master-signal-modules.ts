@@ -2153,27 +2153,27 @@ function calculateFibonacciProjections(startPrice: number, endPrice: number, cur
 // ===================== REAL ORDER FLOW ANALYSIS =====================
 async function analyzeRealOrderFlow(supabase: any, pair: string, timeframe: string, currentPrice: number): Promise<any> {
   try {
-    // Get real tick volume data from tick_data table
-    const { data: tickData } = await supabase
-      .from('tick_data')
+    // Get real volume data from market_data_feed table
+    const { data: marketData } = await supabase
+      .from('market_data_feed')
       .select('*')
       .eq('symbol', pair)
       .gte('timestamp', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // Last hour
       .order('timestamp', { ascending: true });
     
-    if (!tickData || tickData.length < 20) {
+    if (!marketData || marketData.length < 20) {
       return { signal: 'hold', confidence: 0, strength: 0, volumeDelta: 0, pocAlignment: 0, aggressiveRatio: 0, stopLoss: currentPrice, takeProfit: currentPrice };
     }
     
-    // Calculate tick volume delta (buying vs selling pressure)
+    // Calculate volume delta (buying vs selling pressure from real candles)
     let buyVolume = 0;
     let sellVolume = 0;
     let aggressiveBuy = 0;
     let aggressiveSell = 0;
     
-    for (let i = 1; i < tickData.length; i++) {
-      const priceDiff = tickData[i].bid - tickData[i - 1].bid;
-      const volume = tickData[i].tick_volume || 1;
+    for (let i = 1; i < marketData.length; i++) {
+      const priceDiff = marketData[i].price - marketData[i - 1].price;
+      const volume = marketData[i].volume || 1000;
       
       if (priceDiff > 0) {
         buyVolume += volume;
