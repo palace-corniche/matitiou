@@ -53,3 +53,9 @@ verify_jwt = false
 
 [functions.generate-winning-patterns]
 verify_jwt = false
+
+[functions.periodic-data-cleanup]
+verify_jwt = false
+
+[functions.cleanup-duplicate-trades]
+verify_jwt = false

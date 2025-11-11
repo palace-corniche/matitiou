@@ -63,14 +63,14 @@ serve(async (req) => {
         for (const trade of removeTrades) {
           console.log(`🗑️ Removing duplicate trade ${trade.id} (${trade.created_at})`);
           
-          // Close the duplicate trade with zero P&L
+          // Close the duplicate trade with zero P&L (using 'manual' exit_reason as allowed by constraint)
           const { error: closeError } = await supabase
             .from('shadow_trades')
             .update({
               status: 'closed',
               exit_price: trade.entry_price,
               exit_time: new Date().toISOString(),
-              exit_reason: 'duplicate_cleanup',
+              exit_reason: 'manual', // Using 'manual' as allowed by shadow_trades_exit_reason_check constraint
               pnl: 0,
               pnl_percent: 0,
               profit_pips: 0,
