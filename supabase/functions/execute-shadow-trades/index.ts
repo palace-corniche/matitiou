@@ -693,17 +693,20 @@ serve(async (req) => {
       }
 
       // **RACE CONDITION PREVENTION: Mark as processing immediately (atomic operation)**
-      const { error: lockError } = await supabase
+      const { data: lockedSignal, error: lockError } = await supabase
         .from('master_signals')
         .update({ 
           status: 'processing',
           updated_at: new Date().toISOString()
         })
         .eq('id', signal.signal_id)
-        .eq('status', 'pending'); // Only update if still pending
+        .eq('status', 'pending') // Only update if still pending
+        .select() // Return the updated row
+        .single(); // Expect exactly one row
 
-      if (lockError) {
-        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already locked by another process, skipping`);
+      // Check if we actually acquired the lock (row was returned)
+      if (!lockedSignal || lockError) {
+        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already locked by another process (no row returned), skipping`);
         continue;
       }
 
