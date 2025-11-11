@@ -236,6 +236,54 @@ export type Database = {
         }
         Relationships: []
       }
+      aggregated_candles: {
+        Row: {
+          close_price: number
+          created_at: string
+          high_price: number
+          id: string
+          is_complete: boolean
+          low_price: number
+          open_price: number
+          symbol: string
+          tick_count: number
+          timeframe: string
+          timestamp: string
+          updated_at: string
+          volume: number
+        }
+        Insert: {
+          close_price: number
+          created_at?: string
+          high_price: number
+          id?: string
+          is_complete?: boolean
+          low_price: number
+          open_price: number
+          symbol?: string
+          tick_count?: number
+          timeframe: string
+          timestamp: string
+          updated_at?: string
+          volume?: number
+        }
+        Update: {
+          close_price?: number
+          created_at?: string
+          high_price?: number
+          id?: string
+          is_complete?: boolean
+          low_price?: number
+          open_price?: number
+          symbol?: string
+          tick_count?: number
+          timeframe?: string
+          timestamp?: string
+          updated_at?: string
+          volume?: number
+        }
+        Relationships: []
+      }
       ai_recommendations: {
         Row: {
           action: string

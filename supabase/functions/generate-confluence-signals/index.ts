@@ -333,20 +333,21 @@ serve(async (req) => {
 
     console.log('🔄 Starting confluence signal generation...');
 
-    // Phase 4: Optimized market data fetch with fallback to available timeframes
-    // Try to get 15m data first, fall back to H4, H1, or D1 if insufficient
+    // Phase 4: Fetch aggregated candles (tick-to-candle system)
+    // Try to get 15m data first, fall back to 1h, 4h, or 1d if insufficient
     let marketData = null;
     let selectedTimeframe = '15m';
     let dataError = null;
     
-    const timeframesToTry = ['15m', 'H4', 'H1', 'D1'];
+    const timeframesToTry = ['15m', '1h', '4h', '1d'];
     
     for (const tf of timeframesToTry) {
       const { data, error } = await supabase
-        .from('market_data_feed')
-        .select('timestamp, open_price, high_price, low_price, price, volume')
+        .from('aggregated_candles')
+        .select('timestamp, open_price, high_price, low_price, close_price, volume, tick_count, is_complete')
         .eq('symbol', 'EUR/USD')
         .eq('timeframe', tf)
+        .eq('is_complete', true) // Only use complete candles for analysis
         .lte('timestamp', new Date().toISOString())
         .order('timestamp', { ascending: false })
         .limit(100);
@@ -355,10 +356,10 @@ serve(async (req) => {
         marketData = data;
         selectedTimeframe = tf;
         dataError = null;
-        console.log(`✅ Found ${data.length} candles for ${tf} timeframe`);
+        console.log(`✅ Found ${data.length} complete candles for ${tf} timeframe (avg ${Math.round(data.reduce((sum, c) => sum + c.tick_count, 0) / data.length)} ticks/candle)`);
         break;
       } else {
-        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} candles`);
+        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles`);
       }
     }
 
@@ -368,8 +369,8 @@ serve(async (req) => {
     }
     
     if (!marketData || marketData.length < 10) {
-      console.error('Insufficient market data from all timeframes - cannot generate signals');
-      throw new Error('Insufficient market data from market_data_feed (need at least 10 candles)');
+      console.error('Insufficient aggregated candle data from all timeframes - cannot generate signals');
+      throw new Error('Insufficient candle data from aggregated_candles (need at least 10 complete candles). System is building candles from tick data.');
     }
 
     console.log(`📊 Analyzing ${marketData.length} candles from ${selectedTimeframe} timeframe`);
@@ -380,7 +381,7 @@ serve(async (req) => {
       open: parseFloat(d.open_price.toString()),
       high: parseFloat(d.high_price.toString()),
       low: parseFloat(d.low_price.toString()),
-      close: parseFloat(d.price.toString()),
+      close: parseFloat(d.close_price.toString()),
       volume: d.volume
     }));
 

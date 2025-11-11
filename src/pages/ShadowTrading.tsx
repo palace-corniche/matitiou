@@ -10,6 +10,7 @@ import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
 import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
 import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
 import { TradeIntelligenceWidget } from '@/components/enhanced/TradeIntelligenceWidget';
+import { CandleDataStatus } from '@/components/enhanced/CandleDataStatus';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 const ShadowTrading: React.FC = () => {
   const { openTrades } = useGlobalShadowTrading();
@@ -27,10 +28,11 @@ const ShadowTrading: React.FC = () => {
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mx-[29px]">
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mx-[29px]">
               <DataIntegrityMonitor />
               <TradeExecutionMonitor />
               <PriceIntegrityMonitor />
+              <CandleDataStatus />
             </div>
             
             {/* Trade Intelligence Widget - shows when there's an open trade */}

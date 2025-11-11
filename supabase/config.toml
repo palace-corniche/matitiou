@@ -81,3 +81,6 @@ verify_jwt = false
 
 [functions.cleanup-duplicate-trades]
 verify_jwt = false
+
+[functions.aggregate-candles]
+verify_jwt = false
