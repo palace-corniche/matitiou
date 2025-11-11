@@ -73,21 +73,8 @@ export class EnhancedSignalEngine {
       if (signal) {
         console.log(`✅ Generated ${signal.signal} signal with ${signal.confluenceScore.toFixed(0)}% confluence from ${signal.factors.length} factors`);
         
-        // Auto-execute in shadow trading system
-        try {
-          if (signal.signal !== 'neutral') {
-            globalShadowTradingEngine.executeTrade({
-              symbol: signal.pair || 'EUR/USD',
-              trade_type: signal.signal,
-              lot_size: 0.01,
-              entry_price: currentPrice,
-              stop_loss: signal.stopLoss || currentPrice * (signal.signal === 'buy' ? 0.99 : 1.01),
-              take_profit: signal.takeProfit || currentPrice * (signal.signal === 'buy' ? 1.01 : 0.99)
-            });
-          }
-        } catch (error) {
-          console.warn('Shadow trading execution failed:', error);
-        }
+        // Note: Trade execution is now handled by the backend edge function (execute-shadow-trades)
+        // The frontend just displays the signal analysis
       } else {
         console.log('❌ Insufficient confluence for signal generation');
       }

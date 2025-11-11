@@ -333,15 +333,34 @@ serve(async (req) => {
 
     console.log('🔄 Starting confluence signal generation...');
 
-    // Phase 4: Optimized market data fetch with better error handling
-    const { data: marketData, error: dataError } = await supabase
-      .from('market_data_feed')
-      .select('timestamp, open_price, high_price, low_price, price, volume')  // Select only needed columns
-      .eq('symbol', 'EUR/USD')
-      .eq('timeframe', '15m')
-      .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
-      .order('timestamp', { ascending: false })
-      .limit(100);
+    // Phase 4: Optimized market data fetch with fallback to available timeframes
+    // Try to get 15m data first, fall back to H4, H1, or D1 if insufficient
+    let marketData = null;
+    let selectedTimeframe = '15m';
+    let dataError = null;
+    
+    const timeframesToTry = ['15m', 'H4', 'H1', 'D1'];
+    
+    for (const tf of timeframesToTry) {
+      const { data, error } = await supabase
+        .from('market_data_feed')
+        .select('timestamp, open_price, high_price, low_price, price, volume')
+        .eq('symbol', 'EUR/USD')
+        .eq('timeframe', tf)
+        .lte('timestamp', new Date().toISOString())
+        .order('timestamp', { ascending: false })
+        .limit(100);
+      
+      if (!error && data && data.length >= 10) {
+        marketData = data;
+        selectedTimeframe = tf;
+        dataError = null;
+        console.log(`✅ Found ${data.length} candles for ${tf} timeframe`);
+        break;
+      } else {
+        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} candles`);
+      }
+    }
 
     if (dataError) {
       console.error('Market data fetch error:', dataError);
@@ -349,33 +368,11 @@ serve(async (req) => {
     }
     
     if (!marketData || marketData.length < 10) {
-      console.warn('Insufficient market data, trying to fetch from backup sources...');
-      
-      // Phase 4: No fallback to tick_data - all sources should use market_data_feed
-      console.error('Insufficient market data - cannot generate signals without real market data');
+      console.error('Insufficient market data from all timeframes - cannot generate signals');
       throw new Error('Insufficient market data from market_data_feed (need at least 10 candles)');
-        
-      if (tickData && tickData.length >= 10) {
-        console.log('Using tick data as fallback');
-        // Convert tick data to candle format (simplified)
-        const candles = tickData.reverse().map((tick, index) => {
-          const price = (tick.bid + tick.ask) / 2;
-          return {
-            time: tick.timestamp,
-            open: price,
-            high: price * 1.0002,
-            low: price * 0.9998,
-            close: price,
-            volume: 1000 + Math.random() * 500
-          };
-        });
-        processedItems = 1; // Mark as processed since we have data
-      } else {
-        throw new Error('Insufficient market data from all sources');
-      }
     }
 
-    console.log(`📊 Analyzing ${marketData.length} candles`);
+    console.log(`📊 Analyzing ${marketData.length} candles from ${selectedTimeframe} timeframe`);
 
     // Convert to candle format for analysis
     const candles = marketData.reverse().map(d => ({
@@ -391,7 +388,7 @@ serve(async (req) => {
 
     // Generate comprehensive signal analysis using Enhanced Master Signal Engine with Real Data
     const pair = 'EUR/USD';
-    const timeframe = '15m';
+    const timeframe = selectedTimeframe; // Use the timeframe that had sufficient data
     
     // **PHASE 2 FIX: Detect actual market regime instead of hardcoding**
     const regimeDetection = detectMarketRegime(candles, candles.map(() => 1));
