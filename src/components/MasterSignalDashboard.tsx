@@ -123,31 +123,41 @@ const MasterSignalDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      // Get signal statistics
-      const { data: signalsData } = await supabase
+      // Get all signals (accept pagination limit for performance)
+      const { data: allSignals, error: allError } = await supabase
         .from('master_signals')
-        .select('final_confidence, created_at');
+        .select('id, created_at, final_confidence, actual_outcome')
+        .order('created_at', { ascending: false })
+        .limit(10000); // Get up to 10k most recent
 
-      const { data: executedSignals } = await supabase
-        .from('trading_signals')
-        .select('was_executed, confluence_score')
-        .eq('was_executed', true);
+      if (allError) throw allError;
 
-      if (signalsData) {
-        const total = signalsData.length;
-        const recent = signalsData.filter(s => 
-          new Date(s.created_at) > new Date(Date.now() - 24 * 60 * 60 * 1000)
-        ).length;
-        const avgConf = signalsData.reduce((sum, s) => sum + (s.final_confidence || 0), 0) / total || 0;
-        const successRate = executedSignals ? (executedSignals.length / total) * 100 : 0;
+      const totalCount = allSignals?.length || 0;
+      
+      // Calculate active signals (24h)
+      const twentyFourHoursAgo = Date.now() - 24 * 60 * 60 * 1000;
+      const activeCount = allSignals?.filter(s => 
+        new Date(s.created_at).getTime() > twentyFourHoursAgo
+      ).length || 0;
 
-        setStats({
-          totalSignals: total,
-          activeSignals: recent,
-          avgConfidence: avgConf,
-          successRate
-        });
-      }
+      // Calculate average confidence
+      const avgConf = allSignals && allSignals.length > 0
+        ? allSignals.reduce((sum, s) => sum + (s.final_confidence || 0), 0) / allSignals.length
+        : 0;
+
+      // Calculate success rate (signals with positive actual outcome)
+      const successfulCount = allSignals?.filter(s => 
+        s.actual_outcome === 'win' || s.actual_outcome === 'success'
+      ).length || 0;
+      const totalWithOutcome = allSignals?.filter(s => s.actual_outcome !== null).length || 0;
+      const successRate = totalWithOutcome > 0 ? (successfulCount / totalWithOutcome) * 100 : 0;
+
+      setStats({
+        totalSignals: totalCount,
+        activeSignals: activeCount,
+        avgConfidence: avgConf,
+        successRate
+      });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
     }
