@@ -791,12 +791,12 @@ serve(async (req) => {
           }
 
           const priceAge = Date.now() - new Date(freshPrice.timestamp).getTime();
-          if (priceAge > 900000) { // 15 minutes
-            console.error(`❌ Price too old: ${Math.round(priceAge/60000)} minutes`);
+          if (priceAge > 3600000 && priceAge < -3600000) { // More than 1 hour old OR more than 1 hour in future
+            console.error(`❌ Price timestamp invalid: ${Math.round(priceAge/60000)} minutes ${priceAge > 0 ? 'old' : 'in future'}`);
             
             await supabase.from('master_signals').update({
               status: 'rejected',
-              rejection_reason: `Price data stale (${Math.round(priceAge/60000)}m old)`,
+              rejection_reason: `Price timestamp invalid (${Math.round(priceAge/60000)}m ${priceAge > 0 ? 'old' : 'in future'})`,
               updated_at: new Date().toISOString()
             }).eq('id', signal.signal_id);
             

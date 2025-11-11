@@ -1,5 +1,8 @@
 project_id = "gmpmpbuzlybajzrapdrr"
 
+[functions.fix-market-data-timestamps]
+verify_jwt = false
+
 [functions.fetch-market-data]
 verify_jwt = false
 

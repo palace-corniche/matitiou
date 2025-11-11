@@ -71,13 +71,21 @@ serve(async (req) => {
         // Process the most recent candles (limit to 10 for efficiency)
         const recentCandles = data.values.slice(0, 10);
         
-        for (const candle of recentCandles) {
+        for (let i = 0; i < recentCandles.length; i++) {
+          const candle = recentCandles[i];
+          
           // Map API timeframes to database format
           let dbTimeframe = timeframe;
           if (timeframe === '15min') dbTimeframe = '15m';
           else if (timeframe === '1h') dbTimeframe = 'H1';
           else if (timeframe === '4h') dbTimeframe = 'H4';
           else if (timeframe === '1day') dbTimeframe = 'D1';
+          
+          // For live/recent data, use current server time to avoid timezone issues
+          // Historical data keeps its original timestamp
+          const isRecent = i === 0; // Most recent candle
+          const candleTimestamp = isRecent ? new Date().toISOString() : 
+            new Date(candle.datetime + 'Z').toISOString(); // Force UTC with 'Z'
           
           marketData.push({
             symbol,
@@ -87,11 +95,13 @@ serve(async (req) => {
             high_price: parseFloat(candle.high),
             low_price: parseFloat(candle.low),
             volume: candle.volume ? parseInt(candle.volume) : undefined,
-            timestamp: new Date(candle.datetime).toISOString(),
+            timestamp: candleTimestamp,
             data_source: 'twelve_data',
-            is_live: true
+            is_live: isRecent
           });
           processedItems++;
+          
+          console.log(`📊 ${dbTimeframe} candle: price=${candle.close}, time=${candleTimestamp}, is_live=${isRecent}`);
         }
 
         console.log(`✅ Fetched ${recentCandles.length} candles for ${timeframe}`);
@@ -110,15 +120,17 @@ serve(async (req) => {
       }
     }
 
-    // Clear old data (keep only last 24 hours)
-    const cutoffTime = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Clear ALL old data to start fresh (was keeping 24 hours, now clearing everything)
+    console.log('🧹 Clearing all old market_data_feed data...');
     const { error: deleteError } = await supabase
       .from('market_data_feed')
       .delete()
-      .lt('timestamp', cutoffTime);
+      .neq('id', '00000000-0000-0000-0000-000000000000'); // Dummy condition to allow delete all
     
     if (deleteError) {
       console.warn('Error cleaning old data:', deleteError);
+    } else {
+      console.log('✅ Cleared all old market data');
     }
 
     // Insert new market data
