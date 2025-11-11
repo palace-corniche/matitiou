@@ -427,6 +427,23 @@ serve(async (req) => {
               console.log(`✅ Intelligence score ${exitIntelligence.overallExitScore.toFixed(2)} stored, trigger: ${exitIntelligence.recommendation === 'FORCE_EXIT'}`);
             }
 
+            // Store in exit_intelligence for historical tracking
+            const holdingTimeMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
+            await supabase
+              .from('exit_intelligence')
+              .insert({
+                trade_id: trade.id,
+                current_price: currentPrice,
+                holding_time_minutes: holdingTimeMinutes,
+                overall_score: exitIntelligence.overallExitScore,
+                recommendation: exitIntelligence.recommendation,
+                factors: exitIntelligence.factors,
+                reasoning: exitIntelligence.reasoning
+              });
+            
+            console.log(`📊 Exit intelligence stored in historical tracking`);
+
+
             // ✅ FIX #2: Loosened intelligence exit conditions
             if (exitIntelligence.recommendation === 'FORCE_EXIT') {
               const profitPips = calculateProfitPips(trade, currentPrice);

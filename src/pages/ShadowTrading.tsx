@@ -9,7 +9,11 @@ import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
 import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
 import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
 import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
+import { TradeIntelligenceWidget } from '@/components/enhanced/TradeIntelligenceWidget';
+import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 const ShadowTrading: React.FC = () => {
+  const { openTrades } = useGlobalShadowTrading();
+
   return <div className="min-h-screen bg-background">
       <NavigationBar />
       <div className="container mx-auto px-4 py-6">
@@ -28,6 +32,14 @@ const ShadowTrading: React.FC = () => {
               <TradeExecutionMonitor />
               <PriceIntegrityMonitor />
             </div>
+            
+            {/* Trade Intelligence Widget - shows when there's an open trade */}
+            {openTrades && openTrades.length > 0 && (
+              <div className="mx-[29px]">
+                <TradeIntelligenceWidget tradeId={openTrades[0].id} />
+              </div>
+            )}
+            
             <ShadowTradingDashboardUnified />
           </TabsContent>
           

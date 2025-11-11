@@ -29,6 +29,7 @@ export type Database = {
           id: string
           max_open_trades: number
           max_spread_pips: number
+          max_tp_pips: number | null
           min_signal_quality: number
           portfolio_id: string
           risk_per_trade_percent: number
@@ -52,6 +53,7 @@ export type Database = {
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
+          max_tp_pips?: number | null
           min_signal_quality?: number
           portfolio_id: string
           risk_per_trade_percent?: number
@@ -75,6 +77,7 @@ export type Database = {
           id?: string
           max_open_trades?: number
           max_spread_pips?: number
+          max_tp_pips?: number | null
           min_signal_quality?: number
           portfolio_id?: string
           risk_per_trade_percent?: number
@@ -835,6 +838,53 @@ export type Database = {
         }
         Relationships: []
       }
+      exit_intelligence: {
+        Row: {
+          check_timestamp: string | null
+          created_at: string | null
+          current_price: number
+          factors: Json
+          holding_time_minutes: number | null
+          id: string
+          overall_score: number
+          reasoning: string | null
+          recommendation: string | null
+          trade_id: string | null
+        }
+        Insert: {
+          check_timestamp?: string | null
+          created_at?: string | null
+          current_price: number
+          factors: Json
+          holding_time_minutes?: number | null
+          id?: string
+          overall_score: number
+          reasoning?: string | null
+          recommendation?: string | null
+          trade_id?: string | null
+        }
+        Update: {
+          check_timestamp?: string | null
+          created_at?: string | null
+          current_price?: number
+          factors?: Json
+          holding_time_minutes?: number | null
+          id?: string
+          overall_score?: number
+          reasoning?: string | null
+          recommendation?: string | null
+          trade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "exit_intelligence_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       fibonacci_confluence_zones: {
         Row: {
           bounce_rate: number | null
@@ -1205,6 +1255,75 @@ export type Database = {
           timeframe?: string
         }
         Relationships: []
+      }
+      intelligent_targets: {
+        Row: {
+          actual_sl: number | null
+          actual_tp: number | null
+          confidence: number | null
+          created_at: string | null
+          entry_price: number
+          id: string
+          key_levels: Json | null
+          reasoning: string | null
+          recommended_sl: number
+          recommended_tp1: number
+          recommended_tp2: number | null
+          recommended_tp3: number | null
+          signal_id: string | null
+          symbol: string
+          trade_id: string | null
+        }
+        Insert: {
+          actual_sl?: number | null
+          actual_tp?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          entry_price: number
+          id?: string
+          key_levels?: Json | null
+          reasoning?: string | null
+          recommended_sl: number
+          recommended_tp1: number
+          recommended_tp2?: number | null
+          recommended_tp3?: number | null
+          signal_id?: string | null
+          symbol: string
+          trade_id?: string | null
+        }
+        Update: {
+          actual_sl?: number | null
+          actual_tp?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          entry_price?: number
+          id?: string
+          key_levels?: Json | null
+          reasoning?: string | null
+          recommended_sl?: number
+          recommended_tp1?: number
+          recommended_tp2?: number | null
+          recommended_tp3?: number | null
+          signal_id?: string | null
+          symbol?: string
+          trade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "intelligent_targets_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "intelligent_targets_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lot_size_presets: {
         Row: {

@@ -967,6 +967,32 @@ serve(async (req) => {
             console.log(`   TP3: ${intelligentTargets.take_profit_3.toFixed(5)} (${tp3Pips} pips)`);
             console.log(`   Reasoning: ${targetsReasoning}`);
             console.log(`   Key levels: ${intelligentTargets.key_levels.length}`);
+            
+            // Apply max_tp_pips constraint if configured
+            const { data: accountDefaults } = await supabase
+              .from('account_defaults')
+              .select('max_tp_pips')
+              .is('portfolio_id', null)
+              .single();
+
+            const maxTpPips = accountDefaults?.max_tp_pips || null;
+
+            if (maxTpPips && intelligentTargets) {
+              const currentTpPips = Math.abs(signal.entry_price - dynamicTakeProfit) / 0.0001;
+              
+              if (currentTpPips > maxTpPips) {
+                console.log(`⚠️ Capping TP: ${currentTpPips.toFixed(1)} pips > ${maxTpPips} max`);
+                
+                // Cap TP at max distance
+                dynamicTakeProfit = signal.signal_type === 'buy'
+                  ? signal.entry_price + (maxTpPips * 0.0001)
+                  : signal.entry_price - (maxTpPips * 0.0001);
+                
+                targetsReasoning = `Capped at ${maxTpPips} pips (was ${currentTpPips.toFixed(1)} pips). ${targetsReasoning}`;
+                
+                console.log(`   New TP: ${dynamicTakeProfit.toFixed(5)} (${maxTpPips} pips)`);
+              }
+            }
           } else {
             console.warn(`⚠️ Intelligent targets failed, using signal defaults`);
           }
@@ -1038,6 +1064,7 @@ serve(async (req) => {
 
           // Update trade with intelligent targets if available
           if (intelligentTargets) {
+            // Store in shadow_trades
             await supabase
               .from('shadow_trades')
               .update({
@@ -1045,12 +1072,31 @@ serve(async (req) => {
                 take_profit_2: intelligentTargets.take_profit_2,
                 take_profit_3: intelligentTargets.take_profit_3,
                 target_confidence: intelligentTargets.confidence,
-                target_reasoning: intelligentTargets.reasoning,
+                target_reasoning: targetsReasoning,
                 key_levels: intelligentTargets.key_levels
               })
               .eq('id', trade_id);
             
-            console.log(`📊 Intelligent targets stored in database`);
+            // Store in intelligent_targets for historical tracking
+            await supabase
+              .from('intelligent_targets')
+              .insert({
+                trade_id: trade_id,
+                signal_id: signal.signal_id,
+                symbol: signal.pair,
+                entry_price: entryPrice,
+                recommended_sl: intelligentTargets.stop_loss,
+                recommended_tp1: intelligentTargets.take_profit_1,
+                recommended_tp2: intelligentTargets.take_profit_2,
+                recommended_tp3: intelligentTargets.take_profit_3,
+                actual_sl: dynamicStopLoss,
+                actual_tp: dynamicTakeProfit,
+                confidence: intelligentTargets.confidence,
+                reasoning: targetsReasoning,
+                key_levels: intelligentTargets.key_levels
+              });
+            
+            console.log(`📊 Intelligent targets stored in database and historical tracking`);
           }
 
           // Upsert/update rate limit record
