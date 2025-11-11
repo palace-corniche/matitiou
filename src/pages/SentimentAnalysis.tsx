@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -309,7 +310,13 @@ export default function SentimentAnalysisPage() {
   }
 
   return (
-    <div className="container mx-auto p-6">
+    <>
+      <PageHeader 
+        title="Sentiment Analysis"
+        description="Market positioning and bias metrics from COT reports, retail sentiment, and news analysis"
+        icon={Users}
+      />
+      <div className="container mx-auto px-6 py-6">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
           <Users className="h-8 w-8" />
@@ -343,6 +350,7 @@ export default function SentimentAnalysisPage() {
           signals.map(renderSignalCard)
         )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }

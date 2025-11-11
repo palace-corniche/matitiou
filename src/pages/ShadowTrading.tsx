@@ -1,23 +1,34 @@
-import React, { useState } from 'react';
+import React from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import NavigationBar from '@/components/NavigationBar';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import ShadowTradingDashboardUnified from '@/components/ShadowTradingDashboardUnified';
 import MasterSignalDashboard from '@/components/MasterSignalDashboard';
 import SignalOutcomeTracker from '@/components/SignalOutcomeTracker';
 import ModulePerformanceTracker from '@/components/ModulePerformanceTracker';
-import TradePerformanceAnalytics from '@/components/TradePerformanceAnalytics';
-import TradeExecutionMonitor from '@/components/TradeExecutionMonitor';
-import DataIntegrityMonitor from '@/components/DataIntegrityMonitor';
-import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
+import { TradePerformanceAnalytics } from '@/components/TradePerformanceAnalytics';
 import { TradeIntelligenceWidget } from '@/components/enhanced/TradeIntelligenceWidget';
-import { CandleDataStatus } from '@/components/enhanced/CandleDataStatus';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
+import { DataIntegrityMonitor } from '@/components/DataIntegrityMonitor';
+import { TradeExecutionMonitor } from '@/components/TradeExecutionMonitor';
+import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
+import { CandleDataStatus } from '@/components/enhanced/CandleDataStatus';
+import { Target, ChevronDown } from 'lucide-react';
+
 const ShadowTrading: React.FC = () => {
   const { openTrades } = useGlobalShadowTrading();
+  const [monitoringOpen, setMonitoringOpen] = React.useState(false);
 
-  return <div className="min-h-screen bg-background">
-      <NavigationBar />
-      <div className="container mx-auto px-4 py-6">
+  return (
+    <>
+      <PageHeader 
+        title="Shadow Trading"
+        description="Virtual portfolio performance tracking with real-time execution monitoring"
+        icon={Target}
+      />
+      <div className="container mx-auto px-6 py-6">
         <Tabs defaultValue="trading" className="space-y-6">
           <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="trading">Shadow Trading</TabsTrigger>
@@ -28,20 +39,28 @@ const ShadowTrading: React.FC = () => {
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mx-[29px]">
-              <DataIntegrityMonitor />
-              <TradeExecutionMonitor />
-              <PriceIntegrityMonitor />
-              <CandleDataStatus />
-            </div>
-            
-            {/* Trade Intelligence Widget - shows when there's an open trade */}
+            <Collapsible open={monitoringOpen} onOpenChange={setMonitoringOpen}>
+              <Card className="p-4">
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="w-full flex items-center justify-between p-2">
+                    <span className="text-sm font-medium">System Monitoring & Data Quality</span>
+                    <ChevronDown className={`h-4 w-4 transition-transform ${monitoringOpen ? 'rotate-180' : ''}`} />
+                  </Button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="pt-4">
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    <DataIntegrityMonitor />
+                    <TradeExecutionMonitor />
+                    <PriceIntegrityMonitor />
+                    <CandleDataStatus />
+                  </div>
+                </CollapsibleContent>
+              </Card>
+            </Collapsible>
+
             {openTrades && openTrades.length > 0 && (
-              <div className="mx-[29px]">
-                <TradeIntelligenceWidget tradeId={openTrades[0].id} />
-              </div>
+              <TradeIntelligenceWidget tradeId={openTrades[0].id} />
             )}
-            
             <ShadowTradingDashboardUnified />
           </TabsContent>
           
@@ -62,6 +81,8 @@ const ShadowTrading: React.FC = () => {
           </TabsContent>
         </Tabs>
       </div>
-    </div>;
+    </>
+  );
 };
+
 export default ShadowTrading;

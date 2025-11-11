@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { supabase } from '@/integrations/supabase/client';
 import { Badge } from '@/components/ui/badge';
-import { TrendingUp, TrendingDown, Activity, BarChart3 } from 'lucide-react';
+import { TrendingUp, TrendingDown, Activity, Calculator } from 'lucide-react';
 
 interface QuantSignal {
   id: string;
@@ -52,12 +53,13 @@ export default function QuantitativeAnalysisPage() {
   const metrics = getStrategyMetrics();
 
   return (
-    <div className="container mx-auto px-4 py-6 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold mb-2">Quantitative Analysis</h1>
-        <p className="text-muted-foreground">Statistical arbitrage, mean reversion, and momentum strategies</p>
-      </div>
-
+    <>
+      <PageHeader 
+        title="Quantitative Analysis"
+        description="Statistical arbitrage, mean reversion, and momentum strategies with quantitative metrics"
+        icon={Calculator}
+      />
+      <div className="container mx-auto px-6 py-6 space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">
@@ -100,13 +102,13 @@ export default function QuantitativeAnalysisPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5" />
-            Recent Quantitative Signals
-          </CardTitle>
-        </CardHeader>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <Calculator className="h-4 w-4" />
+              Recent Quantitative Signals
+            </CardTitle>
+          </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-muted-foreground">Loading signals...</p>
@@ -170,5 +172,6 @@ export default function QuantitativeAnalysisPage() {
         </CardContent>
       </Card>
     </div>
+    </>
   );
 }

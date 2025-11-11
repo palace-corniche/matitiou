@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -14,6 +15,7 @@ import { EconomicSurpriseTracker } from '@/components/EconomicSurpriseTracker';
 import { CorrelationMatrix } from '@/components/CorrelationMatrix';
 import { CentralBankTracker } from '@/components/CentralBankTracker';
 import EnhancedSignalAnalyticsDashboard from '@/components/EnhancedSignalAnalyticsDashboard';
+import { Newspaper } from 'lucide-react';
 
 const FundamentalAnalysis: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useState('EUR/USD');
@@ -45,8 +47,14 @@ const FundamentalAnalysis: React.FC = () => {
   };
 
   return (
-    <div className="container mx-auto px-4 py-6">
-      <div className="space-y-6">
+    <>
+      <PageHeader 
+        title="Fundamental Analysis"
+        description="Economic events, news sentiment, and market intelligence for informed trading decisions"
+        icon={Newspaper}
+      />
+      <div className="container mx-auto px-6 py-6">
+        <div className="space-y-6">
         <ApiHealthMonitor />
         
         <Tabs defaultValue="intelligence" className="w-full">
@@ -134,8 +142,9 @@ const FundamentalAnalysis: React.FC = () => {
             </div>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
-    </div>
+    </>
   );
 };
 

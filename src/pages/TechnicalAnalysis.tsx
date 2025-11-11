@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { KeyLevelsEngine, type KeyLevel, type ComputedLevels } from '../services/keyLevelsEngine';
-// Removed - using unifiedMarketData instead
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -480,7 +480,13 @@ export default function TechnicalAnalysisPage() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <>
+      <PageHeader 
+        title="Technical Analysis"
+        description="Advanced technical indicators, patterns, and chart analysis with real-time price feeds"
+        icon={LineChart}
+      />
+      <div className="container mx-auto px-6 py-6 space-y-6">
       {/* ============= HEADER WITH LIVE PRICE =============*/}
       <div className="flex flex-col lg:flex-row lg:justify-between lg:items-start gap-4">
         <div>
@@ -900,6 +906,7 @@ export default function TechnicalAnalysisPage() {
           </div>
         </TabsContent>
       </Tabs>
-    </div>
+      </div>
+    </>
   );
 }

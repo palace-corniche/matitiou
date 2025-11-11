@@ -1,11 +1,11 @@
 import { Toaster } from "@/components/ui/sonner";
-import NavigationBar from "@/components/NavigationBar";
+import { PageHeader } from "@/components/PageHeader";
 import { ComprehensiveTradingDashboard } from '@/components/ComprehensiveTradingDashboard';
 import { useState, useEffect } from 'react';
 import { getForexData, CandleData } from '@/services/realMarketData';
 import { useToast } from '@/hooks/use-toast';
 import { useAutomationBackup } from '@/hooks/useAutomationBackup';
-import { Button } from '@/components/ui/button';
+import { BarChart3 } from 'lucide-react';
 const Index = () => {
   const [chartData, setChartData] = useState<CandleData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -43,13 +43,18 @@ const Index = () => {
         </div>
       </div>;
   }
-  return <div className="min-h-screen bg-background">
-      <NavigationBar />
+  return (
+    <>
+      <PageHeader 
+        title="Trading Dashboard"
+        description="Real-time market analysis, signals, and comprehensive trading intelligence"
+        icon={BarChart3}
+      />
       <Toaster />
-      <div className="flex items-center justify-end p-4 gap-4">
-        
+      <div className="container mx-auto px-6 py-6">
+        <ComprehensiveTradingDashboard data={chartData} pair="EUR/USD" />
       </div>
-      <ComprehensiveTradingDashboard data={chartData} pair="EUR/USD" />
-    </div>;
+    </>
+  );
 };
 export default Index;

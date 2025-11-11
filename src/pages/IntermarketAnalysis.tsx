@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -12,7 +13,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   DollarSign,
-  Coins
+  Coins,
+  Network
 } from 'lucide-react';
 
 interface IntermarketSignal {
@@ -416,47 +418,51 @@ export default function IntermarketAnalysisPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">Loading intermarket analysis...</div>
-      </div>
+      <>
+        <PageHeader 
+          title="Intermarket Analysis"
+          description="Cross-asset insights showing relationships between forex, commodities, indices, and bonds"
+          icon={Network}
+        />
+        <div className="container mx-auto px-6 py-6">
+          <div className="text-center">Loading intermarket analysis...</div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Globe className="h-8 w-8" />
-          Intermarket Analysis
-        </h1>
-        <p className="text-muted-foreground">
-          Cross-asset insights showing relationships between forex, commodities, indices, and bonds
-        </p>
-      </div>
+    <>
+      <PageHeader 
+        title="Intermarket Analysis"
+        description="Cross-asset insights showing relationships between forex, commodities, indices, and bonds"
+        icon={Network}
+      />
+      <div className="container mx-auto px-6 py-6">
+        <Tabs value={selectedView} onValueChange={setSelectedView} className="mb-6">
+          <TabsList>
+            <TabsTrigger value="signals">Intermarket Signals</TabsTrigger>
+            <TabsTrigger value="correlations">Correlations</TabsTrigger>
+            <TabsTrigger value="risk">Risk Analysis</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-      <Tabs value={selectedView} onValueChange={setSelectedView} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="signals">Intermarket Signals</TabsTrigger>
-          <TabsTrigger value="correlations">Correlations</TabsTrigger>
-          <TabsTrigger value="risk">Risk Analysis</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <div className="grid gap-4">
-        {signals.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Intermarket Signals</h3>
-              <p className="text-muted-foreground">
-                No intermarket analysis signals found.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          signals.map(renderSignalCard)
-        )}
+        <div className="grid gap-4">
+          {signals.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Intermarket Signals</h3>
+                <p className="text-muted-foreground">
+                  No intermarket analysis signals found.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            signals.map(renderSignalCard)
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }

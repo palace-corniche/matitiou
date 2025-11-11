@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -482,48 +483,52 @@ export default function SpecializedAnalysisPage() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
-        <div className="text-center">Loading specialized analysis...</div>
-      </div>
+      <>
+        <PageHeader 
+          title="Specialized Analysis"
+          description="Elliott waves, harmonic patterns, and advanced order flow analysis for precision trading"
+          icon={Waves}
+        />
+        <div className="container mx-auto px-6 py-6">
+          <div className="text-center">Loading specialized analysis...</div>
+        </div>
+      </>
     );
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Waves className="h-8 w-8" />
-          Specialized Analysis
-        </h1>
-        <p className="text-muted-foreground">
-          Advanced pattern analysis including Elliott Wave, harmonic patterns, and order flow studies
-        </p>
-      </div>
+    <>
+      <PageHeader 
+        title="Specialized Analysis"
+        description="Elliott waves, harmonic patterns, and advanced order flow analysis for precision trading"
+        icon={Waves}
+      />
+      <div className="container mx-auto px-6 py-6">
+        <Tabs value={selectedPattern} onValueChange={setSelectedPattern} className="mb-6">
+          <TabsList>
+            <TabsTrigger value="all">All Patterns</TabsTrigger>
+            <TabsTrigger value="elliott">Elliott Wave</TabsTrigger>
+            <TabsTrigger value="harmonic">Harmonic</TabsTrigger>
+            <TabsTrigger value="orderflow">Order Flow</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
-      <Tabs value={selectedPattern} onValueChange={setSelectedPattern} className="mb-6">
-        <TabsList>
-          <TabsTrigger value="all">All Patterns</TabsTrigger>
-          <TabsTrigger value="elliott">Elliott Wave</TabsTrigger>
-          <TabsTrigger value="harmonic">Harmonic</TabsTrigger>
-          <TabsTrigger value="orderflow">Order Flow</TabsTrigger>
-        </TabsList>
-      </Tabs>
-
-      <div className="grid gap-4">
-        {signals.length === 0 ? (
-          <Card>
-            <CardContent className="p-8 text-center">
-              <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-              <h3 className="text-lg font-medium mb-2">No Specialized Signals</h3>
-              <p className="text-muted-foreground">
-                No specialized pattern analysis signals found.
-              </p>
-            </CardContent>
-          </Card>
-        ) : (
-          signals.map(renderSignalCard)
-        )}
+        <div className="grid gap-4">
+          {signals.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <Activity className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium mb-2">No Specialized Signals</h3>
+                <p className="text-muted-foreground">
+                  No specialized pattern analysis signals found.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            signals.map(renderSignalCard)
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
