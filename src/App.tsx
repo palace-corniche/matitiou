@@ -9,6 +9,7 @@ import SignalAnalytics from "./pages/SignalAnalytics";
 import EnhancedSignalAnalytics from "./pages/EnhancedSignalAnalytics";
 import EnhancedTrading from "./pages/EnhancedTrading";
 import SystemMonitor from "./pages/SystemMonitor";
+import AutonomousLearning from "./pages/AutonomousLearning";
 import NotFound from "./pages/NotFound";
 import TechnicalAnalysis from "./pages/TechnicalAnalysis";
 import FundamentalAnalysis from "./pages/FundamentalAnalysis";
@@ -35,6 +36,7 @@ const App = () => (
           <Route path="/shadow-trading" element={<ShadowTrading />} />
           <Route path="/metatrader4" element={<Navigate to="/shadow-trading" replace />} />
           <Route path="/system-monitor" element={<SystemMonitor />} />
+          <Route path="/autonomous-learning" element={<AutonomousLearning />} />
           <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
           <Route path="/fundamental-analysis" element={<FundamentalAnalysis />} />
           <Route path="/sentiment-analysis" element={<SentimentAnalysis />} />

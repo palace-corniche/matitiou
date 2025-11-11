@@ -631,6 +631,57 @@ export type Database = {
         }
         Relationships: []
       }
+      discovered_patterns: {
+        Row: {
+          avg_pips: number | null
+          avg_return_percent: number | null
+          confidence: number
+          created_at: string | null
+          deployed: boolean | null
+          deployed_at: string | null
+          id: string
+          last_tested_at: string | null
+          pattern_name: string
+          pattern_rules: Json
+          pattern_type: string
+          profit_factor: number | null
+          sample_size: number
+          win_rate: number
+        }
+        Insert: {
+          avg_pips?: number | null
+          avg_return_percent?: number | null
+          confidence: number
+          created_at?: string | null
+          deployed?: boolean | null
+          deployed_at?: string | null
+          id?: string
+          last_tested_at?: string | null
+          pattern_name: string
+          pattern_rules?: Json
+          pattern_type: string
+          profit_factor?: number | null
+          sample_size: number
+          win_rate: number
+        }
+        Update: {
+          avg_pips?: number | null
+          avg_return_percent?: number | null
+          confidence?: number
+          created_at?: string | null
+          deployed?: boolean | null
+          deployed_at?: string | null
+          id?: string
+          last_tested_at?: string | null
+          pattern_name?: string
+          pattern_rules?: Json
+          pattern_type?: string
+          profit_factor?: number | null
+          sample_size?: number
+          win_rate?: number
+        }
+        Relationships: []
+      }
       ea_logs: {
         Row: {
           created_at: string | null
@@ -1318,6 +1369,120 @@ export type Database = {
           },
           {
             foreignKeyName: "intelligent_targets_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      learning_actions: {
+        Row: {
+          action_type: string
+          actual_improvement: number | null
+          created_at: string | null
+          expected_improvement: number | null
+          id: string
+          metadata: Json | null
+          parameters_after: Json | null
+          parameters_before: Json | null
+          success: boolean | null
+          trigger_reason: string
+          verified_at: string | null
+        }
+        Insert: {
+          action_type: string
+          actual_improvement?: number | null
+          created_at?: string | null
+          expected_improvement?: number | null
+          id?: string
+          metadata?: Json | null
+          parameters_after?: Json | null
+          parameters_before?: Json | null
+          success?: boolean | null
+          trigger_reason: string
+          verified_at?: string | null
+        }
+        Update: {
+          action_type?: string
+          actual_improvement?: number | null
+          created_at?: string | null
+          expected_improvement?: number | null
+          id?: string
+          metadata?: Json | null
+          parameters_after?: Json | null
+          parameters_before?: Json | null
+          success?: boolean | null
+          trigger_reason?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
+      learning_outcomes: {
+        Row: {
+          confluence_score: number | null
+          contributing_modules: Json | null
+          created_at: string | null
+          entry_accuracy: number | null
+          exit_timing_score: number | null
+          holding_time_minutes: number
+          id: string
+          learned_features: Json | null
+          market_regime: string | null
+          outcome_type: string
+          pnl: number
+          processed: boolean | null
+          profit_pips: number
+          signal_id: string | null
+          signal_quality: number | null
+          trade_id: string | null
+        }
+        Insert: {
+          confluence_score?: number | null
+          contributing_modules?: Json | null
+          created_at?: string | null
+          entry_accuracy?: number | null
+          exit_timing_score?: number | null
+          holding_time_minutes: number
+          id?: string
+          learned_features?: Json | null
+          market_regime?: string | null
+          outcome_type: string
+          pnl: number
+          processed?: boolean | null
+          profit_pips: number
+          signal_id?: string | null
+          signal_quality?: number | null
+          trade_id?: string | null
+        }
+        Update: {
+          confluence_score?: number | null
+          contributing_modules?: Json | null
+          created_at?: string | null
+          entry_accuracy?: number | null
+          exit_timing_score?: number | null
+          holding_time_minutes?: number
+          id?: string
+          learned_features?: Json | null
+          market_regime?: string | null
+          outcome_type?: string
+          pnl?: number
+          processed?: boolean | null
+          profit_pips?: number
+          signal_id?: string | null
+          signal_quality?: number | null
+          trade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_outcomes_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "learning_outcomes_trade_id_fkey"
             columns: ["trade_id"]
             isOneToOne: false
             referencedRelation: "shadow_trades"
@@ -2019,6 +2184,45 @@ export type Database = {
           trigger_price?: number
           volatility_regime?: string | null
           weight?: number
+        }
+        Relationships: []
+      }
+      module_calibration_history: {
+        Row: {
+          backtest_results: Json | null
+          created_at: string | null
+          deployed: boolean | null
+          deployed_at: string | null
+          id: string
+          module_id: string
+          new_parameters: Json
+          old_parameters: Json
+          performance_after: Json | null
+          performance_before: Json
+        }
+        Insert: {
+          backtest_results?: Json | null
+          created_at?: string | null
+          deployed?: boolean | null
+          deployed_at?: string | null
+          id?: string
+          module_id: string
+          new_parameters?: Json
+          old_parameters?: Json
+          performance_after?: Json | null
+          performance_before?: Json
+        }
+        Update: {
+          backtest_results?: Json | null
+          created_at?: string | null
+          deployed?: boolean | null
+          deployed_at?: string | null
+          id?: string
+          module_id?: string
+          new_parameters?: Json
+          old_parameters?: Json
+          performance_after?: Json | null
+          performance_before?: Json
         }
         Relationships: []
       }
@@ -3322,6 +3526,60 @@ export type Database = {
         }
         Relationships: []
       }
+      system_learning_stats: {
+        Row: {
+          active_patterns: number | null
+          id: string
+          learning_effectiveness_score: number | null
+          metadata: Json | null
+          models_retrained_today: number | null
+          modules_recalibrated_today: number | null
+          patterns_discovered_total: number | null
+          profit_factor: number | null
+          self_healing_actions_today: number | null
+          sharpe_ratio: number | null
+          successful_actions_today: number | null
+          thresholds_adjusted_today: number | null
+          timestamp: string | null
+          total_actions_today: number | null
+          win_rate: number | null
+        }
+        Insert: {
+          active_patterns?: number | null
+          id?: string
+          learning_effectiveness_score?: number | null
+          metadata?: Json | null
+          models_retrained_today?: number | null
+          modules_recalibrated_today?: number | null
+          patterns_discovered_total?: number | null
+          profit_factor?: number | null
+          self_healing_actions_today?: number | null
+          sharpe_ratio?: number | null
+          successful_actions_today?: number | null
+          thresholds_adjusted_today?: number | null
+          timestamp?: string | null
+          total_actions_today?: number | null
+          win_rate?: number | null
+        }
+        Update: {
+          active_patterns?: number | null
+          id?: string
+          learning_effectiveness_score?: number | null
+          metadata?: Json | null
+          models_retrained_today?: number | null
+          modules_recalibrated_today?: number | null
+          patterns_discovered_total?: number | null
+          profit_factor?: number | null
+          self_healing_actions_today?: number | null
+          sharpe_ratio?: number | null
+          successful_actions_today?: number | null
+          thresholds_adjusted_today?: number | null
+          timestamp?: string | null
+          total_actions_today?: number | null
+          win_rate?: number | null
+        }
+        Relationships: []
+      }
       system_performance_snapshots: {
         Row: {
           active_modules_count: number | null
@@ -4388,6 +4646,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      update_system_learning_stats: { Args: never; Returns: undefined }
       update_trailing_stops: { Args: never; Returns: undefined }
       update_winning_patterns: { Args: never; Returns: undefined }
       upsert_account_defaults: {

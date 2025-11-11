@@ -1,5 +1,24 @@
 project_id = "gmpmpbuzlybajzrapdrr"
 
+# Autonomous Learning System Cron Jobs
+[functions.process-trade-outcome]
+verify_jwt = false
+
+[functions.autonomous-learning-orchestrator]
+verify_jwt = false
+
+[functions.auto-calibrate-modules]
+verify_jwt = false
+
+[functions.cross-module-learning]
+verify_jwt = false
+
+[functions.discover-winning-patterns]
+verify_jwt = false
+
+[functions.self-healing-monitor]
+verify_jwt = false
+
 [functions.fix-market-data-timestamps]
 verify_jwt = false
 
