@@ -660,10 +660,55 @@ serve(async (req) => {
     const qualityThreshold = accountDefaults?.min_signal_quality || 60;
     console.log(`📊 Quality threshold: ${qualityThreshold}`);
 
+    // **CLEANUP: Reset stale 'processing' signals (stuck for >5 min)**
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    const { data: staleSignals } = await supabase
+      .from('master_signals')
+      .update({ 
+        status: 'pending',
+        updated_at: new Date().toISOString()
+      })
+      .eq('status', 'processing')
+      .lt('updated_at', fiveMinutesAgo)
+      .select('id');
+    
+    if (staleSignals && staleSignals.length > 0) {
+      console.log(`🔄 Reset ${staleSignals.length} stale 'processing' signals back to 'pending'`);
+    }
+
     const executedTrades = [];
 
     // Execute trades for each qualifying signal and portfolio
     for (const signal of signals) {
+      // **DUPLICATE PREVENTION: Check current status before processing**
+      const { data: signalStatus } = await supabase
+        .from('master_signals')
+        .select('status')
+        .eq('id', signal.signal_id)
+        .single();
+
+      if (!signalStatus || signalStatus.status !== 'pending') {
+        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already ${signalStatus?.status || 'unknown'}, skipping`);
+        continue;
+      }
+
+      // **RACE CONDITION PREVENTION: Mark as processing immediately (atomic operation)**
+      const { error: lockError } = await supabase
+        .from('master_signals')
+        .update({ 
+          status: 'processing',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', signal.signal_id)
+        .eq('status', 'pending'); // Only update if still pending
+
+      if (lockError) {
+        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already locked by another process, skipping`);
+        continue;
+      }
+
+      console.log(`🔒 Signal ${signal.signal_id.slice(0,8)} locked for processing`);
+      
       // **PHASE 5: BASIC VALIDATION BEFORE EXECUTION**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
       
@@ -1071,7 +1116,8 @@ serve(async (req) => {
             execution_price: executedTrade.entry_price,
             updated_at: new Date().toISOString()
           })
-          .eq('id', executedTrade.signal_id || matchingSignal?.signal_id);
+          .eq('id', executedTrade.signal_id || matchingSignal?.signal_id)
+          .in('status', ['pending', 'processing']); // Accept both to handle edge cases
       }
     }
 
