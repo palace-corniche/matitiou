@@ -352,14 +352,15 @@ serve(async (req) => {
         .order('timestamp', { ascending: false })
         .limit(100);
       
-      if (!error && data && data.length >= 10) {
+      // LOWER THRESHOLD TO 5 CANDLES for faster signal generation
+      if (!error && data && data.length >= 5) {
         marketData = data;
         selectedTimeframe = tf;
         dataError = null;
         console.log(`✅ Found ${data.length} complete candles for ${tf} timeframe (avg ${Math.round(data.reduce((sum, c) => sum + c.tick_count, 0) / data.length)} ticks/candle)`);
         break;
       } else {
-        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles`);
+        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles (need 5+)`);
       }
     }
 
@@ -368,9 +369,10 @@ serve(async (req) => {
       throw new Error(`Market data error: ${dataError.message}`);
     }
     
-    if (!marketData || marketData.length < 10) {
+    // LOWER THRESHOLD TO 5 CANDLES
+    if (!marketData || marketData.length < 5) {
       console.error('Insufficient aggregated candle data from all timeframes - cannot generate signals');
-      throw new Error('Insufficient candle data from aggregated_candles (need at least 10 complete candles). System is building candles from tick data.');
+      throw new Error(`Insufficient candle data from aggregated_candles (need at least 5 complete candles, have ${marketData?.length || 0}). System is building candles from tick data.`);
     }
 
     console.log(`📊 Analyzing ${marketData.length} candles from ${selectedTimeframe} timeframe`);

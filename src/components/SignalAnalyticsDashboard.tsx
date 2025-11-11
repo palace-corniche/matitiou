@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { DataFreshnessValidator } from '@/services/dataFreshnessValidator';
+import { DataPipelineStatus } from './DataPipelineStatus';
 
 interface AdaptiveThresholds {
   entropy: { min: number; max: number; current: number };
@@ -80,19 +82,25 @@ const SignalAnalyticsDashboard: React.FC = () => {
   const [debugConfig, setDebugConfig] = useState<DebugConfig>({ enabled: false, accept_all_signals: false, log_level: 'info' });
   const [isLoading, setIsLoading] = useState(true);
   const [isAdjusting, setIsAdjusting] = useState(false);
+  const [dataState, setDataState] = useState<'building' | 'limited' | 'operational'>('building');
   const { toast } = useToast();
 
   const loadAnalytics = async () => {
     try {
       setIsLoading(true);
 
-      // Load adaptive thresholds from database
+      // Check data freshness first
+      const freshness = await DataFreshnessValidator.getDataState();
+      setDataState(freshness);
+
+      // Load FRESH adaptive thresholds only (last 1 hour)
       const { data: thresholds } = await supabase
         .from('adaptive_thresholds')
         .select('*')
+        .gte('created_at', new Date(Date.now() - 3600000).toISOString())
         .order('created_at', { ascending: false })
         .limit(1)
-        .single();
+        .maybeSingle();
 
       if (thresholds) {
         setAdaptiveThresholds({
@@ -116,18 +124,18 @@ const SignalAnalyticsDashboard: React.FC = () => {
         });
       }
 
-      // Load rejection analytics from signal_rejection_logs
+      // Load FRESH rejection analytics only (last 2 hours)
       const { data: rejections } = await supabase
         .from('signal_rejection_logs')
         .select('*')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false });
 
-      // Load recent signals
+      // Load FRESH signals only (last 2 hours)
       const { data: signals } = await supabase
-        .from('trading_signals')
+        .from('master_signals')
         .select('*')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false });
 
       // Load system health logs
@@ -422,8 +430,35 @@ const SignalAnalyticsDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Data State Alerts */}
+      {dataState === 'building' && (
+        <Alert variant="default">
+          <Activity className="h-4 w-4 animate-pulse" />
+          <AlertDescription>
+            <div className="space-y-4">
+              <div>
+                <strong>System Initializing</strong>
+                <p className="mt-1">The system is building fresh market data from real-time ticks. Signal generation will begin automatically once sufficient candle history is established.</p>
+              </div>
+              <DataPipelineStatus />
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {dataState === 'limited' && (
+        <Alert variant="default" className="bg-yellow-50 border-yellow-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Limited Data Availability</strong>
+            <p className="mt-1">Candles are being aggregated but signal generation is temporarily paused. Analytics will resume shortly.</p>
+            <DataPipelineStatus />
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* System Health Alert */}
-      {systemHealth && systemHealth.status !== 'healthy' && (
+      {dataState === 'operational' && systemHealth && systemHealth.status !== 'healthy' && (
         <Alert variant={systemHealth.status === 'critical' ? 'destructive' : 'default'}>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>

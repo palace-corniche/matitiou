@@ -6,8 +6,10 @@ import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
-import { Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, CheckCircle, XCircle, Eye, Target } from 'lucide-react';
+import { Loader2, TrendingUp, TrendingDown, Activity, AlertTriangle, CheckCircle, XCircle, Eye, Target, RefreshCw } from 'lucide-react';
 import RealTimeSignalMonitor from './RealTimeSignalMonitor';
+import { DataFreshnessValidator } from '@/services/dataFreshnessValidator';
+import { DataPipelineStatus } from './DataPipelineStatus';
 
 interface MasterSignalData {
   id: string;
@@ -60,6 +62,7 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
   const [rejectionAnalysis, setRejectionAnalysis] = useState<RejectionAnalysis[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState<Date>(new Date());
+  const [dataState, setDataState] = useState<'building' | 'limited' | 'operational'>('building');
 
   useEffect(() => {
     loadDashboardData();
@@ -90,10 +93,15 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
     try {
       setIsLoading(true);
       
-      // Load REAL master signals from database
+      // Check data freshness first
+      const freshness = await DataFreshnessValidator.getDataState();
+      setDataState(freshness);
+      
+      // Load FRESH master signals ONLY (last 2 hours)
       const { data: recentSignals } = await supabase
-        .from('trading_signals')
+        .from('master_signals')
         .select('*')
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false })
         .limit(50);
 
@@ -105,11 +113,11 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      // Load rejection logs for proper analytics
+      // Load FRESH rejection logs only (last 2 hours)
       const { data: rejectionLogs } = await supabase
         .from('signal_rejection_logs')
         .select('*')
-        .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .gte('created_at', new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString())
         .order('created_at', { ascending: false });
 
       // Calculate actual signal counts
@@ -124,49 +132,23 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
         systemHealthCount: systemHealth?.length || 0
       });
 
-      // Convert real signals to dashboard format
+      // Convert real signals to dashboard format - NO FALLBACK
       const realMasterSignals: MasterSignalData[] = recentSignals?.map(signal => ({
         id: signal.id,
         timestamp: signal.created_at,
         signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-        fusedProbability: signal.confidence / 100,
-        confidence: signal.confidence / 100,
-        strength: signal.strength,
-        kellyFraction: Math.min(0.25, signal.confidence / 400), // Estimated Kelly
-        moduleContributions: signal.factors ? extractModuleContributions(signal.factors) : {},
+        fusedProbability: signal.final_confidence / 100,
+        confidence: signal.final_confidence / 100,
+        strength: signal.confluence_score / 10, // Scale to 0-10
+        kellyFraction: Math.min(0.25, signal.final_confidence / 400),
+        moduleContributions: signal.contributing_modules ? extractModuleContributions(signal.contributing_modules) : {},
         entropyValue: estimateEntropy(signal.confluence_score),
         signalQuality: signal.confluence_score / 100,
-        diversityIndex: calculateDiversityFromFactors(signal.factors),
-        consensusLevel: signal.confidence / 100,
-        reasoning: signal.description || `${signal.signal_type.toUpperCase()} signal with ${signal.confluence_score} confluence score`,
+        diversityIndex: calculateDiversityFromFactors(signal.contributing_modules),
+        consensusLevel: signal.final_confidence / 100,
+        reasoning: signal.fusion_algorithm || `${signal.signal_type.toUpperCase()} signal with ${signal.confluence_score} confluence score`,
         warnings: signal.confluence_score < 50 ? ['Low confluence score'] : []
       })) || [];
-
-      // Use real signals if available, otherwise show informative fallback
-      const mockMasterSignals: MasterSignalData[] = realMasterSignals.length > 0 ? realMasterSignals : [
-        {
-          id: 'demo_001',
-          timestamp: new Date(Date.now() - 300000).toISOString(),
-          signal: 'buy',
-          fusedProbability: 0.68,
-          confidence: 0.82,
-          strength: 7,
-          kellyFraction: 0.12,
-          moduleContributions: {
-            technical: 0.35,
-            patterns: 0.25,
-            strategies: 0.20,
-            sentiment: 0.15,
-            multiTimeframe: 0.05
-          },
-          entropyValue: 0.45,
-          signalQuality: 0.78,
-          diversityIndex: 0.83,
-          consensusLevel: 0.75,
-          reasoning: 'DEMO: BUY signal generated from 8 factors across 5 modules. Top contributors: technical: 35%, patterns: 25%, strategies: 20%',
-          warnings: ['This is demo data - enable signal generation for real analytics']
-        }
-      ];
 
       // Load REAL module analytics from system performance
       const moduleStats = calculateRealModuleStats(systemHealth, acceptedSignals, rejectedSignals);
@@ -271,6 +253,12 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
       setRejectionAnalysis(realRejectionAnalysis);
       setLastUpdate(new Date());
 
+      console.log('📊 Analytics loaded:', {
+        dataState: freshness,
+        signalsCount: realMasterSignals.length,
+        rejections: realRejectionAnalysis.length
+      });
+
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -302,13 +290,13 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
   };
 
   // Helper functions for real data processing
-  const extractModuleContributions = (factors: any) => {
-    if (!factors || !Array.isArray(factors)) return {};
+  const extractModuleContributions = (modules: any) => {
+    if (!modules || !Array.isArray(modules)) return {};
     
     const contributions: Record<string, number> = {};
-    factors.forEach((factor: any) => {
-      const module = factor.source?.split('_')[0] || 'unknown';
-      contributions[module] = (contributions[module] || 0) + (factor.weight || 0.1);
+    modules.forEach((module: string) => {
+      const moduleName = module.toLowerCase();
+      contributions[moduleName] = 0.15; // Equal weight for now
     });
     
     return contributions;
@@ -319,11 +307,10 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
     return Math.max(0, 1 - (confluenceScore / 100));
   };
 
-  const calculateDiversityFromFactors = (factors: any) => {
-    if (!factors || !Array.isArray(factors)) return 0.5;
+  const calculateDiversityFromFactors = (modules: any) => {
+    if (!modules || !Array.isArray(modules)) return 0.5;
     
-    const sources = new Set(factors.map((f: any) => f.source?.split('_')[0]));
-    return Math.min(1, sources.size / 6); // 6 total modules
+    return Math.min(1, modules.length / 6); // 6 total modules
   };
 
   const calculateRealModuleStats = (healthData: any[], acceptedSignals: number, rejectedSignals: number) => {
@@ -428,14 +415,60 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
         </div>
       </div>
 
+      {/* Data State Alerts */}
+      {dataState === 'building' && (
+        <Alert variant="default">
+          <Activity className="h-4 w-4 animate-pulse" />
+          <AlertDescription>
+            <div className="space-y-4">
+              <div>
+                <strong>System Initializing</strong>
+                <p className="mt-1">Building fresh market data pipeline. Signal generation will begin automatically once sufficient candle history is established.</p>
+              </div>
+              <DataPipelineStatus />
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {dataState === 'limited' && (
+        <Alert variant="default" className="bg-yellow-50 border-yellow-200">
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            <strong>Limited Data Availability</strong>
+            <p className="mt-1">Candles are being aggregated. Signal generation starting soon.</p>
+            <DataPipelineStatus />
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* System Status Alert */}
-      {diagnostics && diagnostics.warnings.length > 0 && (
+      {dataState === 'operational' && diagnostics && diagnostics.warnings.length > 0 && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
             System warnings: {diagnostics.warnings.join(', ')}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* No Data Message */}
+      {dataState === 'operational' && masterSignals.length === 0 && (
+        <Card className="border-dashed">
+          <CardContent className="py-12">
+            <div className="text-center space-y-4">
+              <Activity className="h-16 w-16 mx-auto text-muted-foreground" />
+              <h3 className="text-xl font-semibold">No Recent Signals</h3>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                No signals generated in the last 2 hours. This could be normal during low-volatility periods or when thresholds are strict.
+              </p>
+              <Button variant="outline" onClick={loadDashboardData}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Key Metrics Row */}
