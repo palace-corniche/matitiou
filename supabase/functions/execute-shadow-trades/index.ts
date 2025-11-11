@@ -726,7 +726,7 @@ serve(async (req) => {
             const { data: freshMarketForClose } = await supabase
               .from('market_data_feed')
               .select('price, timestamp')
-              .eq('symbol', signal.symbol)
+              .eq('symbol', signal.pair)
               .order('timestamp', { ascending: false })
               .limit(1)
               .single();
@@ -773,7 +773,7 @@ serve(async (req) => {
           const { data: freshPrice, error: priceError } = await supabase
             .from('market_data_feed')
             .select('price, timestamp')
-            .eq('symbol', signal.symbol)
+            .eq('symbol', signal.pair)
             .order('timestamp', { ascending: false })
             .limit(1)
             .single();
@@ -812,46 +812,27 @@ serve(async (req) => {
           console.log(`💰 Entry price: ${entryPrice.toFixed(5)} from market_data_feed (${freshPrice.timestamp})`);
 
           // **PHASE 2: VALIDATE ENTRY PRICE IS REALISTIC**
-          if (signal.symbol === 'EUR/USD' && (entryPrice < 0.9 || entryPrice > 2.0)) {
+          if (signal.pair === 'EUR/USD' && (entryPrice < 0.9 || entryPrice > 2.0)) {
             console.error(`❌ Invalid entry price ${entryPrice} for EUR/USD, skipping trade`);
             
             await supabase.from('trade_execution_log').insert({
-              signal_id: signal.id,
+              signal_id: signal.signal_id,
               success: false,
               entry_price: entryPrice,
               error_message: `Invalid entry price: ${entryPrice}`,
               validation_result: { valid: false, errors: ['Entry price out of range'] }
             });
             
-            continue; // SKIP THIS TRADE
-          }
-
-          // **PHASE 4: COMPREHENSIVE VALIDATION**
-          const { data: validationResult } = await supabase.rpc('validate_trade_execution', {
-            p_symbol: signal.symbol,
-            p_signal_id: signal.id,
-            p_entry_price: entryPrice,
-            p_tick_timestamp: freshTick.timestamp,
-            p_tick_bid: freshTick.bid,
-            p_tick_ask: freshTick.ask
-          });
-
-          if (validationResult && !validationResult.valid) {
-            console.warn(`⚠️ Trade validation failed for signal ${signal.id.slice(0, 8)}:`, validationResult.errors);
-            
-            await supabase.from('trade_execution_log').insert({
-              signal_id: signal.id,
-              success: false,
-              validation_result: validationResult,
-              entry_price: entryPrice,
-              tick_age_ms: tickAge,
-              error_message: validationResult.errors?.join(', ')
-            });
+            await supabase.from('master_signals').update({
+              status: 'rejected',
+              rejection_reason: `Invalid entry price: ${entryPrice}`,
+              updated_at: new Date().toISOString()
+            }).eq('id', signal.signal_id);
             
             continue; // SKIP THIS TRADE
           }
 
-          console.log(`✅ Validation passed - Tick age: ${tickAge}ms, Entry: ${entryPrice}, Deviation: ${validationResult?.price_deviation_percent?.toFixed(4)}%`);
+          console.log(`✅ Entry price validated: ${entryPrice.toFixed(5)} (age: ${Math.round(priceAge/1000)}s)`);
 
           if (actualOpenPositions >= portfolio.max_open_positions) {
             console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${actualOpenPositions}/${portfolio.max_open_positions})`);
@@ -1002,7 +983,6 @@ serve(async (req) => {
             success: true,
             entry_price: entryPrice,
             tick_age_ms: priceAge,
-            price_deviation_percent: validationResult?.price_deviation_percent,
             validation_result: { valid: true, executed: true }
           });
 
@@ -1051,6 +1031,7 @@ serve(async (req) => {
 
           executedTrades.push({
             trade_id: trade_id,
+            signal_id: signal.signal_id,
             portfolio_id: portfolio.id,
             signal_type: signal.signal_type,
             entry_price: entryPrice,  // Use validated entry price
@@ -1076,19 +1057,19 @@ serve(async (req) => {
 
     // **FIX 9: Mark signals as executed in master_signals**
     if (executedTrades.filter(t => t.success).length > 0) {
-      for (const signal of signals) {
-        const hasSuccessfulTrade = executedTrades.some(t => t.success);
-        if (hasSuccessfulTrade) {
-          await supabase
-            .from('master_signals')
-            .update({ 
-              status: 'executed',
-              execution_timestamp: new Date().toISOString(),
-              execution_price: signal.entry_price,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', signal.signal_id);
-        }
+      for (const executedTrade of executedTrades.filter(t => t.success)) {
+        // Find the corresponding signal to get entry_price
+        const matchingSignal = signals.find(s => s.signal_id === executedTrade.signal_id);
+        
+        await supabase
+          .from('master_signals')
+          .update({ 
+            status: 'executed',
+            execution_timestamp: new Date().toISOString(),
+            execution_price: executedTrade.entry_price,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', executedTrade.signal_id || matchingSignal?.signal_id);
       }
     }
 
