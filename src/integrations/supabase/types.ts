@@ -2308,6 +2308,7 @@ export type Database = {
           average_strength: number | null
           created_at: string | null
           failed_signals: number | null
+          historical_weight: number | null
           id: string
           information_ratio: number | null
           last_updated: string | null
@@ -2328,6 +2329,7 @@ export type Database = {
           average_strength?: number | null
           created_at?: string | null
           failed_signals?: number | null
+          historical_weight?: number | null
           id?: string
           information_ratio?: number | null
           last_updated?: string | null
@@ -2348,6 +2350,7 @@ export type Database = {
           average_strength?: number | null
           created_at?: string | null
           failed_signals?: number | null
+          historical_weight?: number | null
           id?: string
           information_ratio?: number | null
           last_updated?: string | null

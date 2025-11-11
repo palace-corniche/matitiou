@@ -21,26 +21,24 @@ serve(async (req) => {
     
     console.log(`🧠 Processing trade outcome for trade: ${trade_id}`);
 
-    // Get trade details with signal info
+    // Get trade details
     const { data: trade, error: tradeError } = await supabaseClient
       .from('shadow_trades')
-      .select(`
-        *,
-        master_signals (
-          id,
-          final_confidence,
-          confluence_score,
-          signal_strength,
-          market_regime,
-          contributing_modules
-        )
-      `)
+      .select('*')
       .eq('id', trade_id)
       .single();
-
+    
     if (tradeError || !trade) {
       throw new Error(`Failed to fetch trade: ${tradeError?.message}`);
     }
+
+    // Get signal info separately
+    const { data: signal } = await supabaseClient
+      .from('master_signals')
+      .select('id, final_confidence, confluence_score, signal_strength, market_regime, contributing_modules')
+      .eq('id', trade.signal_id)
+      .single();
+
 
     // Calculate learned features
     const holdingMinutes = trade.exit_time && trade.entry_time
@@ -66,44 +64,83 @@ serve(async (req) => {
     };
 
     // Update or create learning outcome
-    const { data: outcome, error: outcomeError } = await supabaseClient
+    // First check if outcome already exists
+    const { data: existingOutcome } = await supabaseClient
       .from('learning_outcomes')
-      .upsert({
-        trade_id: trade.id,
-        signal_id: trade.signal_id,
-        outcome_type: trade.pnl > 1 ? 'win' : trade.pnl < -1 ? 'loss' : 'breakeven',
-        pnl: trade.pnl || 0,
-        profit_pips: trade.profit_pips || 0,
-        holding_time_minutes: holdingMinutes,
-        signal_quality: trade.exit_intelligence_score,
-        confluence_score: trade.master_signals?.confluence_score || 0,
-        entry_accuracy: entryAccuracy,
-        exit_timing_score: trade.exit_intelligence_score,
-        market_regime: trade.master_signals?.market_regime || 'unknown',
-        contributing_modules: trade.master_signals?.contributing_modules || [],
-        learned_features: learnedFeatures,
-        processed: true,
-      }, {
-        onConflict: 'trade_id'
-      })
-      .select()
+      .select('id')
+      .eq('trade_id', trade.id)
       .single();
 
-    if (outcomeError) {
-      console.error('Failed to create learning outcome:', outcomeError);
+    let outcome;
+    if (existingOutcome) {
+      // Update existing outcome
+      const { data: updated, error: updateError } = await supabaseClient
+        .from('learning_outcomes')
+        .update({
+          signal_id: trade.signal_id,
+          outcome_type: trade.pnl > 1 ? 'win' : trade.pnl < -1 ? 'loss' : 'breakeven',
+          pnl: trade.pnl || 0,
+          profit_pips: trade.profit_pips || 0,
+          holding_time_minutes: holdingMinutes,
+          signal_quality: trade.exit_intelligence_score,
+          confluence_score: signal?.confluence_score || 0,
+          entry_accuracy: entryAccuracy,
+          exit_timing_score: trade.exit_intelligence_score,
+          market_regime: signal?.market_regime || 'unknown',
+          contributing_modules: signal?.contributing_modules || [],
+          learned_features: learnedFeatures,
+          processed: true,
+        })
+        .eq('id', existingOutcome.id)
+        .select()
+        .single();
+
+      if (updateError) {
+        console.error('Failed to update learning outcome:', updateError);
+      } else {
+        outcome = updated;
+      }
+    } else {
+      // Create new outcome
+      const { data: created, error: createError } = await supabaseClient
+        .from('learning_outcomes')
+        .insert({
+          trade_id: trade.id,
+          signal_id: trade.signal_id,
+          outcome_type: trade.pnl > 1 ? 'win' : trade.pnl < -1 ? 'loss' : 'breakeven',
+          pnl: trade.pnl || 0,
+          profit_pips: trade.profit_pips || 0,
+          holding_time_minutes: holdingMinutes,
+          signal_quality: trade.exit_intelligence_score,
+          confluence_score: signal?.confluence_score || 0,
+          entry_accuracy: entryAccuracy,
+          exit_timing_score: trade.exit_intelligence_score,
+          market_regime: signal?.market_regime || 'unknown',
+          contributing_modules: signal?.contributing_modules || [],
+          learned_features: learnedFeatures,
+          processed: true,
+        })
+        .select()
+        .single();
+
+      if (createError) {
+        console.error('Failed to create learning outcome:', createError);
+      } else {
+        outcome = created;
+      }
     }
 
     // Update module performance based on outcome
-    if (trade.master_signals?.contributing_modules) {
-      const modules = trade.master_signals.contributing_modules as string[];
+    if (signal?.contributing_modules && Array.isArray(signal.contributing_modules)) {
+      const modules = signal.contributing_modules as string[];
       const wasSuccessful = trade.pnl > 0;
       
       for (const moduleId of modules) {
         await supabaseClient.rpc('update_module_performance_from_trade', {
           p_module_id: moduleId,
           p_signal_successful: wasSuccessful,
-          p_confidence: trade.master_signals.final_confidence || 0,
-          p_strength: trade.master_signals.signal_strength || 0,
+          p_confidence: signal.final_confidence || 0,
+          p_strength: signal.signal_strength || 0,
           p_return: trade.pnl || 0,
         }).catch(err => {
           console.error(`Failed to update module ${moduleId}:`, err);
@@ -123,7 +160,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         outcome: outcome,
-        modules_updated: trade.master_signals?.contributing_modules?.length || 0,
+        modules_updated: signal?.contributing_modules?.length || 0,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

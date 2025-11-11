@@ -19,6 +19,9 @@ verify_jwt = false
 [functions.self-healing-monitor]
 verify_jwt = false
 
+[functions.manual-test-close-trade]
+verify_jwt = false
+
 [functions.fix-market-data-timestamps]
 verify_jwt = false
 
