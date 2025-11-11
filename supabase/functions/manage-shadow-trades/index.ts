@@ -39,11 +39,11 @@ serve(async (req) => {
 
     console.log(`💼 Global Account: Balance=$${globalAccount.balance}, Equity=$${globalAccount.equity}`);
 
-    // Get all open trades for global account
+    // Get all open trades for global account (portfolio_id is NULL for global trades)
     const { data: openTrades, error: tradesError } = await supabase
       .from('shadow_trades')
       .select('*')
-      .eq('portfolio_id', globalAccountId)
+      .is('portfolio_id', null)
       .eq('status', 'open');
 
     if (tradesError) {
