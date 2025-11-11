@@ -727,6 +727,7 @@ serve(async (req) => {
               .from('market_data_feed')
               .select('price, timestamp')
               .eq('symbol', signal.pair)
+              .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
               .order('timestamp', { ascending: false })
               .limit(1)
               .single();
@@ -774,6 +775,7 @@ serve(async (req) => {
             .from('market_data_feed')
             .select('price, timestamp')
             .eq('symbol', signal.pair)
+            .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
             .order('timestamp', { ascending: false })
             .limit(1)
             .single();

@@ -339,6 +339,7 @@ serve(async (req) => {
       .select('timestamp, open_price, high_price, low_price, price, volume')  // Select only needed columns
       .eq('symbol', 'EUR/USD')
       .eq('timeframe', '15m')
+      .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
       .order('timestamp', { ascending: false })
       .limit(100);
 
@@ -478,6 +479,7 @@ serve(async (req) => {
             .from('market_data_feed')
             .select('price, timestamp')
             .eq('symbol', 'EUR/USD')
+            .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
             .order('timestamp', { ascending: false })
             .limit(1)
             .single();

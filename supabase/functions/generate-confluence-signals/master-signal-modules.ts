@@ -661,7 +661,8 @@ export async function generateMultiTimeframeSignals(candles: any[], pair: string
     console.log('⏰ Fetching H1, H4, D1 timeframe data for', pair);
     
     // Fetch data for H1, H4, D1 timeframes from market_data_feed
-    const timeframes = ['1h', '4h', '1d'];
+    // CRITICAL FIX: Use 'H1', 'H4', 'D1' to match fetch-market-data storage format
+    const timeframes = ['H1', 'H4', 'D1'];
     const timeframeData: { [key: string]: any[] } = {};
     
     for (const tf of timeframes) {
@@ -670,6 +671,7 @@ export async function generateMultiTimeframeSignals(candles: any[], pair: string
         .select('*')
         .eq('symbol', pair)
         .eq('timeframe', tf)
+        .lte('timestamp', new Date().toISOString()) // Prevent future timestamps
         .order('timestamp', { ascending: false })
         .limit(50);
       
@@ -679,7 +681,7 @@ export async function generateMultiTimeframeSignals(candles: any[], pair: string
     }
 
     // Check if we have data for all timeframes
-    if (!timeframeData['1h'] || !timeframeData['4h'] || !timeframeData['1d']) {
+    if (!timeframeData['H1'] || !timeframeData['H4'] || !timeframeData['D1']) {
       console.log('⚠️ Insufficient multi-timeframe data - missing H1/H4/D1');
       return signals;
     }
@@ -1170,14 +1172,18 @@ export async function generateStrategySignals(candles: any[], pair: string, time
   // Advanced Momentum Strategy with multiple confirmations
   const rsi = calculateRSI(closes, 14);
   const macd = calculateMACD(closes);
-  const latestRSI = rsi[rsi.length - 1];
-  const latestMACD = macd[macd.length - 1];
+  const latestRSI = rsi && rsi.length > 0 ? rsi[rsi.length - 1] : 50;
+  const latestMACD = macd && macd.length > 0 ? macd[macd.length - 1] : { histogram: 0 };
   const stochastic = calculateStochastic(candles);
-  const latestStoch = stochastic[stochastic.length - 1];
   
-  const momentumScore = calculateMomentumScore(latestRSI, latestMACD, latestStoch);
+  // CRITICAL FIX: Guard against empty stochastic array
+  const latestStoch = stochastic && stochastic.length > 0 ? stochastic[stochastic.length - 1] : null;
   
-  if (momentumScore.strength > 0.4) {
+  // Only calculate momentum if we have valid stochastic data
+  if (latestStoch && latestRSI && latestMACD) {
+    const momentumScore = calculateMomentumScore(latestRSI, latestMACD, latestStoch);
+    
+    if (momentumScore.strength > 0.4) {
     signals.push({
       source: 'strategy_momentum',
       timestamp: new Date(),
@@ -1195,6 +1201,7 @@ export async function generateStrategySignals(candles: any[], pair: string, time
         { name: 'stochastic_momentum', value: latestStoch.k / 100, weight: 0.2, contribution: (latestStoch.k / 100) * 0.2 }
       ]
     });
+    }
   }
   
   // Breakout Strategy
@@ -1949,8 +1956,13 @@ function detectHarmonicPatterns(candles: any[]): any[] {
 }
 
 function calculateMomentumScore(rsi: number, macd: any, stoch: any): any {
+  // CRITICAL FIX: Guard against undefined stochastic values
+  if (!stoch || typeof stoch.k !== 'number') {
+    stoch = { k: 50, d: 50 }; // Default neutral values
+  }
+  
   const rsiScore = rsi > 70 ? 1 : rsi < 30 ? -1 : 0;
-  const macdScore = macd.histogram > 0 ? 1 : -1;
+  const macdScore = macd && macd.histogram ? (macd.histogram > 0 ? 1 : -1) : 0;
   const stochScore = stoch.k > 80 ? 1 : stoch.k < 20 ? -1 : 0;
   
   const compositeScore = (rsiScore + macdScore + stochScore) / 3;

@@ -82,10 +82,14 @@ serve(async (req) => {
           else if (timeframe === '1day') dbTimeframe = 'D1';
           
           // For live/recent data, use current server time to avoid timezone issues
-          // Historical data keeps its original timestamp
+          // CRITICAL FIX: Clamp future timestamps to prevent "negative age" errors
           const isRecent = i === 0; // Most recent candle
-          const candleTimestamp = isRecent ? new Date().toISOString() : 
-            new Date(candle.datetime + 'Z').toISOString(); // Force UTC with 'Z'
+          const now = new Date();
+          const parsedTime = new Date(candle.datetime + 'Z'); // Force UTC with 'Z'
+          
+          // If timestamp is more than 1 minute in the future, clamp it to now
+          const candleTimestamp = isRecent ? now.toISOString() : 
+            (parsedTime > new Date(now.getTime() + 60000) ? now.toISOString() : parsedTime.toISOString());
           
           marketData.push({
             symbol,
