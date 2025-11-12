@@ -718,8 +718,12 @@ serve(async (req) => {
 
     const executedTrades = [];
 
+    // ✅ Enhanced: Shuffle signals to prevent thundering herd (multiple instances trying same signal)
+    const shuffledSignals = signals.sort(() => Math.random() - 0.5);
+    console.log(`🔀 Processing ${shuffledSignals.length} signals in randomized order to reduce lock conflicts`);
+
     // Execute trades for each qualifying signal and portfolio
-    for (const signal of signals) {
+    for (const signal of shuffledSignals) {
       // **DUPLICATE PREVENTION: Check current status before processing**
       const { data: signalStatus } = await supabase
         .from('master_signals')
@@ -732,10 +736,11 @@ serve(async (req) => {
         continue;
       }
 
-      // **PHASE 1 FIX: Improved lock acquisition with retry mechanism**
+      // **PHASE 1 FIX: Enhanced lock acquisition with exponential backoff and jitter**
       let lockedSignal = null;
       let lockAttempts = 0;
-      const maxLockAttempts = 3;
+      const maxLockAttempts = 5; // ✅ Increased from 3 to 5
+      const baseRetryDelay = 300; // ✅ Increased from 100ms to 300ms
 
       while (!lockedSignal && lockAttempts < maxLockAttempts) {
         const { data, error } = await supabase
@@ -767,7 +772,12 @@ serve(async (req) => {
 
         lockAttempts++;
         if (lockAttempts < maxLockAttempts) {
-          await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms before retry
+          // ✅ Enhanced: Exponential backoff with random jitter
+          const exponentialDelay = baseRetryDelay * Math.pow(2, lockAttempts - 1); // 300, 600, 1200, 2400ms
+          const jitter = Math.random() * 200; // 0-200ms random delay
+          const totalDelay = exponentialDelay + jitter;
+          console.log(`⏳ Lock busy, retrying in ${Math.round(totalDelay)}ms (${lockAttempts}/${maxLockAttempts})...`);
+          await new Promise(resolve => setTimeout(resolve, totalDelay));
         }
       }
 
