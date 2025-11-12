@@ -518,39 +518,45 @@ serve(async (req) => {
     console.log('🚀 Starting shadow trade execution...');
     console.log('📋 Trigger:', trigger || 'cron', 'Signal ID:', signal_id || 'none');
 
-    // **PHASE 2 FIX: Check if another instance is already running**
-    console.log('🔒 Checking for concurrent executions...');
-    const { data: runningInstances } = await supabase
+    // **ATOMIC LOCK: Try to acquire execution lock atomically**
+    const executionLockId = crypto.randomUUID();
+    console.log(`🔐 Attempting to acquire execution lock: ${executionLockId.slice(0,8)}`);
+    
+    const { data: lockData, error: lockError } = await supabase
       .from('function_execution_locks')
-      .select('*')
-      .eq('function_name', 'execute-shadow-trades')
-      .eq('status', 'running')
-      .gte('started_at', new Date(Date.now() - 60000).toISOString()) // Running within last 60 seconds
-      .limit(1);
+      .insert({
+        id: executionLockId,
+        function_name: 'execute-shadow-trades',
+        status: 'running',
+        started_at: new Date().toISOString()
+      })
+      .select()
+      .single();
 
-    if (runningInstances && runningInstances.length > 0) {
-      console.log('⏸️ Another instance is already running, exiting to prevent conflicts');
-      console.log('   Instance started at:', runningInstances[0].started_at);
+    if (lockError) {
+      // Lock acquisition failed - another instance is running
+      console.log('⏸️ Another instance is already running (unique constraint violation)');
+      console.log('   Error:', lockError.message);
+      
+      // Query the existing running instance for info
+      const { data: runningInstances } = await supabase
+        .from('function_execution_locks')
+        .select('started_at')
+        .eq('function_name', 'execute-shadow-trades')
+        .eq('status', 'running')
+        .limit(1);
+      
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'Another instance already running', 
           skipped: true,
-          running_since: runningInstances[0].started_at
+          running_since: runningInstances?.[0]?.started_at || 'unknown'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
-    // **Create execution lock**
-    const executionLockId = crypto.randomUUID();
-    console.log(`🔐 Creating execution lock: ${executionLockId.slice(0,8)}`);
-    await supabase.from('function_execution_locks').insert({
-      id: executionLockId,
-      function_name: 'execute-shadow-trades',
-      status: 'running',
-      started_at: new Date().toISOString()
-    });
+    
     console.log('✅ Execution lock acquired');
 
     // PHASE 2 FIX: Use global_trading_account instead of shadow_portfolios

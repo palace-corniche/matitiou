@@ -3444,6 +3444,35 @@ export type Database = {
           },
         ]
       }
+      signal_execution_locks: {
+        Row: {
+          expires_at: string
+          locked_at: string
+          locked_by: string
+          signal_id: string
+        }
+        Insert: {
+          expires_at?: string
+          locked_at?: string
+          locked_by: string
+          signal_id: string
+        }
+        Update: {
+          expires_at?: string
+          locked_at?: string
+          locked_by?: string
+          signal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_execution_locks_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: true
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       signal_rejection_logs: {
         Row: {
           confluence_score: number | null
@@ -4546,6 +4575,7 @@ export type Database = {
         }[]
       }
       cleanup_anonymous_data: { Args: never; Returns: undefined }
+      cleanup_expired_signal_locks: { Args: never; Returns: undefined }
       cleanup_old_rate_limits: { Args: never; Returns: undefined }
       cleanup_stuck_jobs: { Args: never; Returns: undefined }
       close_shadow_trade: {
