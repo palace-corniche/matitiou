@@ -6,12 +6,15 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-interface TickData {
+interface MarketDataFeed {
   timestamp: string;
-  bid: number;
-  ask: number;
-  spread: number;
-  tick_volume?: number;
+  symbol: string;
+  timeframe: string;
+  price: number;
+  open_price: number;
+  high_price: number;
+  low_price: number;
+  is_live: boolean;
 }
 
 interface CandleData {
@@ -147,48 +150,81 @@ serve(async (req) => {
     );
 
     const startTime = Date.now();
-    console.log('🕐 Starting candle aggregation...');
+    console.log('🕐 Starting candle sync from market_data_feed...');
 
-    // Fetch ticks from last 48 hours (to ensure we have enough data)
+    // Fetch fresh OHLC data from market_data_feed (already has candles per timeframe)
     const lookbackHours = 48;
     const lookbackTime = new Date(Date.now() - lookbackHours * 60 * 60 * 1000);
 
-    const { data: ticks, error: tickError } = await supabase
-      .from('tick_data')
-      .select('timestamp, bid, ask, spread, tick_volume')
+    const { data: marketData, error: fetchError } = await supabase
+      .from('market_data_feed')
+      .select('timestamp, symbol, timeframe, price, open_price, high_price, low_price, is_live')
       .eq('symbol', 'EUR/USD')
       .gte('timestamp', lookbackTime.toISOString())
       .order('timestamp', { ascending: true });
 
-    if (tickError) {
-      throw new Error(`Failed to fetch ticks: ${tickError.message}`);
+    if (fetchError) {
+      throw new Error(`Failed to fetch market data: ${fetchError.message}`);
     }
 
-    if (!ticks || ticks.length === 0) {
-      console.log('⚠️ No tick data available for aggregation');
+    if (!marketData || marketData.length === 0) {
+      console.log('⚠️ No market data available for sync');
       return new Response(
         JSON.stringify({
           success: true,
-          message: 'No tick data available',
-          tickCount: 0,
+          message: 'No market data available',
+          dataCount: 0,
           candlesGenerated: 0
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`📊 Processing ${ticks.length} ticks from last ${lookbackHours} hours`);
+    console.log(`📊 Processing ${marketData.length} market data points from last ${lookbackHours} hours`);
 
-    // Aggregate for all timeframes
-    const timeframes = ['15m', '1h', '4h', '1d'];
+    // Convert market_data_feed to aggregated_candles format
+    const timeframes = ['15m', '1h', 'H1', '4h', 'H4', '1d', 'D1'];
     const symbol = 'EUR/USD';
     let totalCandlesInserted = 0;
 
-    for (const timeframe of timeframes) {
-      const candles = CandleAggregator.aggregateTicksToCandles(ticks, symbol, timeframe);
+    // Group by timeframe and convert to candles
+    const candlesByTimeframe = new Map<string, CandleData[]>();
+    
+    for (const data of marketData) {
+      // Normalize timeframe names (H1 -> 1h, H4 -> 4h, D1 -> 1d)
+      const normalizedTf = data.timeframe
+        .replace('H1', '1h')
+        .replace('H4', '4h')
+        .replace('D1', '1d');
       
+      if (!candlesByTimeframe.has(normalizedTf)) {
+        candlesByTimeframe.set(normalizedTf, []);
+      }
+
+      // Determine if candle is complete (not the current live candle)
+      const now = new Date();
+      const candleTime = new Date(data.timestamp);
+      const timeframeMs = CandleAggregator.getTimeframeMs(normalizedTf);
+      const currentCandleStart = Math.floor(now.getTime() / timeframeMs) * timeframeMs;
+      const isComplete = candleTime.getTime() < currentCandleStart;
+
+      candlesByTimeframe.get(normalizedTf)!.push({
+        timestamp: data.timestamp,
+        symbol: symbol,
+        timeframe: normalizedTf,
+        open_price: data.open_price,
+        high_price: data.high_price,
+        low_price: data.low_price,
+        close_price: data.price, // 'price' is the close price
+        volume: 0, // market_data_feed doesn't have volume
+        tick_count: 1,
+        is_complete: isComplete,
+      });
+    }
+
+    // Upsert candles for each timeframe
+    for (const [timeframe, candles] of candlesByTimeframe.entries()) {
       if (candles.length > 0) {
-        // Upsert candles to database
         const { error: upsertError } = await supabase
           .from('aggregated_candles')
           .upsert(candles, {
@@ -206,27 +242,29 @@ serve(async (req) => {
     }
 
     const executionTime = Date.now() - startTime;
-    console.log(`✅ Aggregation complete in ${executionTime}ms`);
+    console.log(`✅ Candle sync complete in ${executionTime}ms`);
 
     // Log to system health
     await supabase.from('system_health').insert({
-      component: 'candle_aggregator',
-      status: 'healthy',
-      metrics: {
-        execution_time_ms: executionTime,
-        ticks_processed: ticks.length,
+      function_name: 'aggregate-candles',
+      status: 'success',
+      execution_time_ms: executionTime,
+      processed_items: totalCandlesInserted,
+      details: {
+        data_points_processed: marketData.length,
         candles_generated: totalCandlesInserted,
-        lookback_hours: lookbackHours
+        lookback_hours: lookbackHours,
+        source: 'market_data_feed'
       }
     });
 
     return new Response(
       JSON.stringify({
         success: true,
-        tickCount: ticks.length,
+        dataCount: marketData.length,
         candlesGenerated: totalCandlesInserted,
         executionTimeMs: executionTime,
-        timeframes: timeframes
+        source: 'market_data_feed'
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

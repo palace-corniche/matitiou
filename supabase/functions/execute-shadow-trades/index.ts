@@ -701,18 +701,18 @@ serve(async (req) => {
       .from('master_signals')
       .update({ 
         status: 'pending',
-        updated_at: new Date().toISOString(),
-        processing_timeout_count: supabase.raw('COALESCE(processing_timeout_count, 0) + 1')
+        updated_at: new Date().toISOString()
+        // Note: processing_timeout_count is tracked in signal_execution_attempts table
       })
       .eq('status', 'processing')
       .lt('updated_at', twoMinutesAgo)
-      .select('id, processing_timeout_count, created_at');
+      .select('id, created_at');
     
     if (staleSignals && staleSignals.length > 0) {
       console.log(`🔄 Reset ${staleSignals.length} stale 'processing' signals (stuck >2min)`);
       staleSignals.forEach(s => {
         const ageMinutes = Math.round((Date.now() - new Date(s.created_at).getTime()) / 60000);
-        console.log(`   - Signal ${s.id.slice(0,8)}: ${s.processing_timeout_count || 1} timeouts, age: ${ageMinutes}min`);
+        console.log(`   - Signal ${s.id.slice(0,8)}: age ${ageMinutes}min`);
       });
     }
 
