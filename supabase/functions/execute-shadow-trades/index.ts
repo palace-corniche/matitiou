@@ -617,25 +617,15 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // **PHASE 3 FIX: Fetch only PENDING signals (not rejected)**
-    console.log('🎯 Fetching qualifying signals from master_signals...');
-    let signalsQuery = supabase
-      .from('master_signals')
-      .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, signal_quality_score, market_regime, timeframe, created_at')
-      .eq('status', 'pending') // Only query pending signals
-      .gte('confluence_score', 12)
-      .in('signal_type', ['buy', 'sell'])
-      .order('created_at', { ascending: false});
-
-    if (signal_id) {
-      signalsQuery = signalsQuery.eq('id', signal_id);
-    } else {
-      // Only get signals from last 60 minutes
-      const sixtyMinutesAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
-      signalsQuery = signalsQuery.gte('created_at', sixtyMinutesAgo);
-    }
-
-    const { data: rawSignals, error: signalsError } = await signalsQuery.limit(5);
+    // ⚡ ATOMIC SIGNAL LOCKING: Use SELECT FOR UPDATE SKIP LOCKED via database function
+    console.log('🎯 Atomically locking available signals using SELECT FOR UPDATE SKIP LOCKED...');
+    
+    const { data: rawSignals, error: signalsError } = await supabase
+      .rpc('atomic_lock_signals', {
+        p_limit: signal_id ? 1 : 5,
+        p_min_confluence_score: 12,
+        p_max_age_minutes: 60
+      });
     
     // Map to expected format
     const signals = rawSignals?.map(s => ({
@@ -688,7 +678,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`🎯 Found ${signals.length} qualifying signals to execute`);
+    console.log(`🎯 Successfully locked ${signals.length} signals atomically (no conflicts!)`);
 
     // Fetch account defaults to get quality threshold
     console.log('⚙️ Fetching account defaults for quality threshold...');
@@ -696,111 +686,16 @@ serve(async (req) => {
       .from('account_defaults')
       .select('min_signal_quality')
       .eq('portfolio_id', globalAccountId)
-      .single();
+      .maybeSingle();
     
-    const qualityThreshold = accountDefaults?.min_signal_quality || 60;
+    const qualityThreshold = accountDefaults?.min_signal_quality || 10;
     console.log(`📊 Quality threshold: ${qualityThreshold}`);
-
-    // **PHASE 4 FIX: Reset stale 'processing' signals (stuck for >2 min)**
-    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
-    const { data: staleSignals } = await supabase
-      .from('master_signals')
-      .update({ 
-        status: 'pending',
-        updated_at: new Date().toISOString()
-        // Note: processing_timeout_count is tracked in signal_execution_attempts table
-      })
-      .eq('status', 'processing')
-      .lt('updated_at', twoMinutesAgo)
-      .select('id, created_at');
-    
-    if (staleSignals && staleSignals.length > 0) {
-      console.log(`🔄 Reset ${staleSignals.length} stale 'processing' signals (stuck >2min)`);
-      staleSignals.forEach(s => {
-        const ageMinutes = Math.round((Date.now() - new Date(s.created_at).getTime()) / 60000);
-        console.log(`   - Signal ${s.id.slice(0,8)}: age ${ageMinutes}min`);
-      });
-    }
 
     const executedTrades = [];
 
-    // ✅ Enhanced: Shuffle signals to prevent thundering herd (multiple instances trying same signal)
-    const shuffledSignals = signals.sort(() => Math.random() - 0.5);
-    console.log(`🔀 Processing ${shuffledSignals.length} signals in randomized order to reduce lock conflicts`);
-
-    // Execute trades for each qualifying signal and portfolio
-    for (const signal of shuffledSignals) {
-      // **DUPLICATE PREVENTION: Check current status before processing**
-      const { data: signalStatus } = await supabase
-        .from('master_signals')
-        .select('status')
-        .eq('id', signal.signal_id)
-        .single();
-
-      if (!signalStatus || signalStatus.status !== 'pending') {
-        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already ${signalStatus?.status || 'unknown'}, skipping`);
-        continue;
-      }
-
-      // **PHASE 1 FIX: Enhanced lock acquisition with exponential backoff and jitter**
-      let lockedSignal = null;
-      let lockAttempts = 0;
-      const maxLockAttempts = 5; // ✅ Increased from 3 to 5
-      const baseRetryDelay = 300; // ✅ Increased from 100ms to 300ms
-
-      while (!lockedSignal && lockAttempts < maxLockAttempts) {
-        const { data, error } = await supabase
-          .from('master_signals')
-          .update({ 
-            status: 'processing', 
-            updated_at: new Date().toISOString(),
-            processing_started_at: new Date().toISOString()
-          })
-          .eq('id', signal.signal_id)
-          .eq('status', 'pending')
-          .select()
-          .maybeSingle(); // Returns null instead of throwing error
-
-        if (data) {
-          lockedSignal = data;
-          console.log(`🔒 Lock acquired for signal ${signal.signal_id.slice(0,8)} (attempt ${lockAttempts + 1})`);
-          
-          // **PHASE 5: Track lock acquisition success**
-          await supabase.from('signal_execution_attempts').insert({
-            signal_id: signal.signal_id,
-            attempt_number: lockAttempts + 1,
-            lock_acquired: true,
-            execution_stage: 'lock_acquired',
-            attempted_at: new Date().toISOString()
-          });
-          break;
-        }
-
-        lockAttempts++;
-        if (lockAttempts < maxLockAttempts) {
-          // ✅ Enhanced: Exponential backoff with random jitter
-          const exponentialDelay = baseRetryDelay * Math.pow(2, lockAttempts - 1); // 300, 600, 1200, 2400ms
-          const jitter = Math.random() * 200; // 0-200ms random delay
-          const totalDelay = exponentialDelay + jitter;
-          console.log(`⏳ Lock busy, retrying in ${Math.round(totalDelay)}ms (${lockAttempts}/${maxLockAttempts})...`);
-          await new Promise(resolve => setTimeout(resolve, totalDelay));
-        }
-      }
-
-      if (!lockedSignal) {
-        console.log(`⏭️ Could not acquire lock after ${maxLockAttempts} attempts for signal ${signal.signal_id.slice(0,8)}, skipping`);
-        
-        // **PHASE 5: Track lock acquisition failure**
-        await supabase.from('signal_execution_attempts').insert({
-          signal_id: signal.signal_id,
-          attempt_number: lockAttempts,
-          lock_acquired: false,
-          execution_stage: 'lock_failed',
-          failure_reason: 'Lock conflict with concurrent execution',
-          attempted_at: new Date().toISOString()
-        });
-        continue;
-      }
+    // Execute trades for each locked signal
+    for (const signal of signals) {
+      console.log(`\n🔒 Processing locked signal ${signal.signal_id.slice(0,8)} (${signal.signal_type.toUpperCase()})...`);
       
       // **PHASE 5: BASIC VALIDATION BEFORE EXECUTION**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
