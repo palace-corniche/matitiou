@@ -517,7 +517,7 @@ serve(async (req) => {
               symbol: confluenceSignal.pair,
               timeframe: '15m',
               signal_type: confluenceSignal.signal_type,
-              final_confidence: Math.round(confluenceSignal.confidence * 100), // ✅ FIX: Convert 0-1 range to 0-100 range
+              final_confidence: confluenceSignal.confidence, // Keep in 0-1 range (database constraint)
               final_strength: confluenceSignal.strength,
               confluence_score: confluenceSignal.confluence_score,
               recommended_entry: confluenceSignal.entry_price,
