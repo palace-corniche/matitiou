@@ -518,6 +518,41 @@ serve(async (req) => {
     console.log('🚀 Starting shadow trade execution...');
     console.log('📋 Trigger:', trigger || 'cron', 'Signal ID:', signal_id || 'none');
 
+    // **PHASE 2 FIX: Check if another instance is already running**
+    console.log('🔒 Checking for concurrent executions...');
+    const { data: runningInstances } = await supabase
+      .from('function_execution_locks')
+      .select('*')
+      .eq('function_name', 'execute-shadow-trades')
+      .eq('status', 'running')
+      .gte('started_at', new Date(Date.now() - 60000).toISOString()) // Running within last 60 seconds
+      .limit(1);
+
+    if (runningInstances && runningInstances.length > 0) {
+      console.log('⏸️ Another instance is already running, exiting to prevent conflicts');
+      console.log('   Instance started at:', runningInstances[0].started_at);
+      return new Response(
+        JSON.stringify({ 
+          success: true, 
+          message: 'Another instance already running', 
+          skipped: true,
+          running_since: runningInstances[0].started_at
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // **Create execution lock**
+    const executionLockId = crypto.randomUUID();
+    console.log(`🔐 Creating execution lock: ${executionLockId.slice(0,8)}`);
+    await supabase.from('function_execution_locks').insert({
+      id: executionLockId,
+      function_name: 'execute-shadow-trades',
+      status: 'running',
+      started_at: new Date().toISOString()
+    });
+    console.log('✅ Execution lock acquired');
+
     // PHASE 2 FIX: Use global_trading_account instead of shadow_portfolios
     console.log('🔍 Fetching global trading account...');
     const globalAccountId = '00000000-0000-0000-0000-000000000001';
@@ -576,12 +611,12 @@ serve(async (req) => {
 
     console.log(`💼 Found ${portfolios.length} active portfolios`);
 
-    // **PHASE 1 FIX: Fetch signals with status='pending' or 'rejected' awaiting execution**
+    // **PHASE 3 FIX: Fetch only PENDING signals (not rejected)**
     console.log('🎯 Fetching qualifying signals from master_signals...');
     let signalsQuery = supabase
       .from('master_signals')
       .select('id, symbol, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, final_confidence, confluence_score, signal_quality_score, market_regime, timeframe, created_at')
-      .in('status', ['pending', 'rejected']) // Query both pending and rejected signals
+      .eq('status', 'pending') // Only query pending signals
       .gte('confluence_score', 12)
       .in('signal_type', ['buy', 'sell'])
       .order('created_at', { ascending: false});
@@ -660,20 +695,25 @@ serve(async (req) => {
     const qualityThreshold = accountDefaults?.min_signal_quality || 60;
     console.log(`📊 Quality threshold: ${qualityThreshold}`);
 
-    // **CLEANUP: Reset stale 'processing' signals (stuck for >5 min)**
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    // **PHASE 4 FIX: Reset stale 'processing' signals (stuck for >2 min)**
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000).toISOString();
     const { data: staleSignals } = await supabase
       .from('master_signals')
       .update({ 
         status: 'pending',
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        processing_timeout_count: supabase.raw('COALESCE(processing_timeout_count, 0) + 1')
       })
       .eq('status', 'processing')
-      .lt('updated_at', fiveMinutesAgo)
-      .select('id');
+      .lt('updated_at', twoMinutesAgo)
+      .select('id, processing_timeout_count, created_at');
     
     if (staleSignals && staleSignals.length > 0) {
-      console.log(`🔄 Reset ${staleSignals.length} stale 'processing' signals back to 'pending'`);
+      console.log(`🔄 Reset ${staleSignals.length} stale 'processing' signals (stuck >2min)`);
+      staleSignals.forEach(s => {
+        const ageMinutes = Math.round((Date.now() - new Date(s.created_at).getTime()) / 60000);
+        console.log(`   - Signal ${s.id.slice(0,8)}: ${s.processing_timeout_count || 1} timeouts, age: ${ageMinutes}min`);
+      });
     }
 
     const executedTrades = [];
@@ -692,25 +732,59 @@ serve(async (req) => {
         continue;
       }
 
-      // **RACE CONDITION PREVENTION: Mark as processing immediately (atomic operation)**
-      const { data: lockedSignal, error: lockError } = await supabase
-        .from('master_signals')
-        .update({ 
-          status: 'processing',
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', signal.signal_id)
-        .eq('status', 'pending') // Only update if still pending
-        .select() // Return the updated row
-        .single(); // Expect exactly one row
+      // **PHASE 1 FIX: Improved lock acquisition with retry mechanism**
+      let lockedSignal = null;
+      let lockAttempts = 0;
+      const maxLockAttempts = 3;
 
-      // Check if we actually acquired the lock (row was returned)
-      if (!lockedSignal || lockError) {
-        console.log(`⏭️ Signal ${signal.signal_id.slice(0,8)} already locked by another process (no row returned), skipping`);
-        continue;
+      while (!lockedSignal && lockAttempts < maxLockAttempts) {
+        const { data, error } = await supabase
+          .from('master_signals')
+          .update({ 
+            status: 'processing', 
+            updated_at: new Date().toISOString(),
+            processing_started_at: new Date().toISOString()
+          })
+          .eq('id', signal.signal_id)
+          .eq('status', 'pending')
+          .select()
+          .maybeSingle(); // Returns null instead of throwing error
+
+        if (data) {
+          lockedSignal = data;
+          console.log(`🔒 Lock acquired for signal ${signal.signal_id.slice(0,8)} (attempt ${lockAttempts + 1})`);
+          
+          // **PHASE 5: Track lock acquisition success**
+          await supabase.from('signal_execution_attempts').insert({
+            signal_id: signal.signal_id,
+            attempt_number: lockAttempts + 1,
+            lock_acquired: true,
+            execution_stage: 'lock_acquired',
+            attempted_at: new Date().toISOString()
+          });
+          break;
+        }
+
+        lockAttempts++;
+        if (lockAttempts < maxLockAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 100)); // Wait 100ms before retry
+        }
       }
 
-      console.log(`🔒 Signal ${signal.signal_id.slice(0,8)} locked for processing`);
+      if (!lockedSignal) {
+        console.log(`⏭️ Could not acquire lock after ${maxLockAttempts} attempts for signal ${signal.signal_id.slice(0,8)}, skipping`);
+        
+        // **PHASE 5: Track lock acquisition failure**
+        await supabase.from('signal_execution_attempts').insert({
+          signal_id: signal.signal_id,
+          attempt_number: lockAttempts,
+          lock_acquired: false,
+          execution_stage: 'lock_failed',
+          failure_reason: 'Lock conflict with concurrent execution',
+          attempted_at: new Date().toISOString()
+        });
+        continue;
+      }
       
       // **PHASE 5: BASIC VALIDATION BEFORE EXECUTION**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
@@ -829,7 +903,17 @@ serve(async (req) => {
             .single();
 
           if (priceError || !freshPrice) {
-            console.error(`❌ No price data available for ${signal.symbol}:`, priceError);
+            console.error(`❌ No price data available for ${signal.pair}:`, priceError);
+            
+            // **PHASE 5: Track price fetch failure**
+            await supabase.from('signal_execution_attempts').insert({
+              signal_id: signal.signal_id,
+              attempt_number: 1,
+              lock_acquired: true,
+              execution_stage: 'price_fetch_failed',
+              failure_reason: 'No live market price available',
+              attempted_at: new Date().toISOString()
+            });
             
             await supabase.from('master_signals').update({
               status: 'rejected',
@@ -839,6 +923,16 @@ serve(async (req) => {
             
             continue;
           }
+          
+          // **PHASE 5: Track successful price fetch**
+          await supabase.from('signal_execution_attempts').insert({
+            signal_id: signal.signal_id,
+            attempt_number: 1,
+            lock_acquired: true,
+            execution_stage: 'price_fetched',
+            market_price: freshPrice.price,
+            attempted_at: new Date().toISOString()
+          });
 
           const priceAge = Date.now() - new Date(freshPrice.timestamp).getTime();
           if (priceAge > 3600000 && priceAge < -3600000) { // More than 1 hour old OR more than 1 hour in future
@@ -1243,6 +1337,30 @@ serve(async (req) => {
   } finally {
     console.log('🏁 FUNCTION EXECUTION COMPLETE');
     console.log('⏱️ Total execution time:', Date.now() - startTime, 'ms');
+    
+    // **PHASE 2 FIX: Release execution lock**
+    try {
+      const supabaseUrl = Deno.env.get('SUPABASE_URL');
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+      
+      if (supabaseUrl && supabaseKey) {
+        const supabase = createClient(supabaseUrl, supabaseKey);
+        
+        // Mark lock as completed instead of deleting
+        await supabase
+          .from('function_execution_locks')
+          .update({ 
+            status: 'completed',
+            completed_at: new Date().toISOString()
+          })
+          .eq('function_name', 'execute-shadow-trades')
+          .eq('status', 'running');
+        
+        console.log('🔓 Execution lock released');
+      }
+    } catch (lockError) {
+      console.error('⚠️ Failed to release execution lock:', lockError);
+    }
   }
 });
 

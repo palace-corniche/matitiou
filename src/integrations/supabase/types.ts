@@ -1050,6 +1050,33 @@ export type Database = {
         }
         Relationships: []
       }
+      function_execution_locks: {
+        Row: {
+          completed_at: string | null
+          created_at: string | null
+          function_name: string
+          id: string
+          started_at: string | null
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string | null
+          function_name: string
+          id?: string
+          started_at?: string | null
+          status: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string | null
+          function_name?: string
+          id?: string
+          started_at?: string | null
+          status?: string
+        }
+        Relationships: []
+      }
       global_trading_account: {
         Row: {
           auto_trading_enabled: boolean
@@ -1766,6 +1793,8 @@ export type Database = {
           notes: string | null
           price_source: string | null
           price_validated: boolean | null
+          processing_started_at: string | null
+          processing_timeout_count: number | null
           recommended_entry: number
           recommended_lot_size: number
           recommended_stop_loss: number
@@ -1810,6 +1839,8 @@ export type Database = {
           notes?: string | null
           price_source?: string | null
           price_validated?: boolean | null
+          processing_started_at?: string | null
+          processing_timeout_count?: number | null
           recommended_entry: number
           recommended_lot_size?: number
           recommended_stop_loss: number
@@ -1854,6 +1885,8 @@ export type Database = {
           notes?: string | null
           price_source?: string | null
           price_validated?: boolean | null
+          processing_started_at?: string | null
+          processing_timeout_count?: number | null
           recommended_entry?: number
           recommended_lot_size?: number
           recommended_stop_loss?: number
@@ -3369,6 +3402,47 @@ export type Database = {
           user_id?: string | null
         }
         Relationships: []
+      }
+      signal_execution_attempts: {
+        Row: {
+          attempt_number: number
+          attempted_at: string | null
+          execution_stage: string | null
+          failure_reason: string | null
+          id: string
+          lock_acquired: boolean
+          market_price: number | null
+          signal_id: string
+        }
+        Insert: {
+          attempt_number: number
+          attempted_at?: string | null
+          execution_stage?: string | null
+          failure_reason?: string | null
+          id?: string
+          lock_acquired: boolean
+          market_price?: number | null
+          signal_id: string
+        }
+        Update: {
+          attempt_number?: number
+          attempted_at?: string | null
+          execution_stage?: string | null
+          failure_reason?: string | null
+          id?: string
+          lock_acquired?: boolean
+          market_price?: number | null
+          signal_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "signal_execution_attempts_signal_id_fkey"
+            columns: ["signal_id"]
+            isOneToOne: false
+            referencedRelation: "master_signals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       signal_rejection_logs: {
         Row: {
