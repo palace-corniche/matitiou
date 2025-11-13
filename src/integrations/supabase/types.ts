@@ -4702,6 +4702,14 @@ export type Database = {
           wins: number
         }[]
       }
+      get_close_price_with_spread: {
+        Args: {
+          p_market_price: number
+          p_spread?: number
+          p_trade_type: string
+        }
+        Returns: number
+      }
       get_global_trading_account: {
         Args: never
         Returns: {
@@ -4880,6 +4888,22 @@ export type Database = {
           p_symbol: string
         }
         Returns: Json
+      }
+      verify_pnl_calculation: {
+        Args: { p_trade_id: string }
+        Returns: {
+          calculated_pips: number
+          calculated_pnl: number
+          entry_price: number
+          exit_price: number
+          lot_size: number
+          pips_match: boolean
+          pnl_match: boolean
+          stored_pips: number
+          stored_pnl: number
+          trade_id: string
+          trade_type: string
+        }[]
       }
     }
     Enums: {

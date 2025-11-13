@@ -10,36 +10,64 @@ export interface PnLResult {
 /**
  * Centralized PnL and Pips calculation for EUR/USD shadow trading
  * 
+ * CRITICAL: This calculator matches the backend close_shadow_trade function exactly
+ * 
  * Key formulas:
  * - Pips: For EUR/USD, 1 pip = 0.0001 price movement
- * - PnL: pips * lot_size * pip_value_per_lot
+ * - BUY: pips = (close_price - entry_price) / 0.0001
+ * - SELL: pips = (entry_price - close_price) / 0.0001
+ * - PnL: pips * lot_size * $10 - commission - swap
  * - EUR/USD pip value: $10 per pip for 1.0 lot size
+ * 
+ * Bid/Ask Spread Handling:
+ * - BUY trades: enter at ASK (market + spread/2), close at BID (market - spread/2)
+ * - SELL trades: enter at BID (market - spread/2), close at ASK (market + spread/2)
  */
 export class PnLCalculator {
   private static readonly EUR_USD_PIP_SIZE = 0.0001;
   private static readonly EUR_USD_PIP_VALUE_PER_LOT = 10; // $10 per pip for 1.0 lot
+  private static readonly DEFAULT_SPREAD = 0.00015; // 1.5 pips
+  private static readonly COMMISSION_PER_LOT = 0.5; // $0.50 per 0.01 lot
 
   /**
-   * Calculate pips for a trade
+   * Apply bid/ask spread to market price
+   * BUY: close at BID (market - spread/2)
+   * SELL: close at ASK (market + spread/2)
    */
-  static calculatePips(
+  static applySpread(
     tradeType: 'buy' | 'sell',
-    entryPrice: number,
-    currentPrice: number
+    marketPrice: number,
+    spread: number = this.DEFAULT_SPREAD
   ): number {
     if (tradeType === 'buy') {
-      // BUY: profit when current price > entry price
-      return (currentPrice - entryPrice) / this.EUR_USD_PIP_SIZE;
+      return marketPrice - (spread / 2); // BID
     } else {
-      // SELL: profit when current price < entry price  
-      return (entryPrice - currentPrice) / this.EUR_USD_PIP_SIZE;
+      return marketPrice + (spread / 2); // ASK
     }
   }
 
   /**
-   * Calculate PnL in USD for EUR/USD
+   * Calculate pips for a trade
+   * CRITICAL: This matches the backend calculation exactly
    */
-  static calculatePnL(
+  static calculatePips(
+    tradeType: 'buy' | 'sell',
+    entryPrice: number,
+    closePrice: number
+  ): number {
+    if (tradeType === 'buy') {
+      // BUY: profit when close price > entry price
+      return (closePrice - entryPrice) / this.EUR_USD_PIP_SIZE;
+    } else {
+      // SELL: profit when close price < entry price  
+      return (entryPrice - closePrice) / this.EUR_USD_PIP_SIZE;
+    }
+  }
+
+  /**
+   * Calculate gross PnL in USD (before fees)
+   */
+  static calculateGrossPnL(
     pips: number,
     lotSize: number
   ): number {
@@ -47,24 +75,58 @@ export class PnLCalculator {
   }
 
   /**
-   * Get current market price for closing position
+   * Calculate commission
+   */
+  static calculateCommission(lotSize: number): number {
+    return lotSize * this.COMMISSION_PER_LOT;
+  }
+
+  /**
+   * Calculate net PnL (after fees)
+   */
+  static calculateNetPnL(
+    pips: number,
+    lotSize: number,
+    commission?: number,
+    swap?: number
+  ): number {
+    const grossPnL = this.calculateGrossPnL(pips, lotSize);
+    const totalCommission = commission ?? this.calculateCommission(lotSize);
+    const totalSwap = swap ?? 0;
+    return grossPnL - totalCommission - totalSwap;
+  }
+
+  /**
+   * Get current market price for closing position with spread applied
    */
   static getCurrentPrice(tradeType: 'buy' | 'sell', tick: UnifiedTick): number {
-    // Use bid for closing long positions, ask for closing short positions
+    // BUY closes at BID, SELL closes at ASK
     return tradeType === 'buy' ? tick.bid : tick.ask;
   }
 
   /**
    * Calculate complete PnL result for a trade
+   * CRITICAL: This matches backend calculation exactly
    */
   static calculateTradeResult(
     trade: GlobalShadowTrade,
     currentTick: UnifiedTick
   ): PnLResult {
-    const currentPrice = this.getCurrentPrice(trade.trade_type as 'buy' | 'sell', currentTick);
-    const pips = this.calculatePips(trade.trade_type as 'buy' | 'sell', trade.entry_price, currentPrice);
+    // Get the correct close price (bid for BUY, ask for SELL)
+    const closePrice = this.getCurrentPrice(trade.trade_type as 'buy' | 'sell', currentTick);
+    
+    // Calculate pips using exact backend formula
+    const pips = this.calculatePips(
+      trade.trade_type as 'buy' | 'sell', 
+      trade.entry_price, 
+      closePrice
+    );
+    
+    // Calculate pip value
     const pipValue = trade.lot_size * this.EUR_USD_PIP_VALUE_PER_LOT;
-    const pnl = pips * pipValue;
+    
+    // Calculate net PnL with commission
+    const pnl = this.calculateNetPnL(pips, trade.lot_size);
 
     return {
       pips,
@@ -111,18 +173,10 @@ export class PnLCalculator {
 
 /**
  * Quick helper function for trade metrics calculation
+ * CRITICAL: Uses the unified PnLCalculator for consistency
  */
 export function calculateTradeMetrics(trade: GlobalShadowTrade, currentTick: UnifiedTick): PnLResult {
-  const currentPrice = trade.trade_type === 'buy' ? currentTick.bid : currentTick.ask;
-  const pips = PnLCalculator.calculatePips(trade.trade_type, trade.entry_price, currentPrice);
-  const pipValue = trade.lot_size * 10; // $10 per pip for 1.0 lot EUR/USD
-  const pnl = pips * pipValue;
-
-  return {
-    pips,
-    pnl,
-    pipValue
-  };
+  return PnLCalculator.calculateTradeResult(trade, currentTick);
 }
 
 export default PnLCalculator;

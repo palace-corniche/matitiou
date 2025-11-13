@@ -15,6 +15,7 @@ import { DataIntegrityMonitor } from '@/components/DataIntegrityMonitor';
 import { TradeExecutionMonitor } from '@/components/TradeExecutionMonitor';
 import { PriceIntegrityMonitor } from '@/components/PriceIntegrityMonitor';
 import { CandleDataStatus } from '@/components/enhanced/CandleDataStatus';
+import PnLSystemVerification from '@/components/PnLSystemVerification';
 import { Target, ChevronDown } from 'lucide-react';
 
 const ShadowTrading: React.FC = () => {
@@ -48,11 +49,14 @@ const ShadowTrading: React.FC = () => {
                   </Button>
                 </CollapsibleTrigger>
                 <CollapsibleContent className="pt-4">
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    <DataIntegrityMonitor />
-                    <TradeExecutionMonitor />
-                    <PriceIntegrityMonitor />
-                    <CandleDataStatus />
+                  <div className="grid grid-cols-1 gap-4">
+                    <PnLSystemVerification />
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <DataIntegrityMonitor />
+                      <TradeExecutionMonitor />
+                      <PriceIntegrityMonitor />
+                      <CandleDataStatus />
+                    </div>
                   </div>
                 </CollapsibleContent>
               </Card>
