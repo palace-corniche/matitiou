@@ -84,3 +84,10 @@ verify_jwt = false
 
 [functions.aggregate-candles]
 verify_jwt = false
+
+# Newly added public functions
+[functions.backfill-trade-history]
+verify_jwt = false
+
+[functions.recompute-balances]
+verify_jwt = false
