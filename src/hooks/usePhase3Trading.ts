@@ -167,15 +167,18 @@ export const usePhase3Trading = () => {
 
   // Set up real-time subscriptions
   useEffect(() => {
+    let mounted = true;
     let portfolioId: string | null = null;
 
     const initialize = async () => {
       setIsLoading(true);
       portfolioId = await initializePortfolio();
-      if (portfolioId) {
+      if (portfolioId && mounted) {
         await loadOpenTrades(portfolioId);
       }
-      setIsLoading(false);
+      if (mounted) {
+        setIsLoading(false);
+      }
     };
 
     initialize();
@@ -183,27 +186,34 @@ export const usePhase3Trading = () => {
     // Subscribe to market data
     const unsubscribeMarketData = marketDataService.subscribe({
       onTick: (tick: TickData) => {
-        const startTime = Date.now();
-        setCurrentTick(tick);
-        setIsConnected(true);
-        setLatency(Date.now() - startTime);
+        if (mounted) {
+          const startTime = Date.now();
+          setCurrentTick(tick);
+          setIsConnected(true);
+          setLatency(Date.now() - startTime);
+        }
       },
       onError: (error: Error) => {
         console.error('Market data error:', error);
-        setIsConnected(false);
+        if (mounted) {
+          setIsConnected(false);
+        }
       }
     });
 
-    // Subscribe to portfolio updates
+    // Subscribe to portfolio updates (global account)
     const portfolioChannel = supabase
       .channel('phase3_portfolio_updates')
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
-        table: 'global_trading_account'
+        table: 'global_trading_account',
+        filter: 'id=eq.00000000-0000-0000-0000-000000000001'
       }, (payload) => {
-        if (payload.new.id === portfolioId) {
+        console.log('💰 Balance update received:', payload);
+        if (mounted) {
           setPortfolio(payload.new as Portfolio);
+          toast.success('Balance updated automatically');
         }
       })
       .subscribe();
@@ -215,16 +225,34 @@ export const usePhase3Trading = () => {
         event: '*',
         schema: 'public',
         table: 'shadow_trades'
-      }, (payload) => {
+      }, async (payload) => {
+        if (!mounted) return;
+        
         const newRecord = payload.new as any;
         const oldRecord = payload.old as any;
-        if (newRecord?.portfolio_id === portfolioId || oldRecord?.portfolio_id === portfolioId) {
-          if (portfolioId) loadOpenTrades(portfolioId);
+        
+        // Auto-refresh on any trade change
+        if (portfolioId) {
+          await loadOpenTrades(portfolioId);
+        }
+        
+        // Show notification for closed trades
+        if (payload.eventType === 'UPDATE' && newRecord?.status === 'closed' && oldRecord?.status === 'open') {
+          const pnl = newRecord.pnl || 0;
+          const symbol = newRecord.symbol;
+          const pips = newRecord.profit_pips || 0;
+          
+          if (pnl > 0) {
+            toast.success(`✅ ${symbol}: +$${pnl.toFixed(2)} (${pips.toFixed(1)} pips)`);
+          } else {
+            toast.error(`❌ ${symbol}: -$${Math.abs(pnl).toFixed(2)} (${pips.toFixed(1)} pips)`);
+          }
         }
       })
       .subscribe();
 
     return () => {
+      mounted = false;
       unsubscribeMarketData();
       supabase.removeChannel(portfolioChannel);
       supabase.removeChannel(tradesChannel);
