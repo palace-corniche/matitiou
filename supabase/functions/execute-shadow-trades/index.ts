@@ -748,19 +748,19 @@ serve(async (req) => {
 
           const actualOpenPositions = openTrades?.length || 0;
 
-          // **AUTO-CLOSE OPPOSITE DIRECTION TRADES**
+          // **CRITICAL FIX: AUTO-CLOSE OPPOSITE DIRECTION TRADES USING NEW FUNCTION**
           const oppositeDirection = signal.signal_type === 'buy' ? 'sell' : 'buy';
           const oppositeTrades = openTrades?.filter(t => t.trade_type === oppositeDirection) || [];
           
           if (oppositeTrades.length > 0) {
-            console.log(`🔄 Closing ${oppositeTrades.length} opposite ${oppositeDirection.toUpperCase()} trades before executing new ${signal.signal_type.toUpperCase()} signal`);
+            console.log(`🔄 AUTO-CLOSING ${oppositeTrades.length} opposite ${oppositeDirection.toUpperCase()} trades before executing new ${signal.signal_type.toUpperCase()} signal`);
             
             // Get FRESH market data for closing
             const { data: freshMarketForClose } = await supabase
               .from('market_data_feed')
               .select('price, timestamp')
               .eq('symbol', signal.pair)
-              .lte('timestamp', new Date().toISOString()) // CRITICAL FIX: Prevent future timestamps
+              .lte('timestamp', new Date().toISOString())
               .order('timestamp', { ascending: false })
               .limit(1)
               .single();
@@ -770,21 +770,27 @@ serve(async (req) => {
               continue;
             }
             
-            const closePrice = freshMarketForClose.price;
+            // Use the new atomic function to close opposite trades
+            const { data: closeOppositeResult, error: closeOppositeError } = await supabase
+              .rpc('close_opposite_direction_trades', {
+                p_portfolio_id: portfolio.id,
+                p_new_signal_direction: signal.signal_type,
+                p_close_price: freshMarketForClose.price
+              });
+              const { data: closeOppositeResult, error: closeOppositeError } = await supabase
+              .rpc('close_opposite_direction_trades', {
+                p_portfolio_id: portfolio.id,
+                p_new_signal_direction: signal.signal_type,
+                p_close_price: freshMarketForClose.price
+              });
             
-            // Close all opposite trades
-            for (const oppTrade of oppositeTrades) {
-              const { data: closeResult, error: closeError } = await supabase
-                .rpc('close_shadow_trade', {
-                  p_trade_id: oppTrade.id,
-                  p_close_price: closePrice,
-                  p_close_reason: `Opposite signal triggered (${signal.signal_type.toUpperCase()})`
-                });
-              
-              if (closeError) {
-                console.error(`❌ Failed to close opposite trade ${oppTrade.id}:`, closeError);
+            if (closeOppositeError) {
+                console.error(`❌ Failed to close opposite trades: ${closeOppositeError.message}`);
               } else {
-                console.log(`✅ Closed ${oppositeDirection.toUpperCase()} trade ${oppTrade.id.slice(0, 8)}: ${closeResult?.profit?.toFixed(2) || 'N/A'} pips`);
+                console.log(`✅ Successfully closed ${closeOppositeResult.closed_count} ${oppositeDirection.toUpperCase()} trades. Total P&L: $${closeOppositeResult.total_pnl}`);
+                
+                // Wait a moment to ensure balance updates are committed
+                await new Promise(resolve => setTimeout(resolve, 100));
               }
             }
             
