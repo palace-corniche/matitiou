@@ -748,7 +748,7 @@ serve(async (req) => {
 
           const actualOpenPositions = openTrades?.length || 0;
 
-          // **CRITICAL FIX: AUTO-CLOSE OPPOSITE DIRECTION TRADES USING NEW FUNCTION**
+          // **CRITICAL FIX: Close ALL opposite direction trades using close_shadow_trade RPC**
           const oppositeDirection = signal.signal_type === 'buy' ? 'sell' : 'buy';
           const oppositeTrades = openTrades?.filter(t => t.trade_type === oppositeDirection) || [];
           
@@ -770,22 +770,28 @@ serve(async (req) => {
               continue;
             }
             
-            // Use the new atomic function to close opposite trades
-            const { data: closeOppositeResult, error: closeOppositeError } = await supabase
-              .rpc('close_opposite_direction_trades', {
-                p_portfolio_id: portfolio.id,
-                p_new_signal_direction: signal.signal_type,
-                p_close_price: freshMarketForClose.price
-              });
-            
-            if (closeOppositeError) {
-              console.error(`❌ Failed to close opposite trades: ${closeOppositeError.message}`);
-            } else {
-              console.log(`✅ Successfully closed ${closeOppositeResult.closed_count} ${oppositeDirection.toUpperCase()} trades. Total P&L: $${closeOppositeResult.total_pnl}`);
+            // **CRITICAL: Use close_shadow_trade RPC for each opposite trade**
+            for (const oppTrade of oppositeTrades) {
+              console.log(`   🔒 Closing ${oppTrade.trade_type.toUpperCase()} trade ${oppTrade.id.slice(0, 8)} via close_shadow_trade RPC...`);
               
-              // Wait a moment to ensure balance updates are committed
+              const { data: closeResult, error: closeError } = await supabase.rpc('close_shadow_trade', {
+                p_trade_id: oppTrade.id,
+                p_close_price: freshMarketForClose.price,
+                p_close_lot_size: null, // Close full position
+                p_close_reason: 'opposite_signal'
+              });
+
+              if (closeError) {
+                console.error(`   ❌ Failed to close opposite trade: ${closeError.message}`);
+              } else {
+                console.log(`   ✅ Opposite trade closed - PnL: $${closeResult?.profit_amount || 0}`);
+              }
+              
+              // Small delay between closes
               await new Promise(resolve => setTimeout(resolve, 100));
             }
+            
+            console.log(`✅ All opposite ${oppositeDirection.toUpperCase()} trades processed`);
           }
           
           // Refresh open trades count after closing opposites
@@ -954,8 +960,37 @@ serve(async (req) => {
           
           if (targetsResponse.ok) {
             intelligentTargets = await targetsResponse.json();
-            dynamicStopLoss = intelligentTargets.stop_loss;
-            dynamicTakeProfit = intelligentTargets.take_profit_1; // Use first target
+            
+            // **CRITICAL FIX: Enforce MINIMUM 20 pip stop loss**
+            const MIN_SL_DISTANCE_PIPS = 20;
+            const MIN_SL_DISTANCE = MIN_SL_DISTANCE_PIPS * 0.0001; // 20 pips in price terms
+            
+            const recommendedSlDistance = Math.abs(signal.entry_price - intelligentTargets.stop_loss);
+            const enforcedSlDistance = Math.max(recommendedSlDistance, MIN_SL_DISTANCE);
+            
+            // Apply minimum SL distance
+            dynamicStopLoss = signal.signal_type === 'buy'
+              ? signal.entry_price - enforcedSlDistance
+              : signal.entry_price + enforcedSlDistance;
+            
+            // Ensure TP is at least 2x the SL distance (1:2 risk:reward minimum)
+            const minTpDistance = enforcedSlDistance * 2;
+            const recommendedTpDistance = Math.abs(signal.entry_price - intelligentTargets.take_profit_1);
+            const enforcedTpDistance = Math.max(recommendedTpDistance, minTpDistance);
+            
+            dynamicTakeProfit = signal.signal_type === 'buy'
+              ? signal.entry_price + enforcedTpDistance
+              : signal.entry_price - enforcedTpDistance;
+            
+            const actualSlPips = enforcedSlDistance / 0.0001;
+            const actualTpPips = enforcedTpDistance / 0.0001;
+            
+            if (recommendedSlDistance < MIN_SL_DISTANCE) {
+              console.log(`⚠️ WIDENED SL: ${Math.round(recommendedSlDistance / 0.0001)} → ${Math.round(actualSlPips)} pips (min ${MIN_SL_DISTANCE_PIPS})`);
+            }
+            if (recommendedTpDistance < minTpDistance) {
+              console.log(`⚠️ WIDENED TP: ${Math.round(recommendedTpDistance / 0.0001)} → ${Math.round(actualTpPips)} pips (min 2:1 R:R)`);
+            }
             targetsReasoning = intelligentTargets.reasoning;
             targetsConfidence = intelligentTargets.confidence;
             
