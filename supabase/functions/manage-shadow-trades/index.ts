@@ -534,88 +534,58 @@ serve(async (req) => {
         }
 
         if (shouldClose) {
-          // Calculate P&L and holding time
-          const entryTime = new Date(trade.entry_time).getTime();
-          const pnlResult = calculatePnL(trade, currentPrice);
-          const holdingTimeMinutes = Math.round((Date.now() - entryTime) / 60000);
+          // **CRITICAL FIX: Use close_shadow_trade RPC function instead of direct UPDATE**
+          console.log(`🔒 Closing trade ${trade.id.slice(0, 8)} via close_shadow_trade RPC...`);
+          
+          try {
+            const { data: closeResult, error: closeError } = await supabase.rpc('close_shadow_trade', {
+              p_trade_id: trade.id,
+              p_close_price: currentPrice,
+              p_close_lot_size: null, // Close full position
+              p_close_reason: exitReason
+            });
 
-          // Update trade record with intelligence data
-          const { error: updateError } = await supabase
-            .from('shadow_trades')
-            .update({
-              status: 'closed',
-              exit_price: currentPrice,
-              exit_time: new Date().toISOString(),
-              exit_reason: exitReason,
-              pnl: pnlResult.pnl,
-              pnl_percent: pnlResult.pnlPercent,
-              holding_time_minutes: holdingTimeMinutes,
-              intelligence_exit_triggered: exitReason === 'intelligence_exit',
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', trade.id);
+            if (closeError) {
+              console.error(`❌ Error closing trade ${trade.id.slice(0, 8)} via RPC:`, closeError);
+              continue;
+            }
 
-          if (updateError) {
-            console.error(`Error updating trade ${trade.id}:`, updateError);
+            console.log(`✅ Trade ${trade.id.slice(0, 8)} closed via RPC - PnL: $${closeResult.profit_amount}, Commission: $${closeResult.commission}`);
+          } catch (rpcError) {
+            console.error(`❌ RPC call failed for trade ${trade.id.slice(0, 8)}:`, rpcError);
             continue;
           }
 
-          // Insert into trade_history with correct values
-          const newBalance = parseFloat(globalAccount.balance.toString()) + pnlResult.pnl;
-          const newEquity = newBalance; // Simplified - will be updated with floating P&L later
-          
-          const { error: historyError } = await supabase
-            .from('trade_history')
-            .insert({
-              portfolio_id: trade.portfolio_id,
-              original_trade_id: trade.id,
-              action_type: 'close',
-              symbol: trade.symbol,
-              trade_type: trade.trade_type,
-              lot_size: parseFloat(trade.lot_size.toString()),
-              execution_price: currentPrice,
-              profit: pnlResult.pnl,
-              profit_pips: pnlResult.pips,
-              balance_before: parseFloat(globalAccount.balance.toString()),
-              balance_after: newBalance,
-              equity_before: parseFloat(globalAccount.equity.toString()),
-              equity_after: newEquity,
-              execution_time: new Date().toISOString()
+          // **NOTE: close_shadow_trade RPC handles ALL of this automatically:**
+          // - Updates shadow_trades with exit_price, exit_time, status='closed'
+          // - Calculates pips, commission, and PnL correctly
+          // - Updates global_trading_account balance and stats
+          // - Inserts into trade_history
+          // - Releases margin
+          // 
+          // NO NEED for manual updates here!
+
+          // Re-fetch the closed trade to get updated values
+          const { data: closedTrade } = await supabase
+            .from('shadow_trades')
+            .select('*')
+            .eq('id', trade.id)
+            .single();
+
+          if (closedTrade) {
+            closedTrades.push({
+              id: closedTrade.id,
+              symbol: closedTrade.symbol,
+              type: closedTrade.trade_type,
+              entryPrice: parseFloat(closedTrade.entry_price.toString()),
+              exitPrice: parseFloat(closedTrade.exit_price.toString()),
+              pnl: parseFloat(closedTrade.profit_amount?.toString() || '0'),
+              exitReason: closedTrade.exit_reason || exitReason,
+              holdingTimeMinutes: closedTrade.holding_time_minutes || 0
             });
 
-          if (historyError) {
-            console.error(`Error inserting trade history:`, historyError);
-          } else {
-            console.log(`📝 Logged to trade_history: Profit $${pnlResult.pnl.toFixed(2)}, Balance $${globalAccount.balance.toFixed(2)} → $${newBalance.toFixed(2)}`);
+            console.log(`📊 Trade closed - Pips: ${closedTrade.profit_pips}, PnL: $${closedTrade.profit_amount}, Commission: $${closedTrade.commission}`);
           }
-
-          closedTrades.push({
-            id: trade.id,
-            symbol: trade.symbol,
-            type: trade.trade_type,
-            entryPrice,
-            exitPrice: currentPrice,
-            pnl: pnlResult.pnl,
-            exitReason,
-            holdingTimeMinutes
-          });
-
-          // Track updates for global account
-          const portfolioId = trade.portfolio_id;
-          
-          if (!portfolioUpdates.has(portfolioId)) {
-            portfolioUpdates.set(portfolioId, {
-              portfolioId,
-              balanceChange: 0,
-              completedTrades: 0,
-              wins: 0,
-              losses: 0,
-              marginReleased: 0
-            });
-          }
-
-          const update = portfolioUpdates.get(portfolioId);
-          update.balanceChange += pnlResult.pnl;
           update.completedTrades += 1;
           update.marginReleased += positionSize * 0.01; // 1% margin
           
