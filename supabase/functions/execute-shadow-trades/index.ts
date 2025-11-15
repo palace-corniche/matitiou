@@ -787,20 +787,19 @@ serve(async (req) => {
               await new Promise(resolve => setTimeout(resolve, 100));
             }
           }
-            
-            // Refresh open trades count after closing opposites
-            const { data: refreshedTrades } = await supabase
-              .from('shadow_trades')
-              .select('id')
-              .eq('portfolio_id', portfolio.id)
-              .eq('status', 'open');
-            
-            const updatedOpenPositions = refreshedTrades?.length || 0;
-            
-            if (updatedOpenPositions >= portfolio.max_open_positions) {
-              console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${updatedOpenPositions}/${portfolio.max_open_positions})`);
-              continue;
-            }
+          
+          // Refresh open trades count after closing opposites
+          const { data: refreshedTrades } = await supabase
+            .from('shadow_trades')
+            .select('id')
+            .eq('portfolio_id', portfolio.id)
+            .eq('status', 'open');
+          
+          const updatedOpenPositions = refreshedTrades?.length || 0;
+          
+          if (updatedOpenPositions >= portfolio.max_open_positions) {
+            console.log(`⏭️ Portfolio ${portfolio.id.slice(0, 8)} has max open positions (${updatedOpenPositions}/${portfolio.max_open_positions})`);
+            continue;
           }
 
           // Fetch REAL market price from market_data_feed
