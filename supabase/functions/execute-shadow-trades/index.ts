@@ -777,22 +777,16 @@ serve(async (req) => {
                 p_new_signal_direction: signal.signal_type,
                 p_close_price: freshMarketForClose.price
               });
-              const { data: closeOppositeResult, error: closeOppositeError } = await supabase
-              .rpc('close_opposite_direction_trades', {
-                p_portfolio_id: portfolio.id,
-                p_new_signal_direction: signal.signal_type,
-                p_close_price: freshMarketForClose.price
-              });
             
             if (closeOppositeError) {
-                console.error(`❌ Failed to close opposite trades: ${closeOppositeError.message}`);
-              } else {
-                console.log(`✅ Successfully closed ${closeOppositeResult.closed_count} ${oppositeDirection.toUpperCase()} trades. Total P&L: $${closeOppositeResult.total_pnl}`);
-                
-                // Wait a moment to ensure balance updates are committed
-                await new Promise(resolve => setTimeout(resolve, 100));
-              }
+              console.error(`❌ Failed to close opposite trades: ${closeOppositeError.message}`);
+            } else {
+              console.log(`✅ Successfully closed ${closeOppositeResult.closed_count} ${oppositeDirection.toUpperCase()} trades. Total P&L: $${closeOppositeResult.total_pnl}`);
+              
+              // Wait a moment to ensure balance updates are committed
+              await new Promise(resolve => setTimeout(resolve, 100));
             }
+          }
             
             // Refresh open trades count after closing opposites
             const { data: refreshedTrades } = await supabase
