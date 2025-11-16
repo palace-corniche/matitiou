@@ -98,8 +98,9 @@ export class IntermarketAnalysisAdapter {
     // Build correlation map from database
     const correlationMap: { [key: string]: number } = {};
     correlations?.forEach(corr => {
-      const otherAsset = corr.asset_a === symbol ? corr.asset_b : corr.asset_a;
-      correlationMap[otherAsset] = corr.correlation_value;
+      const [asset1, asset2] = corr.symbol_pair.split('|');
+      const otherAsset = asset1 === symbol ? asset2 : asset1;
+      correlationMap[otherAsset] = corr.correlation_coefficient;
     });
     
     return {

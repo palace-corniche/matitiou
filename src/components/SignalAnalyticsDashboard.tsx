@@ -177,7 +177,12 @@ const SignalAnalyticsDashboard: React.FC = () => {
         totalRejections,
         rejectionsByReason,
         rejectionRate,
-        recentRejections: (rejections || []).slice(0, 10)
+        recentRejections: (rejections || []).slice(0, 10).map(r => ({
+          timestamp: r.created_at,
+          reason: r.reason,
+          value: 0,
+          threshold: 0
+        }))
       });
 
       // Calculate signal density
@@ -338,8 +343,8 @@ const SignalAnalyticsDashboard: React.FC = () => {
 
       const { error } = await supabase
         .from('system_config')
-        .update({ config_value: newDebugConfig })
-        .eq('config_key', 'debug_mode');
+        .update({ config_value: JSON.stringify(newDebugConfig) })
+        .eq('key', 'debug_mode');
 
       if (error) throw error;
 
