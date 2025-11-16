@@ -425,9 +425,20 @@ class RealTimeQuantAnalytics {
   }
 
   private async closePosition(positionId: string, reason: string) {
+    const currentPrice = unifiedMarketData.getCurrentPrice();
+    // Get the trade to get its lot size
+    const { data: trade } = await supabase
+      .from('shadow_trades')
+      .select('lot_size')
+      .eq('id', positionId)
+      .single();
+    
+    if (!trade) return;
+    
     await supabase.rpc('close_shadow_trade', {
       p_trade_id: positionId,
-      p_close_price: unifiedMarketData.getCurrentPrice(),
+      p_close_price: currentPrice,
+      p_close_lot_size: trade.lot_size,
       p_close_reason: reason
     });
   }
@@ -439,8 +450,12 @@ class RealTimeQuantAnalytics {
 
   private async reduceExposure() {
     const positions = await this.getOpenPositions();
-    // Close lowest confluence score positions first
-    const sortedPositions = positions.sort((a, b) => (a.confluence_score || 0) - (b.confluence_score || 0));
+    // Close lowest metadata positions first (since confluence_score doesn't exist on shadow_trades)
+    const sortedPositions = positions.sort((a, b) => {
+      const aScore = (a.metadata as any)?.confluence_score || 0;
+      const bScore = (b.metadata as any)?.confluence_score || 0;
+      return aScore - bScore;
+    });
     
     for (let i = 0; i < Math.ceil(positions.length / 2); i++) {
       await this.closePosition(sortedPositions[i].id, 'exposure_reduction');

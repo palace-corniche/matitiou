@@ -123,7 +123,7 @@ export class PriceValidationService {
     try {
       const { data, error } = await supabase
         .from('market_data_feed')
-        .select('price, high_price, low_price, timestamp')
+        .select('price, timestamp')
         .eq('symbol', symbol)
         .order('timestamp', { ascending: false })
         .limit(1)
@@ -146,21 +146,17 @@ export class PriceValidationService {
         };
       }
 
-      // Estimate bid/ask from high/low
-      const spread = (data.high_price - data.low_price) / 2;
-      const bid = data.price - spread / 2;
-      const ask = data.price + spread / 2;
-
+      // Use direct price (no spread calculation as high/low not available)
       return {
         valid: true,
         price: {
           price: data.price,
-          bid,
-          ask,
+          bid: data.price,
+          ask: data.price,
           source: 'market_feed',
           age_ms: ageMs,
           timestamp: data.timestamp,
-          spread_pips: spread * 10000
+          spread_pips: 0
         }
       };
     } catch (error) {

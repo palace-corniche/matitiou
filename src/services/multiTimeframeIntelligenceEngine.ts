@@ -410,62 +410,16 @@ class MultiTimeframeIntelligenceEngine {
   // ==================== DATABASE OPERATIONS ====================
   
   private async saveMultiTimeframeSignal(signal: MultiTimeframeSignal): Promise<void> {
-    try {
-      await supabase
-        .from('multi_timeframe_signals')
-        .insert({
-          analysis_id: signal.analysisId,
-          symbol: signal.symbol,
-          timeframes: signal.timeframes,
-          signal_type: signal.signalType,
-          confluence_score: signal.confluenceScore,
-          timeframe_agreement_count: signal.timeframeAgreementCount,
-          cascade_strength: signal.cascadeStrength,
-          divergence_detected: signal.divergenceDetected,
-          primary_timeframe: signal.primaryTimeframe,
-          signal_data: signal.signalData as any
-        });
-      
-      console.log(`💾 Saved multi-timeframe signal: ${signal.analysisId}`);
-      
-    } catch (error) {
-      console.error('Error saving multi-timeframe signal:', error);
-    }
+    // TODO: Create multi_timeframe_signals table to store these signals
+    console.log(`💾 Multi-timeframe signal generated: ${signal.analysisId} (table does not exist yet)`);
   }
 
   // ==================== PUBLIC GETTERS ====================
   
   async getRecentMultiTimeframeSignals(symbol: string = 'EUR/USD', limit: number = 10): Promise<MultiTimeframeSignal[]> {
-    try {
-      const { data, error } = await supabase
-        .from('multi_timeframe_signals')
-        .select('*')
-        .eq('symbol', symbol)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-
-      if (error) throw error;
-
-      return (data || []).map(item => ({
-        id: item.id,
-        symbol: item.symbol,
-        analysisId: item.analysis_id,
-        timeframes: item.timeframes,
-        signalType: item.signal_type as 'buy' | 'sell' | 'neutral',
-        confluenceScore: item.confluence_score,
-        timeframeAgreementCount: item.timeframe_agreement_count,
-        cascadeStrength: item.cascade_strength,
-        divergenceDetected: item.divergence_detected,
-        primaryTimeframe: item.primary_timeframe,
-        signalData: item.signal_data as any,
-        reasoning: [], // Would be reconstructed or stored separately
-        createdAt: new Date(item.created_at)
-      }));
-
-    } catch (error) {
-      console.error('Error fetching multi-timeframe signals:', error);
-      return [];
-    }
+    // TODO: Create multi_timeframe_signals table
+    console.log('Multi-timeframe signals table does not exist yet');
+    return [];
   }
 
   getTimeframeWeights(): typeof this.TIMEFRAME_WEIGHTS {

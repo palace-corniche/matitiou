@@ -90,7 +90,7 @@ const { data, error } = await supabase
         .maybeSingle();
 
       if (error) throw error;
-      return data as TickData;
+      return { ...data, session_type: 'unknown' } as any;
     } catch (error) {
       console.error('❌ Failed to get latest tick:', error);
       return null;
@@ -110,7 +110,7 @@ const { data, error } = await supabase
         .limit(1000);
 
       if (error) throw error;
-      return data as TickData[];
+      return (data || []).map(d => ({ ...d, session_type: 'unknown' })) as any;
     } catch (error) {
       console.error('❌ Failed to get tick history:', error);
       return [];

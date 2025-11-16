@@ -635,20 +635,19 @@ class IntelligenceBacktester {
       await supabase
         .from('intelligence_backtests')
         .insert({
-          test_name: `Intelligence_Backtest_${config.symbol}_${Date.now()}`,
+          backtest_name: `Intelligence_Backtest_${config.symbol}_${Date.now()}`,
           start_date: config.startDate.toISOString().split('T')[0],
           end_date: config.endDate.toISOString().split('T')[0],
           symbol: config.symbol,
-          timeframe: config.timeframe,
-          intelligence_config: config.intelligenceSettings as any,
+          strategy_config: config.intelligenceSettings as any,
           total_trades: results.summary.totalTrades,
           winning_trades: results.summary.winningTrades,
-          total_return: results.summary.totalReturn,
+          losing_trades: results.summary.losingTrades,
           max_drawdown: results.summary.maxDrawdown,
           sharpe_ratio: results.summary.sharpeRatio,
           win_rate: results.summary.winRate,
-          avg_trade_duration: `${results.summary.averageHoldingTime} hours`,
-          detailed_results: results as any
+          profit_factor: results.summary.profitFactor || null,
+          results: results as any
         });
 
       console.log('💾 Backtest results saved to database');
@@ -665,63 +664,9 @@ class IntelligenceBacktester {
     timeframe: string = '15m',
     days: number = 30
   ): Promise<IntelligencePerformanceMetrics[]> {
-    try {
-      const { data, error } = await supabase
-        .from('intelligence_performance')
-        .select('*')
-        .eq('symbol', symbol)
-        .eq('timeframe', timeframe)
-        .gte('signal_timestamp', new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString())
-        .order('signal_timestamp', { ascending: false });
-
-      if (error) throw error;
-
-      // Group by signal source and calculate metrics
-      const performanceBySource: { [source: string]: IntelligencePerformanceMetrics } = {};
-
-      (data || []).forEach(record => {
-        const source = record.signal_source;
-        
-        if (!performanceBySource[source]) {
-          performanceBySource[source] = {
-            signalSource: source,
-            symbol,
-            timeframe,
-            totalSignals: 0,
-            correctPredictions: 0,
-            accuracy: 0,
-            avgConfidence: 0,
-            avgActualMove: 0,
-            bestPerformingConditions: [],
-            worstPerformingConditions: [],
-            recentTrend: 'stable',
-            reliabilityScore: 0
-          };
-        }
-
-        const metrics = performanceBySource[source];
-        metrics.totalSignals++;
-        
-        if (record.actual_outcome === 'correct') {
-          metrics.correctPredictions++;
-        }
-        
-        metrics.avgConfidence = (metrics.avgConfidence * (metrics.totalSignals - 1) + record.confidence_score) / metrics.totalSignals;
-        metrics.avgActualMove = (metrics.avgActualMove * (metrics.totalSignals - 1) + (record.actual_move_pips || 0)) / metrics.totalSignals;
-      });
-
-      // Calculate final metrics for each source
-      Object.values(performanceBySource).forEach(metrics => {
-        metrics.accuracy = metrics.totalSignals > 0 ? metrics.correctPredictions / metrics.totalSignals : 0;
-        metrics.reliabilityScore = metrics.accuracy * metrics.avgConfidence;
-      });
-
-      return Object.values(performanceBySource);
-
-    } catch (error) {
-      console.error('Error analyzing intelligence performance:', error);
-      return [];
-    }
+    // TODO: Create intelligence_performance table to track signal performance
+    console.log('Intelligence performance analysis not yet implemented - table does not exist');
+    return [];
   }
 
   async runBacktest(config: any): Promise<any> {
