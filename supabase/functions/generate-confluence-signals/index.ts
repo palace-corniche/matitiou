@@ -371,8 +371,28 @@ serve(async (req) => {
     
     // LOWER THRESHOLD TO 5 CANDLES
     if (!marketData || marketData.length < 5) {
-      console.error('Insufficient aggregated candle data from all timeframes - cannot generate signals');
-      throw new Error(`Insufficient candle data from aggregated_candles (need at least 5 complete candles, have ${marketData?.length || 0}). System is building candles from tick data.`);
+      const executionTime = Date.now() - startTime;
+      console.log('⏳ Insufficient aggregated candle data - system is building candles from tick data');
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: `Signal generation skipped - waiting for candle aggregation (have ${marketData?.length || 0}/5 candles)`,
+          signal: null,
+          analysis: {
+            status: 'building_candles',
+            availableCandles: marketData?.length || 0,
+            requiredCandles: 5,
+            message: 'System is building candles from tick data'
+          },
+          processedItems: 0,
+          executionTimeMs: executionTime
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      );
     }
 
     console.log(`📊 Analyzing ${marketData.length} candles from ${selectedTimeframe} timeframe`);
