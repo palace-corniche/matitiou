@@ -228,14 +228,14 @@ serve(async (req) => {
         trigger_type: triggerType,
         training_samples: 0,
         success: false,
-        error_message: error.message,
+        error_message: error instanceof Error ? error.message : 'Unknown error',
         training_duration_ms: Date.now() - startTime
       });
     } catch (logError) {
       console.error('Failed to log training error:', logError);
     }
     
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });

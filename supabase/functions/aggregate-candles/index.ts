@@ -6,6 +6,14 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+interface TickData {
+  timestamp: string;
+  symbol: string;
+  bid: number;
+  ask: number;
+  tick_volume?: number;
+}
+
 interface MarketDataFeed {
   timestamp: string;
   symbol: string;
@@ -31,7 +39,7 @@ interface CandleData {
 }
 
 class CandleAggregator {
-  private static getTimeframeMs(timeframe: string): number {
+  static getTimeframeMs(timeframe: string): number {
     const map: Record<string, number> = {
       '15m': 15 * 60 * 1000,
       '1h': 60 * 60 * 1000,
@@ -274,7 +282,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: false,
-        error: error.message
+        error: error instanceof Error ? error.message : 'Unknown error'
       }),
       { 
         status: 500,

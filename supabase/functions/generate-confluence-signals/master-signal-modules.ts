@@ -1382,7 +1382,7 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
 
     // Dynamic source weighting based on recent performance
     // Fix #2: Regime-aware weight adjustment
-    const regime = signals[0]?.regime || 'unknown';
+    const regime = ('regime' in (signals[0] || {}) ? (signals[0] as any).regime : null) || 'unknown';
     
     // PHASE 2 FIX: Increased weights for Technical, Sentiment, and Intermarket signals
     const sourceWeights: { [key: string]: number } = {

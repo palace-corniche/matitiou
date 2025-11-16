@@ -375,9 +375,9 @@ async function implementPerformanceRegression(supabase: any) {
     .limit(12);
 
   const baseline = {
-    avg_win_rate: baselineMetrics?.reduce((sum, m) => sum + (m.win_rate || 0), 0) / (baselineMetrics?.length || 1),
-    avg_sharpe: baselineMetrics?.reduce((sum, m) => sum + (m.sharpe_ratio || 0), 0) / (baselineMetrics?.length || 1),
-    avg_reliability: baselineMetrics?.reduce((sum, m) => sum + (m.reliability || 0), 0) / (baselineMetrics?.length || 1)
+    avg_win_rate: baselineMetrics?.reduce((sum: number, m: any) => sum + (m.win_rate || 0), 0) / (baselineMetrics?.length || 1),
+    avg_sharpe: baselineMetrics?.reduce((sum: number, m: any) => sum + (m.sharpe_ratio || 0), 0) / (baselineMetrics?.length || 1),
+    avg_reliability: baselineMetrics?.reduce((sum: number, m: any) => sum + (m.reliability || 0), 0) / (baselineMetrics?.length || 1)
   };
 
   // Store baseline for future regression testing
@@ -435,9 +435,9 @@ async function implementRiskVerification(supabase: any) {
 
   const riskChecks = {
     position_count: openTrades?.length <= 50,
-    lot_sizes_valid: openTrades?.every(t => t.lot_size >= 0.01 && t.lot_size <= 1.0) || true,
-    stop_losses_set: openTrades?.every(t => t.stop_loss > 0) || true,
-    take_profits_set: openTrades?.every(t => t.take_profit > 0) || true
+    lot_sizes_valid: openTrades?.every((t: any) => t.lot_size >= 0.01 && t.lot_size <= 1.0) || true,
+    stop_losses_set: openTrades?.every((t: any) => t.stop_loss > 0) || true,
+    take_profits_set: openTrades?.every((t: any) => t.take_profit > 0) || true
   };
 
   const riskScore = Object.values(riskChecks).filter(Boolean).length / Object.keys(riskChecks).length;

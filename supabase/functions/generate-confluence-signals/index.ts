@@ -366,7 +366,7 @@ serve(async (req) => {
 
     if (dataError) {
       console.error('Market data fetch error:', dataError);
-      throw new Error(`Market data error: ${dataError.message}`);
+      throw new Error(`Market data error: ${String(dataError)}`);
     }
     
     // LOWER THRESHOLD TO 5 CANDLES
@@ -1008,7 +1008,7 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
   }
   
   // **PHASE 2 FIX: Include market_regime from analysis**
-  const marketRegime = masterSignal.market_regime || analysis.masterSignal?.regime || 'unknown';
+  const marketRegime = ('market_regime' in masterSignal ? masterSignal.market_regime : null) || ('regime' in (analysis.masterSignal || {}) ? (analysis.masterSignal as any).regime : null) || 'unknown';
   
   return {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

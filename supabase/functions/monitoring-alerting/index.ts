@@ -147,7 +147,7 @@ async function gatherDashboardMetrics(supabase: any) {
   return {
     total_signals: totalSignals || 0,
     executed_signals: executedSignals || 0,
-    win_rate: modulePerf?.reduce((sum, m) => sum + (m.win_rate || 0), 0) / (modulePerf?.length || 1),
+    win_rate: modulePerf?.reduce((sum: number, m: any) => sum + (m.win_rate || 0), 0) / (modulePerf?.length || 1),
     system_reliability: activeModules / 12,
     avg_processing_time: 250 + Math.random() * 100, // Simulated
     active_modules: activeModules || 0,
@@ -341,12 +341,12 @@ async function calculatePerformanceAnalytics(supabase: any) {
   const analytics = {
     total_trades: trades?.length || 0,
     win_rate: trades?.length > 0 ? 
-      trades.filter(t => t.pnl > 0).length / trades.length : 0,
-    total_pnl: trades?.reduce((sum, t) => sum + (t.pnl || 0), 0) || 0,
+      trades.filter((t: any) => t.pnl > 0).length / trades.length : 0,
+    total_pnl: trades?.reduce((sum: number, t: any) => sum + (t.pnl || 0), 0) || 0,
     avg_trade_duration: '4h 30m', // Simulated
-    sharpe_ratio: modules?.reduce((sum, m) => sum + (m.sharpe_ratio || 0), 0) / (modules?.length || 1),
-    max_drawdown: modules?.reduce((max, m) => Math.max(max, m.max_drawdown || 0), 0) || 0,
-    module_reliability: modules?.reduce((sum, m) => sum + (m.reliability || 0), 0) / (modules?.length || 1),
+    sharpe_ratio: modules?.reduce((sum: number, m: any) => sum + (m.sharpe_ratio || 0), 0) / (modules?.length || 1),
+    max_drawdown: modules?.reduce((max: number, m: any) => Math.max(max, m.max_drawdown || 0), 0) || 0,
+    module_reliability: modules?.reduce((sum: number, m: any) => sum + (m.reliability || 0), 0) / (modules?.length || 1),
     signal_accuracy: 0.72 + Math.random() * 0.15, // Simulated
     system_uptime: 0.995, // 99.5% uptime
     data_quality_score: 0.92,
