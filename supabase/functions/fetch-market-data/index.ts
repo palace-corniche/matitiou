@@ -8,15 +8,18 @@ const corsHeaders = {
 
 interface MarketDataPoint {
   symbol: string;
-  timeframe: string;
   price: number;
-  open_price: number;
-  high_price: number;
-  low_price: number;
-  volume?: number;
   timestamp: string;
-  data_source: string;
-  is_live: boolean;
+  source: string;
+  metadata: {
+    timeframe: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number | null;
+    is_live: boolean;
+  };
 }
 
 serve(async (req) => {
@@ -93,15 +96,18 @@ serve(async (req) => {
           
           marketData.push({
             symbol,
-            timeframe: dbTimeframe,
             price: parseFloat(candle.close),
-            open_price: parseFloat(candle.open),
-            high_price: parseFloat(candle.high),
-            low_price: parseFloat(candle.low),
-            volume: candle.volume ? parseInt(candle.volume) : undefined,
             timestamp: candleTimestamp,
-            data_source: 'twelve_data',
-            is_live: isRecent
+            source: 'twelve_data',
+            metadata: {
+              timeframe: dbTimeframe,
+              open: parseFloat(candle.open),
+              high: parseFloat(candle.high),
+              low: parseFloat(candle.low),
+              close: parseFloat(candle.close),
+              volume: candle.volume ? parseInt(candle.volume) : null,
+              is_live: isRecent
+            }
           });
           processedItems++;
           
@@ -142,10 +148,7 @@ serve(async (req) => {
       // Use upsert to handle potential duplicates
       const { error: insertError } = await supabase
         .from('market_data_feed')
-        .upsert(marketData, {
-          onConflict: 'symbol,timeframe,timestamp',
-          ignoreDuplicates: true
-        });
+        .insert(marketData);
 
       if (insertError) {
         console.error('Error inserting market data:', insertError);
@@ -177,9 +180,7 @@ serve(async (req) => {
         execution_time_ms: executionTime,
         status,
         error_message: errorMessage || null,
-        processed_items: processedItems,
-        memory_usage_mb: (performance as any).memory?.usedJSHeapSize ? 
-          Math.round((performance as any).memory.usedJSHeapSize / 1024 / 1024) : null
+        processed_items: processedItems
       });
 
     if (healthError) {
@@ -283,15 +284,18 @@ function generateMockData(symbol: string, timeframe: string): MarketDataPoint[] 
     
     mockData.push({
       symbol,
-      timeframe: dbTimeframe,
       price: parseFloat(close.toFixed(5)),
-      open_price: parseFloat(open.toFixed(5)),
-      high_price: parseFloat(high.toFixed(5)),
-      low_price: parseFloat(low.toFixed(5)),
-      volume: Math.floor(Math.random() * 50000) + 25000,
       timestamp: candleTime.toISOString(),
-      data_source: 'mock_fallback',
-      is_live: true
+      source: 'mock_fallback',
+      metadata: {
+        timeframe: dbTimeframe,
+        open: parseFloat(open.toFixed(5)),
+        high: parseFloat(high.toFixed(5)),
+        low: parseFloat(low.toFixed(5)),
+        close: parseFloat(close.toFixed(5)),
+        volume: Math.floor(Math.random() * 50000) + 25000,
+        is_live: true
+      }
     });
   }
   
