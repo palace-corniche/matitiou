@@ -176,7 +176,7 @@ const DiagnosticsPanel: React.FC = () => {
       
       setDiagnostics({
         lastUpdated: new Date(),
-        results: results || [],
+        results: (Array.isArray(results) ? results : []) as any[],
         connectionStatus,
         latency: endTime - startTime,
         activeModules: moduleData?.length || 0,

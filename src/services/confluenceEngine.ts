@@ -551,7 +551,7 @@ export class ConfluenceEngine {
 
       // Calculate COT sentiment based on commercial traders positioning
       const commercialNet = cotReports.commercial_long - cotReports.commercial_short;
-      const speculativeNet = cotReports.large_traders_long - cotReports.large_traders_short;
+      const speculativeNet = cotReports.non_commercial_long - cotReports.non_commercial_short;
       
       // Commercial traders are typically contrarian indicators (smart money)
       // Large speculators are trend followers

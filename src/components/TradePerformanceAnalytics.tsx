@@ -71,8 +71,8 @@ export const TradePerformanceAnalytics: React.FC = () => {
       const { data: patternsData } = await supabase
         .rpc('analyze_trade_performance');
       
-      if (patternsData) {
-        setPatterns(patternsData as PerformancePattern[]);
+      if (patternsData && Array.isArray(patternsData)) {
+        setPatterns(patternsData as any[]);
       }
 
       // Load winning patterns
