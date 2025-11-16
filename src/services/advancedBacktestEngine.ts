@@ -836,20 +836,19 @@ class AdvancedBacktestEngine {
     await supabase
       .from('intelligence_backtests')
       .insert({
-        test_name: `${result.config.strategy}_${Date.now()}`,
+        backtest_name: `${result.config.strategy}_${Date.now()}`,
         symbol: result.config.symbol,
-        timeframe: result.config.timeframe,
-        start_date: result.config.startDate.toISOString().split('T')[0],
-        end_date: result.config.endDate.toISOString().split('T')[0],
-        intelligence_config: result.config.parameters,
+        start_date: result.config.startDate.toISOString(),
+        end_date: result.config.endDate.toISOString(),
+        strategy_config: result.config.parameters,
         total_trades: result.performance.totalTrades,
         winning_trades: Math.round(result.performance.totalTrades * result.performance.winRate),
-        total_return: result.performance.totalReturn,
+        final_balance: result.performance.totalReturn,
         max_drawdown: result.performance.maxDrawdown,
         sharpe_ratio: result.performance.sharpeRatio,
         win_rate: result.performance.winRate,
-        detailed_results: JSON.parse(JSON.stringify({
-          trades: result.trades.slice(0, 100), // Limit for database
+        results: JSON.parse(JSON.stringify({
+          trades: result.trades.slice(0, 100),
           monthly_returns: result.monthlyReturns,
           statistics: result.statistics
         }))
@@ -861,12 +860,11 @@ class AdvancedBacktestEngine {
       await supabase
         .from('intelligence_backtests')
         .insert({
-          test_name: `walk_forward_${Date.now()}`,
+          backtest_name: `walk_forward_${Date.now()}`,
           symbol: 'EUR/USD',
-          timeframe: '15m',
-          start_date: result.period.start.toISOString().split('T')[0],
-          end_date: result.period.end.toISOString().split('T')[0],
-          intelligence_config: result.optimization.parameters,
+          start_date: result.period.start.toISOString(),
+          end_date: result.period.end.toISOString(),
+          strategy_config: result.optimization.parameters,
           total_trades: result.outOfSample.performance.totalTrades,
           winning_trades: Math.round(result.outOfSample.performance.totalTrades * result.outOfSample.performance.winRate),
           total_return: result.outOfSample.performance.totalReturn,

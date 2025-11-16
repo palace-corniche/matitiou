@@ -94,12 +94,12 @@ export class FundamentalAnalysisAdapter {
 
     return calendarEvents.map(event => ({
       time: event.event_time,
-      currency: event.currency,
+      currency: event.currency || '',
       event: event.event_name,
-      importance: event.impact_level as 'low' | 'medium' | 'high',
-      actual: event.actual_value ? parseFloat(event.actual_value) : undefined,
-      forecast: event.forecast_value ? parseFloat(event.forecast_value) : undefined,
-      previous: event.previous_value ? parseFloat(event.previous_value) : undefined
+      importance: (event.impact || 'medium') as 'low' | 'medium' | 'high',
+      actual: event.actual_value || undefined,
+      forecast: event.forecast_value || undefined,
+      previous: event.previous_value || undefined
     }));
   }
 
@@ -146,9 +146,9 @@ export class FundamentalAnalysisAdapter {
       weightedSum += news.sentiment_score * weight;
       totalWeight += weight;
 
-      // Count sentiment categories
-      if (news.sentiment_label === 'Bullish') bullishCount++;
-      else if (news.sentiment_label === 'Bearish') bearishCount++;
+      // Count sentiment categories based on sentiment_score
+      if (news.sentiment_score > 0.2) bullishCount++;
+      else if (news.sentiment_score < -0.2) bearishCount++;
       else neutralCount++;
     }
 

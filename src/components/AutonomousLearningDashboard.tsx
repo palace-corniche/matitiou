@@ -82,7 +82,7 @@ export const AutonomousLearningDashboard: React.FC = () => {
         .limit(1)
         .single();
 
-      if (stats) setSystemStats(stats);
+      if (stats) setSystemStats(stats as any);
 
       // Fetch discovered patterns
       const { data: patternsData } = await supabase

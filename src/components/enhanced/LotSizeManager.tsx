@@ -86,18 +86,15 @@ export const LotSizeManager: React.FC<LotSizeManagerProps> = ({
 
     try {
       const { data, error } = await supabase.rpc('calculate_optimal_lot_size', {
-        p_portfolio_id: portfolio.id,
-        p_symbol: symbol,
+        p_account_balance: portfolio.balance,
         p_risk_percentage: riskPercentage,
-        p_entry_price: entryPrice,
-        p_stop_loss: stopLoss
+        p_stop_loss_pips: Math.abs(entryPrice - stopLoss) * 10000
       });
 
       if (error) throw error;
 
-      if (data && typeof data === 'object' && 'success' in data && data.success) {
-        const result = data as { success: boolean; optimal_lot_size: number };
-        setCalculatedLotSize(result.optimal_lot_size);
+      if (data && typeof data === 'number') {
+        setCalculatedLotSize(data);
       }
     } catch (error) {
       console.error('Error calculating optimal lot size:', error);
