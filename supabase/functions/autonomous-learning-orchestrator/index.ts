@@ -30,7 +30,7 @@ serve(async (req) => {
     const totalTrades = recentTrades?.length || 0;
     const winningTrades = recentTrades?.filter(t => t.pnl > 0).length || 0;
     const winRate = totalTrades > 0 ? (winningTrades / totalTrades) * 100 : 0;
-    const avgPnl = totalTrades > 0 ? recentTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / totalTrades : 0;
+    const avgPnl = totalTrades > 0 && recentTrades ? recentTrades.reduce((sum, t) => sum + (t.pnl || 0), 0) / totalTrades : 0;
     
     // Get global account for drawdown check
     const { data: account } = await supabaseClient
@@ -192,7 +192,7 @@ serve(async (req) => {
         .insert(actions.map(a => ({
           ...a,
           parameters_before: a.parameters_before || {},
-          parameters_after: a.parameters_after || {},
+          parameters_after: ('parameters_after' in a ? a.parameters_after : {}) || {},
         })));
     }
 
@@ -214,7 +214,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Error in autonomous-learning-orchestrator:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

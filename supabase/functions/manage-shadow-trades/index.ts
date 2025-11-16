@@ -586,17 +586,9 @@ serve(async (req) => {
 
             console.log(`📊 Trade closed - Pips: ${closedTrade.profit_pips}, PnL: $${closedTrade.profit_amount}, Commission: $${closedTrade.commission}`);
           }
-          update.completedTrades += 1;
-          update.marginReleased += positionSize * 0.01; // 1% margin
-          
-          if (pnlResult.pnl > 0) {
-            update.wins += 1;
-          } else {
-            update.losses += 1;
-          }
 
           processedItems++;
-          console.log(`💰 Closed ${trade.trade_type.toUpperCase()} trade: ${pnlResult.pnl > 0 ? 'WIN' : 'LOSS'} $${pnlResult.pnl.toFixed(2)} (${exitReason.toUpperCase()}) after ${holdingTimeMinutes}min`);
+          console.log(`💰 Closed ${trade.trade_type.toUpperCase()} trade: $${closedTrade.profit_amount?.toFixed(2) || '0.00'} (${exitReason.toUpperCase()})`);
         }
 
       } catch (tradeError) {

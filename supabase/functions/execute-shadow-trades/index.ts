@@ -628,7 +628,7 @@ serve(async (req) => {
       });
     
     // Map to expected format
-    const signals = rawSignals?.map(s => ({
+    const signals = rawSignals?.map((s: any) => ({
       signal_id: s.id,
       pair: s.symbol,
       signal_type: s.signal_type,
@@ -1194,7 +1194,7 @@ serve(async (req) => {
     if (executedTrades.filter(t => t.success).length > 0) {
       for (const executedTrade of executedTrades.filter(t => t.success)) {
         // Find the corresponding signal to get entry_price
-        const matchingSignal = signals.find(s => s.signal_id === executedTrade.signal_id);
+        const matchingSignal = signals.find((s: any) => s.signal_id === executedTrade.signal_id);
         
         await supabase
           .from('master_signals')

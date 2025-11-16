@@ -247,14 +247,14 @@ serve(async (req) => {
         .insert({
           component: 'self_healing_monitor',
           status: 'error',
-          message: error.message,
+          message: error instanceof Error ? error.message : 'Unknown error',
         });
     } catch (logError) {
       console.error('Failed to log error:', logError);
     }
 
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

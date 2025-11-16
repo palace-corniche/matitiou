@@ -43,7 +43,7 @@ serve(async (req) => {
     } catch (error) {
       clearTimeout(timeoutId);
       
-      if (error.name === 'AbortError') {
+      if (error instanceof Error && error.name === 'AbortError') {
         console.error('⏱️ News fetch timeout after 15 seconds');
         
         // Update module health to reflect timeout (don't increment error count)

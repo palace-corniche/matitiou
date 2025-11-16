@@ -280,7 +280,7 @@ async function optimizePortfolioRiskManagement(supabase: any) {
       max_positions: openTrades.length <= 50,
       margin_level: portfolio.margin_level >= 100,
       exposure_check: true,
-      lot_sizes_valid: openTrades.every(trade => 
+      lot_sizes_valid: openTrades.every((trade: any) => 
         trade.lot_size >= 0.01 && trade.lot_size <= 1.0
       )
     };

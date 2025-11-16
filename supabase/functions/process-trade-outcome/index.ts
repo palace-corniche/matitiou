@@ -136,15 +136,17 @@ serve(async (req) => {
       const wasSuccessful = trade.pnl > 0;
       
       for (const moduleId of modules) {
-        await supabaseClient.rpc('update_module_performance_from_trade', {
+        const { error: updateError } = await supabaseClient.rpc('update_module_performance_from_trade', {
           p_module_id: moduleId,
           p_signal_successful: wasSuccessful,
           p_confidence: signal.final_confidence || 0,
           p_strength: signal.signal_strength || 0,
           p_return: trade.pnl || 0,
-        }).catch(err => {
-          console.error(`Failed to update module ${moduleId}:`, err);
         });
+        
+        if (updateError) {
+          console.error(`Failed to update module ${moduleId}:`, updateError);
+        }
       }
     }
 
@@ -168,7 +170,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('❌ Error in process-trade-outcome:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
