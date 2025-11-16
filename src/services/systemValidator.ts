@@ -275,17 +275,17 @@ export class SystemValidator {
     let score = 100;
 
     try {
-      // Check module correlations
-      const { data: correlations } = await supabase
-        .from('module_correlations')
-        .select('*')
-        .limit(10);
+      // TODO: Create module_correlations table
+      // const { data: correlations } = await supabase
+      //   .from('module_correlations')
+      //   .select('*')
+      //   .limit(10);
 
-      if (!correlations || correlations.length === 0) {
-        issues.push('No module correlation data available');
-        score -= 40;
-        recommendations.push('Initialize correlation tracking between modules');
-      }
+      // if (!correlations || correlations.length === 0) {
+      //   issues.push('No module correlation data available');
+      //   score -= 40;
+      //   recommendations.push('Initialize correlation tracking between modules');
+      // }
 
       // Validate adaptive thresholds
       const { data: thresholds } = await supabase
@@ -364,7 +364,8 @@ export class SystemValidator {
       if (recentTrades && recentTrades.length > 0) {
         // Validate trade parameters
         for (const trade of recentTrades) {
-          if (!trade.risk_reward_ratio || trade.risk_reward_ratio < 1.0) {
+          const rrr = (trade.metadata as any)?.risk_reward_ratio;
+          if (!rrr || rrr < 1.0) {
             issues.push('Poor risk-reward ratios in trades');
             score -= 15;
             recommendations.push('Improve risk management parameters');

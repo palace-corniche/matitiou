@@ -651,28 +651,9 @@ class PortfolioIntelligenceManager {
   }
 
   private async getCurrentAllocations(portfolioId: string): Promise<CurrencyAllocation[]> {
-    const { data } = await supabase
-      .from('portfolio_allocations')
-      .select('*')
-      .eq('portfolio_id', portfolioId)
-      .order('created_at', { ascending: false });
-    
-    return (data || []).map(item => ({
-      currencyPair: item.currency_pair,
-      targetAllocationPercent: item.target_allocation_percent,
-      currentAllocationPercent: item.current_allocation_percent,
-      intelligenceConfidence: item.intelligence_confidence,
-      riskBudgetAllocated: item.risk_budget_allocated,
-      correlationAdjustment: item.correlation_adjustment,
-      regimeBasedScaling: item.regime_based_scaling,
-      lastRebalance: new Date(item.last_rebalance),
-      performance: {
-        return30d: 0, // Would be calculated
-        volatility30d: 0,
-        sharpeRatio: 0,
-        maxDrawdown: 0
-      }
-    }));
+    // TODO: Create portfolio_allocations table
+    console.log('Portfolio allocations table does not exist yet');
+    return [];
   }
 
   private async calculatePairPerformance(pair: string): Promise<CurrencyAllocation['performance']> {
@@ -795,31 +776,8 @@ class PortfolioIntelligenceManager {
   }
 
   private async savePortfolioAllocation(allocation: PortfolioAllocation): Promise<void> {
-    try {
-      // Save each allocation to database
-      for (const alloc of allocation.allocations) {
-        await supabase
-          .from('portfolio_allocations')
-          .upsert({
-            portfolio_id: allocation.portfolioId,
-            currency_pair: alloc.currencyPair,
-            target_allocation_percent: alloc.targetAllocationPercent,
-            current_allocation_percent: alloc.currentAllocationPercent,
-            intelligence_confidence: alloc.intelligenceConfidence,
-            risk_budget_allocated: alloc.riskBudgetAllocated,
-            correlation_adjustment: alloc.correlationAdjustment,
-            regime_based_scaling: alloc.regimeBasedScaling,
-            last_rebalance: alloc.lastRebalance.toISOString()
-          }, { 
-            onConflict: 'portfolio_id,currency_pair' 
-          });
-      }
-      
-      console.log('💾 Portfolio allocation saved to database');
-      
-    } catch (error) {
-      console.error('Error saving portfolio allocation:', error);
-    }
+    // TODO: Create portfolio_allocations table
+    console.log('Portfolio allocations table does not exist yet');
   }
 
   private calculateSummaryMetrics(trades: any[]): PerformanceReport['summary'] {

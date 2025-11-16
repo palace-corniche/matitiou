@@ -74,7 +74,7 @@ class RealTimeTickEngine {
         bid: data.price - (spread / 2),
         ask: data.price + (spread / 2),
         spread: spread,
-        tick_volume: data.volume || 1000,
+        tick_volume: ((data.metadata as any)?.volume) || 1000,
         data_source: 'market_data_feed',
         session_type: this.getSessionType(new Date(data.timestamp)),
         is_live: true

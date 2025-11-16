@@ -150,7 +150,7 @@ export class PerformanceTracker {
     await supabase
       .from('module_performance')
       .insert({
-        module_id: moduleId,
+        module_name: moduleId,
         signals_generated: 1,
         successful_signals: outcome.success ? 1 : 0,
         failed_signals: outcome.success ? 0 : 1,
@@ -269,10 +269,10 @@ export class PerformanceTracker {
           informationRatio: data.information_ratio || 0,
           averageConfidence: data.average_confidence || 0.5,
           averageStrength: data.average_strength || 5,
-          recentPerformance: (data.recent_performance as number[]) || [],
+          recentPerformance: [],
           lastUpdated: new Date(data.last_updated || new Date()),
-          trend: (data.trend as 'improving' | 'declining' | 'stable') || 'stable',
-          status: (data.status as 'active' | 'underperforming' | 'excellent') || 'active'
+          trend: 'stable' as const,
+          status: 'active' as const
         });
       }
     } catch (error) {

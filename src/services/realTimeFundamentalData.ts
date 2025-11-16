@@ -191,16 +191,16 @@ class RealTimeFundamentalDataService {
         const publishedAt = new Date(news.published_at);
         const transformedNews: FundamentalNewsItem = {
           id: news.id,
-          title: news.title,
-          summary: news.content || '',
+          title: news.headline,
+          summary: news.headline,
           source: news.source,
           publishedAt: publishedAt.toISOString(),
           url: '',
           sentiment: news.sentiment_score || 0,
-          impact: this.classifyImpact(news.title, currencies),
+          impact: this.classifyImpact(news.headline, currencies),
           currencies: currencies,
           relevanceScore: news.relevance_score || 50,
-          tags: this.extractTags(news.title),
+          tags: this.extractTags(news.headline),
           timeframe: this.categorizeTimeframe(publishedAt, timeRanges)
         };
 
@@ -300,14 +300,14 @@ class RealTimeFundamentalDataService {
           name: event.event_name,
           country: this.getCountryFromCurrency(event.currency),
           currency: event.currency,
-          importance: event.impact_level as 'high' | 'medium' | 'low',
-          actual: parseFloat(event.actual_value) || undefined,
-          forecast: parseFloat(event.forecast_value) || undefined,
-          previous: parseFloat(event.previous_value) || undefined,
+          importance: event.impact as 'high' | 'medium' | 'low',
+          actual: event.actual_value || undefined,
+          forecast: event.forecast_value || undefined,
+          previous: event.previous_value || undefined,
           unit: '%',
           time: eventTime.toISOString(),
           impact: this.calculateEventImpact(event),
-          surprise: this.calculateSurprise(parseFloat(event.actual_value), parseFloat(event.forecast_value)),
+          surprise: this.calculateSurprise(event.actual_value, event.forecast_value),
           timeframe: this.categorizeTimeframe(eventTime, timeRanges)
         };
 

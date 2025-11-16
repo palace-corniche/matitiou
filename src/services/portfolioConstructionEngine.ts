@@ -962,12 +962,11 @@ class PortfolioConstructionEngine {
     await supabase
       .from('intelligence_backtests')
       .insert({
-        test_name: `portfolio_optimization_${method}_${Date.now()}`,
+        backtest_name: `portfolio_optimization_${method}_${Date.now()}`,
         symbol: 'PORTFOLIO',
-        timeframe: 'daily',
         start_date: new Date().toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0],
-        intelligence_config: JSON.parse(JSON.stringify({ method })),
+        strategy_config: JSON.parse(JSON.stringify({ method })),
         total_trades: 1,
         winning_trades: 1,
         total_return: 0.1,
