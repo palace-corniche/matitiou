@@ -134,7 +134,7 @@ const ModulePerformanceTracker: React.FC = () => {
         await supabase
           .from('module_performance')
           .upsert({
-            module_id: moduleId,
+            module_name: moduleId,
             signals_generated: signalCount,
             last_updated: new Date().toISOString(),
             reliability,
