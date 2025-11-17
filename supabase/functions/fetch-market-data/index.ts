@@ -157,17 +157,8 @@ serve(async (req) => {
       } else {
         console.log(`💾 Inserted ${marketData.length} market data points`);
         
-        // CRITICAL: Update all open trades with new prices
-        try {
-          const { error: pnlError } = await supabase.rpc('update_eurusd_pnl');
-          if (pnlError) {
-            console.error('⚠️ Error updating P&L:', pnlError);
-          } else {
-            console.log('✅ P&L updated for open trades');
-          }
-        } catch (pnlUpdateError) {
-          console.error('⚠️ Failed to update P&L:', pnlUpdateError);
-        }
+        // Note: P&L updates are handled by trade management functions
+        console.log('✅ Market data fetched successfully');
       }
     }
 
