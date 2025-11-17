@@ -164,6 +164,75 @@ export type Database = {
         }
         Relationships: []
       }
+      candlestick_patterns: {
+        Row: {
+          body_size: number | null
+          body_wick_ratio: number | null
+          candle_timestamp: string
+          close_price: number | null
+          confidence: number | null
+          created_at: string | null
+          high_price: number | null
+          id: string
+          low_price: number | null
+          metadata: Json | null
+          open_price: number | null
+          pattern_name: string
+          pattern_type: string
+          previous_trend: string | null
+          signal: string | null
+          strength: number | null
+          support_resistance_nearby: boolean | null
+          symbol: string
+          timeframe: string
+          wick_size: number | null
+        }
+        Insert: {
+          body_size?: number | null
+          body_wick_ratio?: number | null
+          candle_timestamp: string
+          close_price?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          high_price?: number | null
+          id?: string
+          low_price?: number | null
+          metadata?: Json | null
+          open_price?: number | null
+          pattern_name: string
+          pattern_type: string
+          previous_trend?: string | null
+          signal?: string | null
+          strength?: number | null
+          support_resistance_nearby?: boolean | null
+          symbol: string
+          timeframe: string
+          wick_size?: number | null
+        }
+        Update: {
+          body_size?: number | null
+          body_wick_ratio?: number | null
+          candle_timestamp?: string
+          close_price?: number | null
+          confidence?: number | null
+          created_at?: string | null
+          high_price?: number | null
+          id?: string
+          low_price?: number | null
+          metadata?: Json | null
+          open_price?: number | null
+          pattern_name?: string
+          pattern_type?: string
+          previous_trend?: string | null
+          signal?: string | null
+          strength?: number | null
+          support_resistance_nearby?: boolean | null
+          symbol?: string
+          timeframe?: string
+          wick_size?: number | null
+        }
+        Relationships: []
+      }
       correlations: {
         Row: {
           calculated_at: string | null
@@ -905,6 +974,60 @@ export type Database = {
         }
         Relationships: []
       }
+      market_structure: {
+        Row: {
+          break_timestamp: string | null
+          broken: boolean | null
+          confirmed: boolean | null
+          created_at: string | null
+          id: string
+          market_phase: string | null
+          metadata: Json | null
+          price_level: number
+          strength: number | null
+          structure_type: string
+          symbol: string
+          timeframe: string
+          timestamp: string
+          trend_direction: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          break_timestamp?: string | null
+          broken?: boolean | null
+          confirmed?: boolean | null
+          created_at?: string | null
+          id?: string
+          market_phase?: string | null
+          metadata?: Json | null
+          price_level: number
+          strength?: number | null
+          structure_type: string
+          symbol: string
+          timeframe: string
+          timestamp: string
+          trend_direction?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          break_timestamp?: string | null
+          broken?: boolean | null
+          confirmed?: boolean | null
+          created_at?: string | null
+          id?: string
+          market_phase?: string | null
+          metadata?: Json | null
+          price_level?: number
+          strength?: number | null
+          structure_type?: string
+          symbol?: string
+          timeframe?: string
+          timestamp?: string
+          trend_direction?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       master_signals: {
         Row: {
           actual_outcome: string | null
@@ -1373,6 +1496,54 @@ export type Database = {
           sentiment_score?: number | null
           source?: string | null
           symbols?: string[] | null
+        }
+        Relationships: []
+      }
+      order_flow: {
+        Row: {
+          absorption: boolean | null
+          ask_volume: number | null
+          bid_volume: number | null
+          created_at: string | null
+          cumulative_delta: number | null
+          delta: number | null
+          exhaustion: boolean | null
+          id: string
+          metadata: Json | null
+          price_level: number
+          symbol: string
+          timestamp: string
+          trade_imbalance: number | null
+        }
+        Insert: {
+          absorption?: boolean | null
+          ask_volume?: number | null
+          bid_volume?: number | null
+          created_at?: string | null
+          cumulative_delta?: number | null
+          delta?: number | null
+          exhaustion?: boolean | null
+          id?: string
+          metadata?: Json | null
+          price_level: number
+          symbol: string
+          timestamp: string
+          trade_imbalance?: number | null
+        }
+        Update: {
+          absorption?: boolean | null
+          ask_volume?: number | null
+          bid_volume?: number | null
+          created_at?: string | null
+          cumulative_delta?: number | null
+          delta?: number | null
+          exhaustion?: boolean | null
+          id?: string
+          metadata?: Json | null
+          price_level?: number
+          symbol?: string
+          timestamp?: string
+          trade_imbalance?: number | null
         }
         Relationships: []
       }
@@ -2316,6 +2487,57 @@ export type Database = {
         }
         Relationships: []
       }
+      volume_profile: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_poc: boolean | null
+          is_value_area: boolean | null
+          period_end: string
+          period_start: string
+          poc_price: number | null
+          price_level: number
+          symbol: string
+          timeframe: string
+          value_area_high: number | null
+          value_area_low: number | null
+          volume: number | null
+          volume_percentage: number | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_poc?: boolean | null
+          is_value_area?: boolean | null
+          period_end: string
+          period_start: string
+          poc_price?: number | null
+          price_level: number
+          symbol: string
+          timeframe: string
+          value_area_high?: number | null
+          value_area_low?: number | null
+          volume?: number | null
+          volume_percentage?: number | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_poc?: boolean | null
+          is_value_area?: boolean | null
+          period_end?: string
+          period_start?: string
+          poc_price?: number | null
+          price_level?: number
+          symbol?: string
+          timeframe?: string
+          value_area_high?: number | null
+          value_area_low?: number | null
+          volume?: number | null
+          volume_percentage?: number | null
+        }
+        Relationships: []
+      }
       winning_patterns: {
         Row: {
           avg_pips: number | null
@@ -2392,6 +2614,16 @@ export type Database = {
           p_trade_id: string
         }
         Returns: Json
+      }
+      detect_candlestick_patterns: {
+        Args: { p_limit?: number; p_symbol: string; p_timeframe: string }
+        Returns: {
+          candle_timestamp: string
+          confidence: number
+          pattern_name: string
+          pattern_type: string
+          signal: string
+        }[]
       }
       get_global_trading_account: {
         Args: never

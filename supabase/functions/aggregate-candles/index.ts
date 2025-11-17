@@ -166,7 +166,7 @@ serve(async (req) => {
 
     const { data: marketData, error: fetchError } = await supabase
       .from('market_data_feed')
-      .select('timestamp, symbol, timeframe, price, open_price, high_price, low_price, is_live')
+      .select('timestamp, symbol, price, metadata')
       .eq('symbol', 'EUR/USD')
       .gte('timestamp', lookbackTime.toISOString())
       .order('timestamp', { ascending: true });
@@ -199,8 +199,15 @@ serve(async (req) => {
     const candlesByTimeframe = new Map<string, CandleData[]>();
     
     for (const data of marketData) {
+      // Extract metadata (OHLC data stored in JSON field)
+      const metadata = data.metadata as any;
+      if (!metadata || !metadata.timeframe) {
+        console.warn('⚠️ Skipping data point with missing metadata:', data.timestamp);
+        continue;
+      }
+
       // Normalize timeframe names (H1 -> 1h, H4 -> 4h, D1 -> 1d)
-      const normalizedTf = data.timeframe
+      const normalizedTf = metadata.timeframe
         .replace('H1', '1h')
         .replace('H4', '4h')
         .replace('D1', '1d');
@@ -220,22 +227,33 @@ serve(async (req) => {
         timestamp: data.timestamp,
         symbol: symbol,
         timeframe: normalizedTf,
-        open_price: data.open_price,
-        high_price: data.high_price,
-        low_price: data.low_price,
-        close_price: data.price, // 'price' is the close price
-        volume: 0, // market_data_feed doesn't have volume
+        open_price: metadata.open,      // Extract from metadata
+        high_price: metadata.high,      // Extract from metadata
+        low_price: metadata.low,        // Extract from metadata
+        close_price: metadata.close,    // Extract from metadata (not 'price')
+        volume: metadata.volume || 0,   // Extract from metadata
         tick_count: 1,
-        is_complete: isComplete,
+        is_complete: metadata.is_live === false ? true : isComplete,  // Use metadata flag
       });
     }
 
-    // Upsert candles for each timeframe
+    // Upsert candles for each timeframe (deduplicate by timestamp)
     for (const [timeframe, candles] of candlesByTimeframe.entries()) {
       if (candles.length > 0) {
+        // Deduplicate candles by timestamp (keep latest)
+        const uniqueCandles = Array.from(
+          candles.reduce((map, candle) => {
+            const key = candle.timestamp;
+            if (!map.has(key) || new Date(candle.timestamp) > new Date(map.get(key)!.timestamp)) {
+              map.set(key, candle);
+            }
+            return map;
+          }, new Map<string, CandleData>()).values()
+        );
+
         const { error: upsertError } = await supabase
           .from('aggregated_candles')
-          .upsert(candles, {
+          .upsert(uniqueCandles, {
             onConflict: 'symbol,timeframe,timestamp',
             ignoreDuplicates: false
           });
