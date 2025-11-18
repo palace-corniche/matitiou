@@ -682,6 +682,42 @@ export type Database = {
         }
         Relationships: []
       }
+      intelligence_performance: {
+        Row: {
+          created_at: string | null
+          id: string
+          metadata: Json | null
+          metric_name: string
+          metric_value: number | null
+          model_type: string
+          sample_size: number | null
+          timeframe: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_name: string
+          metric_value?: number | null
+          model_type: string
+          sample_size?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          metadata?: Json | null
+          metric_name?: string
+          metric_value?: number | null
+          model_type?: string
+          sample_size?: number | null
+          timeframe?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       intelligent_targets: {
         Row: {
           actual_sl: number | null
@@ -1042,12 +1078,18 @@ export type Database = {
           fusion_algorithm: string | null
           fusion_parameters: Json | null
           id: string
+          market_data_snapshot: Json | null
+          market_regime: string | null
           metadata: Json | null
+          modular_signal_ids: string[] | null
           recommended_entry: number | null
+          recommended_lot_size: number | null
           recommended_stop_loss: number | null
           recommended_take_profit: number | null
+          rejection_reason: string | null
           risk_reward: number | null
           risk_reward_ratio: number | null
+          signal_quality_score: number | null
           signal_type: string
           status: string | null
           stop_loss: number | null
@@ -1068,12 +1110,18 @@ export type Database = {
           fusion_algorithm?: string | null
           fusion_parameters?: Json | null
           id?: string
+          market_data_snapshot?: Json | null
+          market_regime?: string | null
           metadata?: Json | null
+          modular_signal_ids?: string[] | null
           recommended_entry?: number | null
+          recommended_lot_size?: number | null
           recommended_stop_loss?: number | null
           recommended_take_profit?: number | null
+          rejection_reason?: string | null
           risk_reward?: number | null
           risk_reward_ratio?: number | null
+          signal_quality_score?: number | null
           signal_type: string
           status?: string | null
           stop_loss?: number | null
@@ -1094,12 +1142,18 @@ export type Database = {
           fusion_algorithm?: string | null
           fusion_parameters?: Json | null
           id?: string
+          market_data_snapshot?: Json | null
+          market_regime?: string | null
           metadata?: Json | null
+          modular_signal_ids?: string[] | null
           recommended_entry?: number | null
+          recommended_lot_size?: number | null
           recommended_stop_loss?: number | null
           recommended_take_profit?: number | null
+          rejection_reason?: string | null
           risk_reward?: number | null
           risk_reward_ratio?: number | null
+          signal_quality_score?: number | null
           signal_type?: string
           status?: string | null
           stop_loss?: number | null
@@ -2592,6 +2646,14 @@ export type Database = {
           performance_patterns: Json
         }[]
       }
+      auto_detect_support_resistance: {
+        Args: {
+          p_lookback_periods?: number
+          p_symbol: string
+          p_timeframe?: string
+        }
+        Returns: Json
+      }
       calculate_global_performance_metrics: { Args: never; Returns: undefined }
       calculate_optimal_lot_size: {
         Args: {
@@ -2608,6 +2670,15 @@ export type Database = {
           pips: number
           pnl: number
         }[]
+      }
+      calculate_trade_quality_score: {
+        Args: {
+          p_confluence_score: number
+          p_market_regime: string
+          p_signal_id: string
+          p_volatility_percentile: number
+        }
+        Returns: number
       }
       close_shadow_trade: {
         Args: {
@@ -2628,6 +2699,10 @@ export type Database = {
           signal: string
         }[]
       }
+      execute_advanced_order: {
+        Args: { p_current_price: number; p_order_id: string }
+        Returns: Json
+      }
       get_global_trading_account: {
         Args: never
         Returns: {
@@ -2647,7 +2722,20 @@ export type Database = {
         Returns: Json
       }
       get_ml_performance_analytics: { Args: never; Returns: Json }
+      manage_break_even: {
+        Args: {
+          p_current_price: number
+          p_profit_threshold_pips?: number
+          p_symbol?: string
+        }
+        Returns: Json
+      }
       run_trading_diagnostics: { Args: never; Returns: Json }
+      update_eurusd_pnl: { Args: never; Returns: undefined }
+      update_trailing_stops: {
+        Args: { p_current_price: number; p_symbol?: string }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
