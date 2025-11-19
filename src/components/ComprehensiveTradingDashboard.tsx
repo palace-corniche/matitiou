@@ -271,14 +271,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </TabsContent>
       </Tabs>
 
-      <div className="flex gap-2">
-        <Button onClick={analyzeMarket} disabled={loading}>
-          {loading ? 'Analyzing...' : 'Refresh Analysis'}
-        </Button>
-        <Button variant="outline" disabled>
-          Advanced Settings
-        </Button>
-      </div>
+      
       </div>
     </div>;
 };
