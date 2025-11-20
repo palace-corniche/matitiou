@@ -518,40 +518,48 @@ serve(async (req) => {
     console.log('🚀 Starting shadow trade execution...');
     console.log('📋 Trigger:', trigger || 'cron', 'Signal ID:', signal_id || 'none');
 
-    // **ATOMIC LOCK: Try to acquire execution lock atomically**
+    // **ATOMIC LOCK: Clean up stale locks and acquire new one**
     const executionLockId = crypto.randomUUID();
     console.log(`🔐 Attempting to acquire execution lock: ${executionLockId.slice(0,8)}`);
     
+    // First, delete any stale locks (older than 5 minutes)
+    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+    await supabase
+      .from('function_execution_locks')
+      .delete()
+      .eq('function_name', 'execute-shadow-trades')
+      .lt('locked_at', fiveMinutesAgo);
+    
+    // Try to upsert the lock (update if exists, insert if not)
     const { data: lockData, error: lockError } = await supabase
       .from('function_execution_locks')
-      .insert({
-        id: executionLockId,
+      .upsert({
         function_name: 'execute-shadow-trades',
-        status: 'running',
-        started_at: new Date().toISOString()
+        locked_at: new Date().toISOString(),
+        lock_id: executionLockId
+      }, {
+        onConflict: 'function_name',
+        ignoreDuplicates: false
       })
       .select()
       .single();
 
     if (lockError) {
-      // Lock acquisition failed - another instance is running
-      console.log('⏸️ Another instance is already running (unique constraint violation)');
-      console.log('   Error:', lockError.message);
+      console.log('⚠️ Lock acquisition failed:', lockError.message);
       
-      // Query the existing running instance for info
-      const { data: runningInstances } = await supabase
+      const { data: existingLock } = await supabase
         .from('function_execution_locks')
-        .select('started_at')
+        .select('locked_at, lock_id')
         .eq('function_name', 'execute-shadow-trades')
-        .eq('status', 'running')
-        .limit(1);
+        .single();
       
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: 'Another instance already running', 
           skipped: true,
-          running_since: runningInstances?.[0]?.started_at || 'unknown'
+          running_since: existingLock?.locked_at || 'unknown',
+          lock_id: existingLock?.lock_id || 'unknown'
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
@@ -1283,7 +1291,7 @@ serve(async (req) => {
     console.log('🏁 FUNCTION EXECUTION COMPLETE');
     console.log('⏱️ Total execution time:', Date.now() - startTime, 'ms');
     
-    // **PHASE 2 FIX: Release execution lock**
+    // **CLEANUP: Release execution lock**
     try {
       const supabaseUrl = Deno.env.get('SUPABASE_URL');
       const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -1291,20 +1299,16 @@ serve(async (req) => {
       if (supabaseUrl && supabaseKey) {
         const supabase = createClient(supabaseUrl, supabaseKey);
         
-        // Mark lock as completed instead of deleting
+        // Delete the lock when done
         await supabase
           .from('function_execution_locks')
-          .update({ 
-            status: 'completed',
-            completed_at: new Date().toISOString()
-          })
-          .eq('function_name', 'execute-shadow-trades')
-          .eq('status', 'running');
+          .delete()
+          .eq('function_name', 'execute-shadow-trades');
         
         console.log('🔓 Execution lock released');
       }
-    } catch (lockError) {
-      console.error('⚠️ Failed to release execution lock:', lockError);
+    } catch (lockCleanupError) {
+      console.error('⚠️ Failed to release lock:', lockCleanupError);
     }
   }
 });
