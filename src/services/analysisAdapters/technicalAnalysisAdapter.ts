@@ -41,7 +41,7 @@ export class TechnicalAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(50);
+        .limit(50) as any;
 
       if (error || !marketData || marketData.length < 20) {
         console.log('Insufficient market data for technical analysis');

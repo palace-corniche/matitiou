@@ -545,7 +545,7 @@ export class ConfluenceEngine {
         .eq('pair', pair)
         .order('report_date', { ascending: false })
         .limit(1)
-        .maybeSingle();
+        .maybeSingle() as any;
 
       if (error || !cotReports) return null;
 
@@ -644,7 +644,7 @@ export class ConfluenceEngine {
         .select('*')
         .gte('event_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .eq('impact_level', 'high')
-        .limit(5);
+        .limit(5) as any;
 
       if (!recentEvents || recentEvents.length === 0) return null;
 

@@ -251,7 +251,7 @@ const TradingTerminal: React.FC = () => {
         .select('*')
         .eq('portfolio_id', portfolio.id)
         .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .order('created_at', { ascending: false }) as any;
 
       if (error) throw error;
       setPendingOrders((data || []).map(order => ({

@@ -33,7 +33,7 @@ export default function QuantitativeAnalysisPage() {
       .select('*')
       .eq('module_id', 'quantitative_analysis')
       .order('created_at', { ascending: false })
-      .limit(20);
+      .limit(20) as any;
 
     if (!error && data) {
       setSignals(data);

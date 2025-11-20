@@ -47,7 +47,7 @@ export class FundamentalAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(1);
+        .limit(1) as any;
 
       if (!marketData || marketData.length === 0) {
         return null;
@@ -115,9 +115,9 @@ export class FundamentalAnalysisAdapter {
       .from('news_sentiment')
       .select('*')
       .eq('symbol', symbol)
-      .gte('published_at', new Date(Date.now() - 86400000 * 2).toISOString()) // Last 48 hours
+      .gte('published_at', new Date(Date.now() - 86400000 * 2).toISOString())
       .order('published_at', { ascending: false })
-      .limit(50);
+      .limit(50) as any;
 
     if (!newsData || newsData.length === 0) {
       return {

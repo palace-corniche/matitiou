@@ -33,7 +33,7 @@ export default function FundamentalSignalsPanel() {
       .eq('module_id', 'fundamental_analysis')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
-      .limit(15);
+      .limit(15) as any;
 
     if (!error && data) {
       setSignals(data);
