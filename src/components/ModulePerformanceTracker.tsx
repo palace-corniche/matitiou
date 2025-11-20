@@ -117,7 +117,7 @@ const ModulePerformanceTracker: React.FC = () => {
           .from('modular_signals')
           .select('confidence, strength, created_at')
           .eq('module_id', moduleId)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) as any;
 
         // Get execution data for this module's signals
         const { data: executions } = await supabase

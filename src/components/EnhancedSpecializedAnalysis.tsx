@@ -54,7 +54,7 @@ export default function EnhancedSpecializedAnalysis() {
       .eq('module_id', 'specialized_analysis')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(10) as any;
 
     // Fetch tick data for order flow
     const { data: ticks } = await supabase

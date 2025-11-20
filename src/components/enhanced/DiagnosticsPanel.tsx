@@ -172,7 +172,7 @@ const DiagnosticsPanel: React.FC = () => {
         .from('trading_diagnostics')
         .select('id')
         .eq('severity_level', 'error')
-        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()); // Last hour
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()) as any;
       
       setDiagnostics({
         lastUpdated: new Date(),

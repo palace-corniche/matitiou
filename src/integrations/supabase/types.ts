@@ -533,6 +533,7 @@ export type Database = {
           id: string
           lock_id: string
           locked_at: string | null
+          started_at: string | null
         }
         Insert: {
           created_at?: string | null
@@ -540,6 +541,7 @@ export type Database = {
           id?: string
           lock_id: string
           locked_at?: string | null
+          started_at?: string | null
         }
         Update: {
           created_at?: string | null
@@ -547,6 +549,7 @@ export type Database = {
           id?: string
           lock_id?: string
           locked_at?: string | null
+          started_at?: string | null
         }
         Relationships: []
       }

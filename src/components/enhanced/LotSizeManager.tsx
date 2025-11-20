@@ -69,7 +69,7 @@ export const LotSizeManager: React.FC<LotSizeManagerProps> = ({
         .select('*')
         .eq('portfolio_id', portfolio.id)
         .order('is_default', { ascending: false })
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as any;
 
       if (error) throw error;
       setPresets(data || []);

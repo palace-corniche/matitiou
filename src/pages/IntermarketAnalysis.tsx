@@ -55,7 +55,7 @@ export default function IntermarketAnalysisPage() {
           .select('*')
           .eq('module_id', 'intermarket_analysis')
           .order('created_at', { ascending: false })
-          .limit(10),
+          .limit(10) as any,
         supabase
           .from('market_snapshot')
           .select('*')

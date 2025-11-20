@@ -62,7 +62,7 @@ export default function SentimentAnalysisPage() {
         .select('*')
         .eq('pair', 'EUR/USD')
         .order('report_date', { ascending: false })
-        .limit(3);
+        .limit(3) as any;
 
       // Fetch retail positioning data
       const { data: retailData, error: retailError } = await supabase
@@ -78,7 +78,7 @@ export default function SentimentAnalysisPage() {
         .select('*')
         .eq('symbol', 'EUR/USD')
         .order('published_at', { ascending: false })
-        .limit(5);
+        .limit(5) as any;
 
       if (modularError) throw modularError;
       

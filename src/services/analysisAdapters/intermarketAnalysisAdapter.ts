@@ -56,7 +56,7 @@ export class IntermarketAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(1);
+        .limit(1) as any;
 
       if (!marketData || marketData.length === 0) {
         return null;

@@ -30,7 +30,7 @@ export const CandleDataValidation = () => {
             .from('market_data_feed')
             .select('id')
             .eq('symbol', 'EUR/USD')
-            .eq('timeframe', timeframe);
+            .eq('timeframe', timeframe) as any;
 
           if (!error && candles) {
             const availableCandles = candles.length;

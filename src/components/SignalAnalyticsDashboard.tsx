@@ -152,7 +152,7 @@ const SignalAnalyticsDashboard: React.FC = () => {
         .from('system_config')
         .select('config_value')
         .eq('config_key', 'debug_mode')
-        .single();
+        .single() as any;
 
       if (debugCfg?.config_value && typeof debugCfg.config_value === 'object' && !Array.isArray(debugCfg.config_value)) {
         const config = debugCfg.config_value as Record<string, any>;
