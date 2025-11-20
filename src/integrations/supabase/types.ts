@@ -526,6 +526,30 @@ export type Database = {
           },
         ]
       }
+      function_execution_locks: {
+        Row: {
+          created_at: string | null
+          function_name: string
+          id: string
+          lock_id: string
+          locked_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          function_name: string
+          id?: string
+          lock_id: string
+          locked_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          function_name?: string
+          id?: string
+          lock_id?: string
+          locked_at?: string | null
+        }
+        Relationships: []
+      }
       global_trading_account: {
         Row: {
           auto_trading_enabled: boolean | null
