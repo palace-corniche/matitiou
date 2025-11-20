@@ -421,18 +421,22 @@ async function reconcileGlobalAccount(supabase: any, accountId: string): Promise
       return total + (trade.margin_required || 0);
     }, 0) || 0;
 
-    const reportedMargin = parseFloat(account.used_margin.toString());
+    // For global account, just ensure equity is correct
+    const totalPnL = openTrades?.reduce((total: number, trade: any) => {
+      return total + (trade.pnl || 0);
+    }, 0) || 0;
 
-    // Fix ghost positions
-    if (actualOpenPositions === 0 && reportedMargin > 0) {
-      console.log(`👻 Clearing ghost margin for global account: $${reportedMargin.toFixed(2)}`);
+    const currentEquity = parseFloat(account.balance.toString()) + totalPnL;
+    const reportedEquity = parseFloat(account.equity.toString());
+
+    // Update equity if different
+    if (Math.abs(currentEquity - reportedEquity) > 0.01) {
+      console.log(`🔧 Updating global account equity: $${reportedEquity.toFixed(2)} → $${currentEquity.toFixed(2)}`);
       
       await supabase
         .from('global_trading_account')
         .update({
-          used_margin: 0,
-          free_margin: account.balance,
-          margin_level: 0,
+          equity: currentEquity,
           updated_at: new Date().toISOString()
         })
         .eq('id', accountId);
@@ -440,27 +444,6 @@ async function reconcileGlobalAccount(supabase: any, accountId: string): Promise
       return true;
     }
 
-    // Fix margin inconsistencies
-    if (Math.abs(actualMargin - reportedMargin) > 0.01) {
-      const newFreeMargin = parseFloat(account.balance.toString()) - actualMargin;
-      const newMarginLevel = actualMargin > 0 
-        ? (parseFloat(account.equity.toString()) / actualMargin) * 100 
-        : 0;
-
-      console.log(`🔧 Fixing margin inconsistency: Reported=$${reportedMargin.toFixed(2)}, Actual=$${actualMargin.toFixed(2)}`);
-
-      await supabase
-        .from('global_trading_account')
-        .update({
-          used_margin: actualMargin,
-          free_margin: Math.max(0, newFreeMargin),
-          margin_level: newMarginLevel,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', accountId);
-      
-      return true;
-    }
 
     return false;
   } catch (error) {
