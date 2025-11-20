@@ -2673,6 +2673,27 @@ export type Database = {
           performance_patterns: Json
         }[]
       }
+      atomic_lock_signals: {
+        Args: {
+          p_limit?: number
+          p_max_age_minutes?: number
+          p_min_confluence_score?: number
+        }
+        Returns: {
+          confluence_score: number
+          created_at: string
+          final_confidence: number
+          id: string
+          market_regime: string
+          metadata: Json
+          recommended_entry: number
+          recommended_lot_size: number
+          recommended_stop_loss: number
+          recommended_take_profit: number
+          signal_type: string
+          symbol: string
+        }[]
+      }
       auto_detect_support_resistance: {
         Args: {
           p_lookback_periods?: number

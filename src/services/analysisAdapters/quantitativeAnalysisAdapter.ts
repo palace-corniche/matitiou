@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 
 export interface QuantData {
   backtestResults: {

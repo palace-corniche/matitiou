@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { 
   TrendingUp, 
   TrendingDown, 

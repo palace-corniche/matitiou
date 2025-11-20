@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { 
   TrendingUp, 
   TrendingDown, 
