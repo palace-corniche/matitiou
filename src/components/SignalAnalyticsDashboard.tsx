@@ -12,7 +12,7 @@ import {
   Signal, BarChart3, Activity, Target, Zap, Settings,
   RefreshCw, Timer, Shield, LineChart, Play, Pause
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { useToast } from '@/hooks/use-toast';
 import { DataFreshnessValidator } from '@/services/dataFreshnessValidator';
 import { DataPipelineStatus } from './DataPipelineStatus';
@@ -152,7 +152,7 @@ const SignalAnalyticsDashboard: React.FC = () => {
         .from('system_config')
         .select('config_value')
         .eq('config_key', 'debug_mode')
-        .single() as any;
+        .single();
 
       if (debugCfg?.config_value && typeof debugCfg.config_value === 'object' && !Array.isArray(debugCfg.config_value)) {
         const config = debugCfg.config_value as Record<string, any>;

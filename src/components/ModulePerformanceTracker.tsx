@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { Activity, Target, TrendingUp, AlertTriangle, CheckCircle, Clock } from 'lucide-react';
 
 interface ModulePerformance {
@@ -117,7 +117,7 @@ const ModulePerformanceTracker: React.FC = () => {
           .from('modular_signals')
           .select('confidence, strength, created_at')
           .eq('module_id', moduleId)
-          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()) as any;
+          .gte('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
 
         // Get execution data for this module's signals
         const { data: executions } = await supabase

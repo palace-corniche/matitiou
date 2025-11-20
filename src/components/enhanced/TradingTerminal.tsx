@@ -19,7 +19,7 @@ import {
   PieChart, LineChart, Calendar, Settings, RefreshCw, Play, Pause,
   Bell, TrendingDown as ArrowDown, TrendingUp as ArrowUp
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { toast } from 'sonner';
 import { MarketWatch } from './MarketWatch';
 import { OrderEntry } from './OrderEntry';
@@ -251,7 +251,7 @@ const TradingTerminal: React.FC = () => {
         .select('*')
         .eq('portfolio_id', portfolio.id)
         .eq('status', 'pending')
-        .order('created_at', { ascending: false }) as any;
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       setPendingOrders((data || []).map(order => ({

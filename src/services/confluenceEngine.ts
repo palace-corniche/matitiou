@@ -4,7 +4,7 @@
 // Phase 4: Enhanced Market Sentiment with COT + Alternative Data
 
 import { RegimeDetectionEngine, type MarketRegime } from './regimeDetection';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { FibonacciTools, GannAnalysis, type FibonacciLevel, type GannLevel } from './advancedIndicators';
 
 export interface ConfluenceSignal {
@@ -545,7 +545,7 @@ export class ConfluenceEngine {
         .eq('pair', pair)
         .order('report_date', { ascending: false })
         .limit(1)
-        .maybeSingle() as any;
+        .maybeSingle();
 
       if (error || !cotReports) return null;
 
@@ -644,7 +644,7 @@ export class ConfluenceEngine {
         .select('*')
         .gte('event_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .eq('impact_level', 'high')
-        .limit(5) as any;
+        .limit(5);
 
       if (!recentEvents || recentEvents.length === 0) return null;
 

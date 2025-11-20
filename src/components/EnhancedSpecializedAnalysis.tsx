@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { TrendingUp, TrendingDown, Activity, BarChart3, Waves } from 'lucide-react';
 
 interface ElliottWave {
@@ -54,7 +54,7 @@ export default function EnhancedSpecializedAnalysis() {
       .eq('module_id', 'specialized_analysis')
       .eq('is_active', true)
       .order('created_at', { ascending: false })
-      .limit(10) as any;
+      .limit(10);
 
     // Fetch tick data for order flow
     const { data: ticks } = await supabase

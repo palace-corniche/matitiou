@@ -8,7 +8,7 @@ import {
   Activity, AlertTriangle, CheckCircle, Clock, Zap, 
   TrendingUp, BarChart3, Wifi, WifiOff, RefreshCw, Database, Trash2, Newspaper 
 } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { marketDataService } from '@/services/realTimeMarketData';
 import { toast } from 'sonner';
 
@@ -172,7 +172,7 @@ const DiagnosticsPanel: React.FC = () => {
         .from('trading_diagnostics')
         .select('id')
         .eq('severity_level', 'error')
-        .gte('timestamp', new Date(Date.now() - 3600000).toISOString()) as any;
+        .gte('timestamp', new Date(Date.now() - 3600000).toISOString());
       
       setDiagnostics({
         lastUpdated: new Date(),

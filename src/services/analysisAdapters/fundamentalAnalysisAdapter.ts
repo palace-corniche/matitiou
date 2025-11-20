@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { marketIntelligenceEngine } from '@/services/marketIntelligenceEngine';
 import type { MarketIntelligence } from '@/services/marketIntelligenceEngine';
 
@@ -47,7 +47,7 @@ export class FundamentalAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(1) as any;
+        .limit(1);
 
       if (!marketData || marketData.length === 0) {
         return null;
@@ -117,7 +117,7 @@ export class FundamentalAnalysisAdapter {
       .eq('symbol', symbol)
       .gte('published_at', new Date(Date.now() - 86400000 * 2).toISOString())
       .order('published_at', { ascending: false })
-      .limit(50) as any;
+      .limit(50);
 
     if (!newsData || newsData.length === 0) {
       return {

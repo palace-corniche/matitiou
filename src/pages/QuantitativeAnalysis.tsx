@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { Badge } from '@/components/ui/badge';
 import { TrendingUp, TrendingDown, Activity, Calculator } from 'lucide-react';
 
@@ -33,7 +33,7 @@ export default function QuantitativeAnalysisPage() {
       .select('*')
       .eq('module_id', 'quantitative_analysis')
       .order('created_at', { ascending: false })
-      .limit(20) as any;
+      .limit(20);
 
     if (!error && data) {
       setSignals(data);

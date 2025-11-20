@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { AlertTriangle, CheckCircle, Clock } from 'lucide-react';
@@ -30,7 +30,7 @@ export const CandleDataValidation = () => {
             .from('market_data_feed')
             .select('id')
             .eq('symbol', 'EUR/USD')
-            .eq('timeframe', timeframe) as any;
+            .eq('timeframe', timeframe);
 
           if (!error && candles) {
             const availableCandles = candles.length;

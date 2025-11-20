@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 
 export interface TechnicalIndicators {
   rsi: number;
@@ -41,7 +41,7 @@ export class TechnicalAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(50) as any;
+        .limit(50);
 
       if (error || !marketData || marketData.length < 20) {
         console.log('Insufficient market data for technical analysis');

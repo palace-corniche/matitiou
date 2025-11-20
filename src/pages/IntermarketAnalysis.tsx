@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/PageHeader';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -55,7 +55,7 @@ export default function IntermarketAnalysisPage() {
           .select('*')
           .eq('module_id', 'intermarket_analysis')
           .order('created_at', { ascending: false })
-          .limit(10) as any,
+          .limit(10),
         supabase
           .from('market_snapshot')
           .select('*')
