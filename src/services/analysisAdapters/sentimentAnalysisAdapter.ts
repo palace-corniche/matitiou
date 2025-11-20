@@ -1,4 +1,4 @@
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 
 export interface SentimentData {
   cotReport: {
@@ -51,7 +51,7 @@ export class SentimentAnalysisAdapter {
         .eq('symbol', symbol)
         .eq('timeframe', timeframe)
         .order('timestamp', { ascending: false })
-        .limit(1) as any;
+        .limit(1);
 
       if (!marketData || marketData.length === 0) {
         return null;

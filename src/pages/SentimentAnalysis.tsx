@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -62,7 +62,7 @@ export default function SentimentAnalysisPage() {
         .select('*')
         .eq('pair', 'EUR/USD')
         .order('report_date', { ascending: false })
-        .limit(3) as any;
+        .limit(3);
 
       // Fetch retail positioning data
       const { data: retailData, error: retailError } = await supabase
@@ -78,7 +78,7 @@ export default function SentimentAnalysisPage() {
         .select('*')
         .eq('symbol', 'EUR/USD')
         .order('published_at', { ascending: false })
-        .limit(5) as any;
+        .limit(5);
 
       if (modularError) throw modularError;
       

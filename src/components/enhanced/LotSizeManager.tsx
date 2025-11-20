@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Slider } from '@/components/ui/slider';
 import { Plus, X, Calculator, Target, AlertTriangle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
 
 interface LotSizePreset {
   id: string;
@@ -69,7 +69,7 @@ export const LotSizeManager: React.FC<LotSizeManagerProps> = ({
         .select('*')
         .eq('portfolio_id', portfolio.id)
         .order('is_default', { ascending: false })
-        .order('created_at', { ascending: true }) as any;
+        .order('created_at', { ascending: true });
 
       if (error) throw error;
       setPresets(data || []);
