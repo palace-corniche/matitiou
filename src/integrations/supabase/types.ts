@@ -1123,6 +1123,7 @@ export type Database = {
           symbol: string
           take_profit: number | null
           timeframe: string | null
+          updated_at: string | null
         }
         Insert: {
           actual_outcome?: string | null
@@ -1155,6 +1156,7 @@ export type Database = {
           symbol: string
           take_profit?: number | null
           timeframe?: string | null
+          updated_at?: string | null
         }
         Update: {
           actual_outcome?: string | null
@@ -1187,6 +1189,7 @@ export type Database = {
           symbol?: string
           take_profit?: number | null
           timeframe?: string | null
+          updated_at?: string | null
         }
         Relationships: []
       }
