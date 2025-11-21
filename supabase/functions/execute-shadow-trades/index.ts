@@ -614,8 +614,8 @@ serve(async (req) => {
     const { data: rawSignals, error: signalsError } = await supabase
       .rpc('atomic_lock_signals', {
         p_limit: signal_id ? 1 : 5,
-        p_min_confluence_score: 12,
-        p_max_age_minutes: 60
+        p_min_confluence_score: 8,
+        p_max_age_minutes: 240
       });
     
     // Map to expected format
