@@ -1797,6 +1797,7 @@ export type Database = {
         Row: {
           comment: string | null
           commission: number | null
+          contract_size: number | null
           created_at: string | null
           entry_price: number
           entry_time: string | null
@@ -1813,6 +1814,7 @@ export type Database = {
           order_type: string | null
           pnl: number | null
           portfolio_id: string | null
+          position_size: number | null
           price_source: string | null
           price_timestamp: string | null
           profit: number | null
@@ -1829,6 +1831,7 @@ export type Database = {
         Insert: {
           comment?: string | null
           commission?: number | null
+          contract_size?: number | null
           created_at?: string | null
           entry_price: number
           entry_time?: string | null
@@ -1845,6 +1848,7 @@ export type Database = {
           order_type?: string | null
           pnl?: number | null
           portfolio_id?: string | null
+          position_size?: number | null
           price_source?: string | null
           price_timestamp?: string | null
           profit?: number | null
@@ -1861,6 +1865,7 @@ export type Database = {
         Update: {
           comment?: string | null
           commission?: number | null
+          contract_size?: number | null
           created_at?: string | null
           entry_price?: number
           entry_time?: string | null
@@ -1877,6 +1882,7 @@ export type Database = {
           order_type?: string | null
           pnl?: number | null
           portfolio_id?: string | null
+          position_size?: number | null
           price_source?: string | null
           price_timestamp?: string | null
           profit?: number | null
