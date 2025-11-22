@@ -19,6 +19,7 @@ import { PositionsTable } from '@/components/enhanced/PositionsTable';
 import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
 import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
 import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
+import { ExitIntelligenceStatus } from '@/components/enhanced/ExitIntelligenceStatus';
 
 // Global Shadow Trading Dashboard - Professional trading interface
 import {
@@ -479,10 +480,13 @@ const ShadowTradingDashboardUnified: React.FC = () => {
           </TabsList>
 
           <TabsContent value="overview" className="space-y-8">
-            <PerformanceMetricsPanel 
-              account={account}
-              performanceMetrics={performanceMetrics}
-            />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <PerformanceMetricsPanel 
+                account={account}
+                performanceMetrics={performanceMetrics}
+              />
+              <ExitIntelligenceStatus />
+            </div>
           </TabsContent>
 
           <TabsContent value="trading" className="space-y-8">
