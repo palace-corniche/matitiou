@@ -54,17 +54,19 @@ export const DataIntegrityMonitor: React.FC = () => {
       const executed = signals?.filter(s => s.status === 'executed').length || 0;
       const executionRate = (pending + executed) > 0 ? (executed / (pending + executed)) * 100 : 0;
 
-      // Get most common rejection reason
+      // Get most common rejection reason from master_signals
       const { data: rejections } = await supabase
-        .from('trade_decision_log')
-        .select('decision_reason')
-        .eq('decision', 'rejected')
-        .gte('timestamp', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .from('master_signals')
+        .select('rejection_reason')
+        .not('rejection_reason', 'is', null)
+        .gte('created_at', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
         .limit(100);
 
       const reasonCounts: Record<string, number> = {};
       rejections?.forEach(r => {
-        reasonCounts[r.decision_reason] = (reasonCounts[r.decision_reason] || 0) + 1;
+        if (r.rejection_reason) {
+          reasonCounts[r.rejection_reason] = (reasonCounts[r.rejection_reason] || 0) + 1;
+        }
       });
       
       const commonReason = Object.entries(reasonCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || 'None';
