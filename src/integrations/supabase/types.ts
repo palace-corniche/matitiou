@@ -1802,8 +1802,10 @@ export type Database = {
           commission: number | null
           contract_size: number | null
           created_at: string | null
+          current_price: number | null
           entry_price: number
           entry_time: string | null
+          exit_check_count: number | null
           exit_confidence: number | null
           exit_intelligence_score: number | null
           exit_price: number | null
@@ -1812,6 +1814,7 @@ export type Database = {
           exit_time: string | null
           id: string
           intelligence_exit_triggered: boolean | null
+          last_pnl_update: string | null
           lot_size: number
           metadata: Json | null
           order_type: string | null
@@ -1836,8 +1839,10 @@ export type Database = {
           commission?: number | null
           contract_size?: number | null
           created_at?: string | null
+          current_price?: number | null
           entry_price: number
           entry_time?: string | null
+          exit_check_count?: number | null
           exit_confidence?: number | null
           exit_intelligence_score?: number | null
           exit_price?: number | null
@@ -1846,6 +1851,7 @@ export type Database = {
           exit_time?: string | null
           id?: string
           intelligence_exit_triggered?: boolean | null
+          last_pnl_update?: string | null
           lot_size: number
           metadata?: Json | null
           order_type?: string | null
@@ -1870,8 +1876,10 @@ export type Database = {
           commission?: number | null
           contract_size?: number | null
           created_at?: string | null
+          current_price?: number | null
           entry_price?: number
           entry_time?: string | null
+          exit_check_count?: number | null
           exit_confidence?: number | null
           exit_intelligence_score?: number | null
           exit_price?: number | null
@@ -1880,6 +1888,7 @@ export type Database = {
           exit_time?: string | null
           id?: string
           intelligence_exit_triggered?: boolean | null
+          last_pnl_update?: string | null
           lot_size?: number
           metadata?: Json | null
           order_type?: string | null
@@ -2803,6 +2812,7 @@ export type Database = {
       }
       run_trading_diagnostics: { Args: never; Returns: Json }
       update_eurusd_pnl: { Args: never; Returns: undefined }
+      update_open_trades_pnl: { Args: never; Returns: Json }
       update_trailing_stops: {
         Args: { p_current_price: number; p_symbol?: string }
         Returns: Json
