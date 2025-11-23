@@ -83,7 +83,6 @@ serve(async (req) => {
       .from('modular_signals')
       .select('*')
       .eq('symbol', trade.symbol)
-      .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(20);
     console.log(`   Modular signals: ${modularSignals?.length || 0} found`);
@@ -103,8 +102,8 @@ serve(async (req) => {
     const { data: correlations } = await supabase
       .from('correlations')
       .select('*')
-      .or(`asset_a.eq.${trade.symbol},asset_b.eq.${trade.symbol}`)
-      .order('calculation_date', { ascending: false })
+      .ilike('symbol_pair', `%${trade.symbol}%`)
+      .order('calculated_at', { ascending: false })
       .limit(5);
     console.log(`   Correlations: ${correlations?.length || 0} found`);
 
@@ -113,7 +112,7 @@ serve(async (req) => {
     const { data: economicEvents } = await supabase
       .from('economic_events')
       .select('*')
-      .contains('symbol_impact', [trade.symbol])
+      .eq('currency', 'USD')
       .gte('event_time', new Date().toISOString())
       .order('event_time', { ascending: true })
       .limit(5);
@@ -228,7 +227,7 @@ function calculateExitIntelligence(
 
   // 3. SENTIMENT SCORE (Weight: 10%)
   const sentimentSignals = modularSignals.filter(s => 
-    s.module_id.includes('sentiment') || s.module_id.includes('news')
+    s.module_name?.includes('sentiment') || s.module_name?.includes('news')
   );
   
   if (sentimentSignals.length > 0) {
@@ -241,9 +240,15 @@ function calculateExitIntelligence(
   // 4. VOLATILITY REGIME (Weight: 10%)
   if (marketData.length >= 10) {
     const recentCandles = marketData.slice(0, 10);
-    const volatilities = recentCandles.map(c => Math.abs(c.high_price - c.low_price));
+    const volatilities = recentCandles.map(c => {
+      const high = c.high_price || c.price;
+      const low = c.low_price || c.price;
+      return Math.abs(high - low);
+    });
     const avgVolatility = volatilities.reduce((a, b) => a + b, 0) / volatilities.length;
-    const currentVolatility = Math.abs(marketData[0].high_price - marketData[0].low_price);
+    const currentHigh = marketData[0].high_price || marketData[0].price;
+    const currentLow = marketData[0].low_price || marketData[0].price;
+    const currentVolatility = Math.abs(currentHigh - currentLow);
     
     // Prefer moderate volatility (not too high, not too low)
     const volatilityRatio = currentVolatility / avgVolatility;
@@ -279,7 +284,7 @@ function calculateExitIntelligence(
 
   // 6. CORRELATION HEALTH (Weight: 8%)
   if (correlations.length > 0) {
-    const avgCorrelation = correlations.reduce((sum, c) => sum + Math.abs(c.correlation_value), 0) / correlations.length;
+    const avgCorrelation = correlations.reduce((sum, c) => sum + Math.abs(c.correlation_coefficient), 0) / correlations.length;
     factors.correlationHealth = (1 - Math.abs(avgCorrelation - 0.5)) * 100; // Prefer moderate correlations
   } else {
     factors.correlationHealth = 50;
@@ -287,7 +292,7 @@ function calculateExitIntelligence(
 
   // 7. FUNDAMENTAL BIAS (Weight: 12%)
   if (economicEvents.length > 0) {
-    const highImpactEvents = economicEvents.filter(e => e.impact_level === 'high').length;
+    const highImpactEvents = economicEvents.filter(e => e.impact === 'high').length;
     if (highImpactEvents > 0) {
       factors.fundamentalBias = 40; // Caution before major events
       reasoning += 'Major event approaching. ';
@@ -299,7 +304,7 @@ function calculateExitIntelligence(
   }
 
   // 8. HARMONIC COMPLETION (Weight: 7%)
-  const harmonicSignals = modularSignals.filter(s => s.module_id.includes('harmonic'));
+  const harmonicSignals = modularSignals.filter(s => s.module_name?.includes('harmonic'));
   if (harmonicSignals.length > 0) {
     const avgHarmonicConfidence = harmonicSignals.reduce((sum, s) => sum + s.confidence, 0) / harmonicSignals.length;
     factors.harmonicCompletion = avgHarmonicConfidence * 100;
@@ -308,7 +313,7 @@ function calculateExitIntelligence(
   }
 
   // 9. MARKET STRUCTURE (Weight: 10%)
-  const structureSignals = modularSignals.filter(s => s.module_id.includes('structure'));
+  const structureSignals = modularSignals.filter(s => s.module_name?.includes('structure'));
   if (structureSignals.length > 0) {
     const avgStructure = structureSignals.reduce((sum, s) => sum + s.confidence, 0) / structureSignals.length;
     factors.marketStructure = avgStructure * 100;
