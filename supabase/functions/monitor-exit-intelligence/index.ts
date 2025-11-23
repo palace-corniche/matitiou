@@ -55,7 +55,8 @@ serve(async (req) => {
           'intelligent-exit-engine',
           {
             body: { 
-              trade_id: trade.id,
+              tradeId: trade.id,
+              currentPrice: trade.current_price || trade.entry_price,
               force_analysis: true
             }
           }
@@ -66,12 +67,35 @@ serve(async (req) => {
           continue
         }
 
+        if (!exitAnalysis?.exitIntelligence) {
+          console.error(`❌ Invalid exit analysis response for trade ${trade.id}`)
+          continue
+        }
+
+        // Store exit intelligence in database
+        const { error: insertError } = await supabase
+          .from('exit_intelligence')
+          .insert({
+            trade_id: trade.id,
+            overall_score: exitAnalysis.exitIntelligence.overallExitScore,
+            recommendation: exitAnalysis.exitIntelligence.recommendation,
+            reasoning: exitAnalysis.exitIntelligence.reasoning,
+            confidence: exitAnalysis.exitIntelligence.overallExitScore / 100,
+            factors: exitAnalysis.exitIntelligence.factors,
+            check_timestamp: new Date().toISOString(),
+            holding_time_minutes: Math.floor((Date.now() - new Date(trade.entry_time).getTime()) / 60000)
+          })
+
+        if (insertError) {
+          console.error(`❌ Error storing exit intelligence for trade ${trade.id}:`, insertError)
+        }
+
         analyzedCount++
-        console.log(`📊 Trade ${trade.id} analysis:`, exitAnalysis.recommendation)
+        console.log(`📊 Trade ${trade.id} analysis: ${exitAnalysis.exitIntelligence.recommendation} (score: ${exitAnalysis.exitIntelligence.overallExitScore.toFixed(1)})`)
 
         // If recommendation is FORCE_EXIT, close the trade
-        if (exitAnalysis.recommendation === 'FORCE_EXIT') {
-          const currentPrice = exitAnalysis.recommended_exit_price || trade.current_price
+        if (exitAnalysis.exitIntelligence.recommendation === 'FORCE_EXIT') {
+          const currentPrice = trade.current_price || trade.entry_price
 
           console.log(`🔴 FORCE EXIT triggered for trade ${trade.id} at ${currentPrice}`)
 
@@ -91,9 +115,9 @@ serve(async (req) => {
               .from('shadow_trades')
               .update({
                 intelligence_exit_triggered: true,
-                exit_confidence: exitAnalysis.confidence,
-                exit_intelligence_score: exitAnalysis.overall_score,
-                exit_reasoning: exitAnalysis.reasoning
+                exit_confidence: exitAnalysis.exitIntelligence.overallExitScore / 100,
+                exit_intelligence_score: exitAnalysis.exitIntelligence.overallExitScore,
+                exit_reasoning: exitAnalysis.exitIntelligence.reasoning
               })
               .eq('id', trade.id)
 
@@ -103,8 +127,8 @@ serve(async (req) => {
             results.push({
               trade_id: trade.id,
               action: 'closed',
-              reason: exitAnalysis.reasoning,
-              confidence: exitAnalysis.confidence,
+              reason: exitAnalysis.exitIntelligence.reasoning,
+              confidence: exitAnalysis.exitIntelligence.overallExitScore / 100,
               pnl: closeResult.pnl
             })
           }
@@ -112,9 +136,9 @@ serve(async (req) => {
           results.push({
             trade_id: trade.id,
             action: 'hold',
-            recommendation: exitAnalysis.recommendation,
-            confidence: exitAnalysis.confidence,
-            score: exitAnalysis.overall_score
+            recommendation: exitAnalysis.exitIntelligence.recommendation,
+            confidence: exitAnalysis.exitIntelligence.overallExitScore / 100,
+            score: exitAnalysis.exitIntelligence.overallExitScore
           })
         }
 
