@@ -10,6 +10,7 @@ import SignalOutcomeTracker from '@/components/SignalOutcomeTracker';
 import ModulePerformanceTracker from '@/components/ModulePerformanceTracker';
 import { TradePerformanceAnalytics } from '@/components/TradePerformanceAnalytics';
 import { TradeIntelligenceWidget } from '@/components/enhanced/TradeIntelligenceWidget';
+import { ExitIntelligenceDashboard } from '@/components/enhanced/ExitIntelligenceDashboard';
 import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 import { DataIntegrityMonitor } from '@/components/DataIntegrityMonitor';
 import { TradeExecutionMonitor } from '@/components/TradeExecutionMonitor';
@@ -63,6 +64,8 @@ const ShadowTrading: React.FC = () => {
                 </CollapsibleContent>
               </Card>
             </Collapsible>
+
+            <ExitIntelligenceDashboard />
 
             {openTrades && openTrades.length > 0 && (
               <TradeIntelligenceWidget tradeId={openTrades[0].id} />
