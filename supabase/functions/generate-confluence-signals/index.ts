@@ -1564,21 +1564,24 @@ function calculateConfidence(factors: ConfluenceFactor[]): number {
 }
 
 function calculateRiskMetrics(entryPrice: number, signal: 'buy' | 'sell') {
-  const riskPercent = 0.015; // 1.5% default risk
-  const rewardRatio = 2; // 2:1 RR
+  // **OPTIMIZED FOR FAST 2-3 USD EXITS**
+  // Using pip-based targets instead of percentage for precise $2-3 profit
+  const pipSize = 0.0001; // EUR/USD pip size
+  const stopLossPips = 20; // 20 pips = $2 risk with 0.01 lot
+  const takeProfitPips = 25; // 25 pips = $2.50 profit with 0.01 lot (optimized for fast exits)
   
   const stopLoss = signal === 'buy' 
-    ? entryPrice * (1 - riskPercent)
-    : entryPrice * (1 + riskPercent);
+    ? entryPrice - (stopLossPips * pipSize)
+    : entryPrice + (stopLossPips * pipSize);
   
   const takeProfit = signal === 'buy'
-    ? entryPrice * (1 + (riskPercent * rewardRatio))
-    : entryPrice * (1 - (riskPercent * rewardRatio));
+    ? entryPrice + (takeProfitPips * pipSize)
+    : entryPrice - (takeProfitPips * pipSize);
   
   return {
     stopLoss: Math.round(stopLoss * 100000) / 100000,
     takeProfit: Math.round(takeProfit * 100000) / 100000,
-    riskReward: rewardRatio
+    riskReward: takeProfitPips / stopLossPips // 1.25:1 RR
   };
 }
 

@@ -353,13 +353,22 @@ function calculateExitIntelligence(
     return score + factors[key as keyof typeof factors] * weights[key as keyof typeof weights];
   }, 0);
 
-  // **EXIT DECISION THRESHOLDS**
+  // **TIME-BASED EXIT OVERRIDE**
+  const holdingMinutes = (Date.now() - new Date(trade.entry_time).getTime()) / 60000;
+  
+  // **EXIT DECISION THRESHOLDS (Aggressive for fast 2-3h exits)**
   let recommendation: 'FORCE_EXIT' | 'HOLD_CAUTION' | 'HOLD_CONFIDENT';
   
-  if (overallExitScore < 30) {
+  // Force exit after 2.5 hours regardless of score
+  if (holdingMinutes >= 150) {
+    recommendation = 'FORCE_EXIT';
+    reasoning += `Trade held ${(holdingMinutes/60).toFixed(1)}h - TIME LIMIT. `;
+  }
+  // Lower threshold for faster exits (was 30, now 40)
+  else if (overallExitScore < 40) {
     recommendation = 'FORCE_EXIT';
     reasoning += 'Multiple factors deteriorating - EXIT NOW.';
-  } else if (overallExitScore < 60) {
+  } else if (overallExitScore < 65) {
     recommendation = 'HOLD_CAUTION';
     reasoning += 'Mixed signals - monitor closely.';
   } else {
