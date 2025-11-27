@@ -72,6 +72,17 @@ serve(async (req) => {
         .update({ exit_check_count: (trade.exit_check_count || 0) + 1 })
         .eq('id', trade.id)
 
+      // **TIME-BASED EXIT: Force close after 3 hours**
+      const entryTime = new Date(trade.entry_time).getTime()
+      const currentTime = Date.now()
+      const holdingHours = (currentTime - entryTime) / (1000 * 60 * 60)
+      
+      if (holdingHours >= 3) {
+        shouldClose = true
+        closeReason = 'max_hold_time_reached'
+        console.log(`⏰ Trade ${trade.id} held for ${holdingHours.toFixed(1)}h - forcing exit`)
+      }
+
       // Check stop loss
       if (trade.stop_loss) {
         if (trade.trade_type === 'buy' && currentPrice <= trade.stop_loss) {
