@@ -611,10 +611,11 @@ serve(async (req) => {
     // ⚡ ATOMIC SIGNAL LOCKING: Use SELECT FOR UPDATE SKIP LOCKED via database function
     console.log('🎯 Atomically locking available signals using SELECT FOR UPDATE SKIP LOCKED...');
     
+    // **FIX #4: Lower confidence threshold to 30% to allow more signals**
     const { data: rawSignals, error: signalsError } = await supabase
       .rpc('atomic_lock_signals', {
         p_limit: signal_id ? 1 : 5,
-        p_min_confluence_score: 8,
+        p_min_confluence_score: 5, // Lowered from 8 to 5
         p_max_age_minutes: 240
       });
     
@@ -680,34 +681,107 @@ serve(async (req) => {
       .maybeSingle();
     
     const qualityThreshold = accountDefaults?.min_signal_quality || 10;
-    console.log(`📊 Quality threshold: ${qualityThreshold}`);
+  console.log(`📊 Quality threshold: ${qualityThreshold}`);
+  console.log(`🎯 Using LOWERED thresholds: Confluence >= 5, Quality >= 5, Confidence >= 30%`);
 
-    const executedTrades = [];
+  const executedTrades = [];
 
     // Execute trades for each locked signal
     for (const signal of signals) {
       console.log(`\n🔒 Processing locked signal ${signal.signal_id.slice(0,8)} (${signal.signal_type.toUpperCase()})...`);
       
-      // **PHASE 5: BASIC VALIDATION BEFORE EXECUTION**
+      // **PHASE 5: PRE-EXECUTION VALIDATION WITH SL/TP CHECKS**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
       
-      // Additional validation: Confluence score >= 12
-      if (signal.confluence_score < 12) {
-        console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} confluence too low: ${signal.confluence_score} < 12`);
+      // **FIX #1: Validate SL/TP direction BEFORE execution**
+      const pipSize = 0.0001;
+      const MIN_SL_PIPS = 15;
+      const MIN_TP_PIPS = 20;
+      const MAX_SL_PIPS = 50; // Maximum 50 pips
+      const MAX_TP_PIPS = 100; // Maximum 100 pips
+      
+      let validationFailed = false;
+      let validationReason = '';
+      
+      if (signal.signal_type === 'buy') {
+        // BUY: SL must be BELOW entry, TP must be ABOVE entry
+        if (signal.stop_loss >= signal.entry_price) {
+          validationFailed = true;
+          validationReason = `BUY signal has inverted SL: ${signal.stop_loss} >= ${signal.entry_price}`;
+        } else if (signal.take_profit <= signal.entry_price) {
+          validationFailed = true;
+          validationReason = `BUY signal has inverted TP: ${signal.take_profit} <= ${signal.entry_price}`;
+        } else {
+          const slPips = (signal.entry_price - signal.stop_loss) / pipSize;
+          const tpPips = (signal.take_profit - signal.entry_price) / pipSize;
+          
+          if (slPips < MIN_SL_PIPS || slPips > MAX_SL_PIPS) {
+            validationFailed = true;
+            validationReason = `BUY signal SL out of range: ${slPips.toFixed(1)} pips (allowed ${MIN_SL_PIPS}-${MAX_SL_PIPS})`;
+          } else if (tpPips < MIN_TP_PIPS || tpPips > MAX_TP_PIPS) {
+            validationFailed = true;
+            validationReason = `BUY signal TP out of range: ${tpPips.toFixed(1)} pips (allowed ${MIN_TP_PIPS}-${MAX_TP_PIPS})`;
+          }
+        }
+      } else {
+        // SELL: SL must be ABOVE entry, TP must be BELOW entry
+        if (signal.stop_loss <= signal.entry_price) {
+          validationFailed = true;
+          validationReason = `SELL signal has inverted SL: ${signal.stop_loss} <= ${signal.entry_price}`;
+        } else if (signal.take_profit >= signal.entry_price) {
+          validationFailed = true;
+          validationReason = `SELL signal has inverted TP: ${signal.take_profit} >= ${signal.entry_price}`;
+        } else {
+          const slPips = (signal.stop_loss - signal.entry_price) / pipSize;
+          const tpPips = (signal.entry_price - signal.take_profit) / pipSize;
+          
+          if (slPips < MIN_SL_PIPS || slPips > MAX_SL_PIPS) {
+            validationFailed = true;
+            validationReason = `SELL signal SL out of range: ${slPips.toFixed(1)} pips (allowed ${MIN_SL_PIPS}-${MAX_SL_PIPS})`;
+          } else if (tpPips < MIN_TP_PIPS || tpPips > MAX_TP_PIPS) {
+            validationFailed = true;
+            validationReason = `SELL signal TP out of range: ${tpPips.toFixed(1)} pips (allowed ${MIN_TP_PIPS}-${MAX_TP_PIPS})`;
+          }
+        }
+      }
+      
+      if (validationFailed) {
+        console.log(`🚫 PRE-EXECUTION VALIDATION FAILED: ${validationReason}`);
+        
+        // Update signal status to rejected with detailed reason
+        await supabase
+          .from('master_signals')
+          .update({ 
+            status: 'rejected',
+            rejection_reason: `PRE-EXECUTION CHECK: ${validationReason}`,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', signal.signal_id);
+        
         continue;
       }
       
-      // **ENHANCED QUALITY VALIDATION**: Use dynamic threshold from account_defaults
+      console.log(`✅ SL/TP validation passed: SL=${signal.stop_loss.toFixed(5)}, TP=${signal.take_profit.toFixed(5)}`);
+      
+      // Additional validation: Confluence score (lowered threshold)
+      if (signal.confluence_score < 5) {
+        console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} confluence too low: ${signal.confluence_score} < 5`);
+        continue;
+      }
+      
+      // **FIX #4: Lower quality threshold to match new confidence requirements**
+      const adjustedQualityThreshold = 5; // Lowered from 10 to 5
+      
       if (signal.signal_quality_score !== null && signal.signal_quality_score !== undefined) {
-        if (signal.signal_quality_score < qualityThreshold) {
-          console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} quality too low: ${signal.signal_quality_score} < ${qualityThreshold}`);
+        if (signal.signal_quality_score < adjustedQualityThreshold) {
+          console.log(`🚫 Signal ${signal.signal_id.slice(0, 8)} quality too low: ${signal.signal_quality_score} < ${adjustedQualityThreshold}`);
           
           // Update signal status to rejected with reason
           await supabase
             .from('master_signals')
             .update({ 
               status: 'rejected',
-              rejection_reason: `Quality score ${signal.signal_quality_score} below minimum ${qualityThreshold}`,
+              rejection_reason: `Quality score ${signal.signal_quality_score} below minimum ${adjustedQualityThreshold}`,
               updated_at: new Date().toISOString()
             })
             .eq('id', signal.signal_id);
@@ -719,7 +793,8 @@ serve(async (req) => {
       }
       
       console.log(`✅ Signal validated for ${signal.pair}:`);
-      console.log(`   Confluence: ${signal.confluence_score}, Quality: ${signal.signal_quality_score || 'N/A'} (threshold: ${qualityThreshold})`);
+      console.log(`   Confluence: ${signal.confluence_score} (min 5), Quality: ${signal.signal_quality_score || 'N/A'} (min 5)`);
+      console.log(`   SL/TP validated: Entry=${signal.entry_price}, SL=${signal.stop_loss.toFixed(5)}, TP=${signal.take_profit.toFixed(5)}`);
       
       for (const portfolio of portfolios) {
         try {
