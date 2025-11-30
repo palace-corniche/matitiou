@@ -1564,7 +1564,7 @@ function calculateConfidence(factors: ConfluenceFactor[]): number {
 }
 
 function calculateRiskMetrics(entryPrice: number, signal: 'buy' | 'sell') {
-  // **OPTIMIZED FOR FAST 2-3 USD EXITS**
+  // **OPTIMIZED FOR FAST 2-3 USD EXITS WITH VALIDATION**
   // Using pip-based targets instead of percentage for precise $2-3 profit
   const pipSize = 0.0001; // EUR/USD pip size
   const stopLossPips = 20; // 20 pips = $2 risk with 0.01 lot
@@ -1583,6 +1583,63 @@ function calculateRiskMetrics(entryPrice: number, signal: 'buy' | 'sell') {
     takeProfit: Math.round(takeProfit * 100000) / 100000,
     riskReward: takeProfitPips / stopLossPips // 1.25:1 RR
   };
+}
+
+/**
+ * CRITICAL VALIDATION: Ensure SL/TP are in correct direction
+ * This prevents inverted signals from being executed
+ */
+function validateSlTpDirection(
+  signal: 'buy' | 'sell',
+  entryPrice: number,
+  stopLoss: number,
+  takeProfit: number
+): { valid: boolean; error?: string } {
+  const pipSize = 0.0001;
+  const MIN_SL_PIPS = 15; // Minimum 15 pips
+  const MIN_TP_PIPS = 20; // Minimum 20 pips
+  
+  if (signal === 'buy') {
+    // BUY: SL must be BELOW entry, TP must be ABOVE entry
+    if (stopLoss >= entryPrice) {
+      return { valid: false, error: `BUY signal has SL (${stopLoss}) >= entry (${entryPrice})` };
+    }
+    if (takeProfit <= entryPrice) {
+      return { valid: false, error: `BUY signal has TP (${takeProfit}) <= entry (${entryPrice})` };
+    }
+    
+    // Check minimum distances
+    const slPips = (entryPrice - stopLoss) / pipSize;
+    const tpPips = (takeProfit - entryPrice) / pipSize;
+    
+    if (slPips < MIN_SL_PIPS) {
+      return { valid: false, error: `BUY signal SL too close: ${slPips.toFixed(1)} pips < ${MIN_SL_PIPS} min` };
+    }
+    if (tpPips < MIN_TP_PIPS) {
+      return { valid: false, error: `BUY signal TP too close: ${tpPips.toFixed(1)} pips < ${MIN_TP_PIPS} min` };
+    }
+  } else {
+    // SELL: SL must be ABOVE entry, TP must be BELOW entry
+    if (stopLoss <= entryPrice) {
+      return { valid: false, error: `SELL signal has SL (${stopLoss}) <= entry (${entryPrice})` };
+    }
+    if (takeProfit >= entryPrice) {
+      return { valid: false, error: `SELL signal has TP (${takeProfit}) >= entry (${entryPrice})` };
+    }
+    
+    // Check minimum distances
+    const slPips = (stopLoss - entryPrice) / pipSize;
+    const tpPips = (entryPrice - takeProfit) / pipSize;
+    
+    if (slPips < MIN_SL_PIPS) {
+      return { valid: false, error: `SELL signal SL too close: ${slPips.toFixed(1)} pips < ${MIN_SL_PIPS} min` };
+    }
+    if (tpPips < MIN_TP_PIPS) {
+      return { valid: false, error: `SELL signal TP too close: ${tpPips.toFixed(1)} pips < ${MIN_TP_PIPS} min` };
+    }
+  }
+  
+  return { valid: true };
 }
 
 // Build complete analysis from all components
@@ -1622,6 +1679,45 @@ function buildCompleteAnalysis(
       }
     };
   }
+  
+  // **CRITICAL: Validate SL/TP direction BEFORE creating signal**
+  const slTpValidation = validateSlTpDirection(
+    fusionResults.signal,
+    fusionResults.entryPrice,
+    fusionResults.stopLoss,
+    fusionResults.takeProfit
+  );
+  
+  if (!slTpValidation.valid) {
+    console.error(`🚫 SL/TP VALIDATION FAILED: ${slTpValidation.error}`);
+    return {
+      success: false,
+      timestamp,
+      pair,
+      timeframe,
+      rejectionReason: `Invalid SL/TP: ${slTpValidation.error}`,
+      modularResults,
+      fusionResults: fusionResults || null,
+      diagnostics,
+      performanceMetrics: {
+        processingTimeMs: diagnostics.processingTime,
+        activeModules: modularResults.activeModules,
+        totalSignals: modularResults.totalSignals
+      },
+      qualityIndicators: {
+        dataQuality: diagnostics.dataQuality || 0,
+        signalDiversity: diagnostics.signalDiversity || 0,
+        confidence: 0
+      },
+      recommendation: {
+        action: 'WAIT',
+        reasoning: `Signal rejected: ${slTpValidation.error}`,
+        nextActions: ['Fix signal generation logic', 'Check SL/TP calculation']
+      }
+    };
+  }
+  
+  console.log(`✅ SL/TP validation passed for ${fusionResults.signal.toUpperCase()} signal`);
   
   // Build master signal
   const masterSignal: MasterSignal = {

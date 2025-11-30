@@ -191,14 +191,14 @@ function calculateTargets(params: any): IntelligentTargets {
     // Use strongest level below entry (buy) or above entry (sell)
     const bestSL = slCandidates
       .sort((a, b) => Math.abs(a.distance) - Math.abs(b.distance))
-      .find(l => l.distance > 15 && l.distance < 50); // 15-50 pips range
+      .find(l => l.distance > 15 && l.distance < 35); // **TIGHTENED: 15-35 pips range for faster exits**
     
-    stopLoss = bestSL?.price || (isBuy ? entryPrice - (25 * 0.0001) : entryPrice + (25 * 0.0001));
+    stopLoss = bestSL?.price || (isBuy ? entryPrice - (20 * 0.0001) : entryPrice + (20 * 0.0001)); // **DEFAULT: 20 pips**
   } else {
-    stopLoss = isBuy ? entryPrice - (25 * 0.0001) : entryPrice + (25 * 0.0001);
+    stopLoss = isBuy ? entryPrice - (20 * 0.0001) : entryPrice + (20 * 0.0001); // **DEFAULT: 20 pips**
   }
   
-  // Calculate optimal TP levels (profit zones)
+  // Calculate optimal TP levels (profit zones) - **OPTIMIZED FOR FAST 2-3 USD EXITS**
   const tpCandidates = relevantLevels.filter(l => 
     isBuy ? l.price > entryPrice : l.price < entryPrice
   );
@@ -206,20 +206,19 @@ function calculateTargets(params: any): IntelligentTargets {
   let tp1: number, tp2: number, tp3: number;
   
   if (tpCandidates.length >= 3) {
-    // Use strongest levels
+    // Use strongest levels - **TIGHTENED: 20-80 pip range for faster exits**
     const sorted = tpCandidates
-      .filter(l => l.distance > 20 && l.distance < 300)
+      .filter(l => l.distance > 20 && l.distance < 80) // **REDUCED: Max 80 pips instead of 300**
       .sort((a, b) => a.distance - b.distance);
     
-    tp1 = sorted[0]?.price || (isBuy ? entryPrice + (40 * 0.0001) : entryPrice - (40 * 0.0001));
-    tp2 = sorted[Math.floor(sorted.length / 2)]?.price || (isBuy ? entryPrice + (80 * 0.0001) : entryPrice - (80 * 0.0001));
-    tp3 = sorted[sorted.length - 1]?.price || (isBuy ? entryPrice + (150 * 0.0001) : entryPrice - (150 * 0.0001));
+    tp1 = sorted[0]?.price || (isBuy ? entryPrice + (25 * 0.0001) : entryPrice - (25 * 0.0001)); // **DEFAULT: 25 pips**
+    tp2 = sorted[Math.floor(sorted.length / 2)]?.price || (isBuy ? entryPrice + (40 * 0.0001) : entryPrice - (40 * 0.0001));
+    tp3 = sorted[sorted.length - 1]?.price || (isBuy ? entryPrice + (60 * 0.0001) : entryPrice - (60 * 0.0001));
   } else {
-    // Fallback to R:R based targets
-    const riskPips = Math.abs(entryPrice - stopLoss) / 0.0001;
-    tp1 = isBuy ? entryPrice + (riskPips * 1.5 * 0.0001) : entryPrice - (riskPips * 1.5 * 0.0001);
-    tp2 = isBuy ? entryPrice + (riskPips * 2.5 * 0.0001) : entryPrice - (riskPips * 2.5 * 0.0001);
-    tp3 = isBuy ? entryPrice + (riskPips * 4.0 * 0.0001) : entryPrice - (riskPips * 4.0 * 0.0001);
+    // Fallback to fixed pip targets for fast $2-3 exits
+    tp1 = isBuy ? entryPrice + (25 * 0.0001) : entryPrice - (25 * 0.0001); // **25 pips = $2.50 with 0.01 lot**
+    tp2 = isBuy ? entryPrice + (40 * 0.0001) : entryPrice - (40 * 0.0001); // 40 pips
+    tp3 = isBuy ? entryPrice + (60 * 0.0001) : entryPrice - (60 * 0.0001); // 60 pips
   }
   
   // Build reasoning
