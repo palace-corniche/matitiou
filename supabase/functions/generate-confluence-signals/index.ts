@@ -647,9 +647,9 @@ serve(async (req) => {
             console.error('⚠️ Failed to store master signal data:', storageError);
           }
 
-          // Trigger trade execution for high-quality master signals
-          if (signalAnalysis.masterSignal.confidence >= 0.75) {
-            console.log('🚀 Triggering trade execution for high-quality master signal');
+          // Trigger trade execution for ALL valid master signals (lowered from 0.75 to 0.20)
+          if (signalAnalysis.masterSignal.confidence >= 0.20) {
+            console.log('🚀 Triggering trade execution for master signal (confidence >= 20%)');
             
             try {
               const { data: executeResult } = await supabase.functions.invoke('execute-shadow-trades', {

@@ -31,14 +31,14 @@ const ShadowTrading: React.FC = () => {
         description="Virtual portfolio performance tracking with real-time execution monitoring"
         icon={Target}
       />
-      <div className="container mx-auto px-6 py-6">
-        <Tabs defaultValue="trading" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="trading">Shadow Trading</TabsTrigger>
-            <TabsTrigger value="signals">Master Signals</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="modules">Modules</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
+        <div className="container mx-auto px-2 py-2 sm:px-6 sm:py-6">
+        <Tabs defaultValue="trading" className="space-y-4 sm:space-y-6">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5 h-auto">
+            <TabsTrigger value="trading" className="text-xs sm:text-sm px-1 sm:px-3">Trading</TabsTrigger>
+            <TabsTrigger value="signals" className="text-xs sm:text-sm px-1 sm:px-3">Signals</TabsTrigger>
+            <TabsTrigger value="performance" className="text-xs sm:text-sm px-1 sm:px-3">Performance</TabsTrigger>
+            <TabsTrigger value="modules" className="text-xs sm:text-sm px-1 sm:px-3">Modules</TabsTrigger>
+            <TabsTrigger value="analytics" className="text-xs sm:text-sm px-1 sm:px-3">Analytics</TabsTrigger>
           </TabsList>
           
           <TabsContent value="trading" className="space-y-6">
