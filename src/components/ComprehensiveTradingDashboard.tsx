@@ -111,19 +111,19 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </div>
       </div>;
   }
-  return <div className="min-h-screen bg-background p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+  return <div className="min-h-screen bg-background p-2 sm:p-4">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-foreground">Advanced Trading Analysis</h1>
-            {confluenceSignal && <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'}>
-                {confluenceSignal.alertLevel.toUpperCase()} CONFLUENCE
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <h1 className="text-lg sm:text-3xl font-bold text-foreground truncate">Advanced Trading Analysis</h1>
+            {confluenceSignal && <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'} className="shrink-0">
+                {confluenceSignal.alertLevel.toUpperCase()}
               </Badge>}
           </div>
-          <Button onClick={analyzeMarket} disabled={loading} className="flex items-center gap-2">
+          <Button onClick={analyzeMarket} disabled={loading} size="sm" className="flex items-center gap-2 shrink-0">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Analyzing...' : 'Refresh Analysis'}
+            {loading ? 'Analyzing...' : 'Refresh'}
           </Button>
         </div>
       {/* Main Signal Card */}
