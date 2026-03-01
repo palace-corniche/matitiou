@@ -111,19 +111,19 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </div>
       </div>;
   }
-  return <div className="min-h-screen bg-background p-4">
-      <div className="max-w-7xl mx-auto space-y-6">
+  return <div className="min-h-screen bg-background p-2 sm:p-4">
+      <div className="max-w-7xl mx-auto space-y-4 sm:space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <h1 className="text-3xl font-bold text-foreground">Advanced Trading Analysis</h1>
-            {confluenceSignal && <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'}>
-                {confluenceSignal.alertLevel.toUpperCase()} CONFLUENCE
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <h1 className="text-lg sm:text-3xl font-bold text-foreground truncate">Advanced Trading Analysis</h1>
+            {confluenceSignal && <Badge variant={confluenceSignal.alertLevel === 'high' || confluenceSignal.alertLevel === 'extreme' ? 'default' : 'secondary'} className="shrink-0">
+                {confluenceSignal.alertLevel.toUpperCase()}
               </Badge>}
           </div>
-          <Button onClick={analyzeMarket} disabled={loading} className="flex items-center gap-2">
+          <Button onClick={analyzeMarket} disabled={loading} size="sm" className="flex items-center gap-2 shrink-0">
             <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
-            {loading ? 'Analyzing...' : 'Refresh Analysis'}
+            {loading ? 'Analyzing...' : 'Refresh'}
           </Button>
         </div>
       {/* Main Signal Card */}
@@ -141,11 +141,11 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </Card>}
 
       <Tabs defaultValue="confluence" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="confluence">Confluence Factors</TabsTrigger>
-          <TabsTrigger value="sentiment">Market Sentiment</TabsTrigger>
-          <TabsTrigger value="risk">Risk Assessment</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced Analysis</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="confluence" className="text-xs sm:text-sm">Confluence</TabsTrigger>
+          <TabsTrigger value="sentiment" className="text-xs sm:text-sm">Sentiment</TabsTrigger>
+          <TabsTrigger value="risk" className="text-xs sm:text-sm">Risk</TabsTrigger>
+          <TabsTrigger value="advanced" className="text-xs sm:text-sm">Advanced</TabsTrigger>
         </TabsList>
 
         <TabsContent value="confluence">
@@ -154,14 +154,14 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <CardTitle>Confluence Factors</CardTitle>
             </CardHeader>
             <CardContent>
-              {confluenceSignal?.factors.map((factor, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg mb-2">
-                  <div>
-                    <div className="font-medium">{factor.name}</div>
-                    <div className="text-sm text-muted-foreground">{factor.description}</div>
+              {confluenceSignal?.factors.map((factor, index) => <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 border rounded-lg mb-2 gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm sm:text-base truncate">{factor.name}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{factor.description}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Weight: {factor.weight}</Badge>
-                    <Badge variant="outline">Strength: {factor.strength}</Badge>
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    <Badge variant="outline" className="text-xs">W:{factor.weight}</Badge>
+                    <Badge variant="outline" className="text-xs">S:{factor.strength}</Badge>
                     {getSignalIcon(factor.signal)}
                   </div>
                 </div>)}

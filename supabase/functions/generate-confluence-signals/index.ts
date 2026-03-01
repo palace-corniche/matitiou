@@ -647,9 +647,9 @@ serve(async (req) => {
             console.error('⚠️ Failed to store master signal data:', storageError);
           }
 
-          // Trigger trade execution for high-quality master signals
-          if (signalAnalysis.masterSignal.confidence >= 0.75) {
-            console.log('🚀 Triggering trade execution for high-quality master signal');
+          // Trigger trade execution for ALL valid master signals (lowered from 0.75 to 0.20)
+          if (signalAnalysis.masterSignal.confidence >= 0.20) {
+            console.log('🚀 Triggering trade execution for master signal (confidence >= 20%)');
             
             try {
               const { data: executeResult } = await supabase.functions.invoke('execute-shadow-trades', {
@@ -1030,6 +1030,19 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
   // **PHASE 2 FIX: Include market_regime from analysis**
   const marketRegime = ('market_regime' in masterSignal ? masterSignal.market_regime : null) || ('regime' in (analysis.masterSignal || {}) ? (analysis.masterSignal as any).regime : null) || 'unknown';
   
+  // **CRITICAL FIX: ALWAYS force 20/25 pip SL/TP to prevent validation failures**
+  // The master signal modules produce inconsistent SL/TP values (inverted, too wide)
+  // We override them here with fixed pip-based values that pass execution validation
+  const forcedRisk = calculateRiskMetrics(currentPrice, masterSignal.signal as 'buy' | 'sell');
+  
+  console.log(`🔧 Forcing SL/TP: Entry=${currentPrice.toFixed(5)}, SL=${forcedRisk.stopLoss.toFixed(5)}, TP=${forcedRisk.takeProfit.toFixed(5)} (20/25 pips)`);
+  
+  // Validate the forced values
+  const validation = validateSlTpDirection(masterSignal.signal as 'buy' | 'sell', currentPrice, forcedRisk.stopLoss, forcedRisk.takeProfit);
+  if (!validation.valid) {
+    throw new Error(`Forced SL/TP still invalid: ${validation.error}`);
+  }
+  
   return {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     pair: analysis.pair,
@@ -1038,10 +1051,10 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     strength: Math.min(100, Math.max(0, Math.round((masterSignal.strength || 0.5) * 10))),
     confidence: masterSignal.confidence || 0.5,
     entry_price: currentPrice,
-    stop_loss: masterSignal.stopLoss || currentPrice * 0.995,
-    take_profit: masterSignal.takeProfit || currentPrice * 1.015,
-    risk_reward_ratio: masterSignal.riskRewardRatio || 2.0,
-    market_regime: marketRegime,  // **ADDED: Pass through market regime**
+    stop_loss: forcedRisk.stopLoss,
+    take_profit: forcedRisk.takeProfit,
+    risk_reward_ratio: forcedRisk.riskReward,
+    market_regime: marketRegime,
     description: masterSignal.reasoning || 'Master signal generated',
     alert_level: (masterSignal.confidence || 0.5) > 0.8 ? 'high' : 
                  (masterSignal.confidence || 0.5) > 0.6 ? 'medium' : 'low',

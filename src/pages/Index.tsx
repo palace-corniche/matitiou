@@ -51,7 +51,7 @@ const Index = () => {
         icon={BarChart3}
       />
       <Toaster />
-      <div className="container mx-auto px-6 py-6">
+      <div className="container mx-auto px-2 py-2 sm:px-6 sm:py-6">
         <ComprehensiveTradingDashboard data={chartData} pair="EUR/USD" />
       </div>
     </>
