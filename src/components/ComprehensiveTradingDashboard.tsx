@@ -141,11 +141,11 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
         </Card>}
 
       <Tabs defaultValue="confluence" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="confluence">Confluence Factors</TabsTrigger>
-          <TabsTrigger value="sentiment">Market Sentiment</TabsTrigger>
-          <TabsTrigger value="risk">Risk Assessment</TabsTrigger>
-          <TabsTrigger value="advanced">Advanced Analysis</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto">
+          <TabsTrigger value="confluence" className="text-xs sm:text-sm">Confluence</TabsTrigger>
+          <TabsTrigger value="sentiment" className="text-xs sm:text-sm">Sentiment</TabsTrigger>
+          <TabsTrigger value="risk" className="text-xs sm:text-sm">Risk</TabsTrigger>
+          <TabsTrigger value="advanced" className="text-xs sm:text-sm">Advanced</TabsTrigger>
         </TabsList>
 
         <TabsContent value="confluence">
