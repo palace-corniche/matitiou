@@ -154,14 +154,14 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <CardTitle>Confluence Factors</CardTitle>
             </CardHeader>
             <CardContent>
-              {confluenceSignal?.factors.map((factor, index) => <div key={index} className="flex items-center justify-between p-3 border rounded-lg mb-2">
-                  <div>
-                    <div className="font-medium">{factor.name}</div>
-                    <div className="text-sm text-muted-foreground">{factor.description}</div>
+              {confluenceSignal?.factors.map((factor, index) => <div key={index} className="flex flex-col sm:flex-row sm:items-center justify-between p-2 sm:p-3 border rounded-lg mb-2 gap-2">
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm sm:text-base truncate">{factor.name}</div>
+                    <div className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{factor.description}</div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">Weight: {factor.weight}</Badge>
-                    <Badge variant="outline">Strength: {factor.strength}</Badge>
+                  <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+                    <Badge variant="outline" className="text-xs">W:{factor.weight}</Badge>
+                    <Badge variant="outline" className="text-xs">S:{factor.strength}</Badge>
                     {getSignalIcon(factor.signal)}
                   </div>
                 </div>)}
