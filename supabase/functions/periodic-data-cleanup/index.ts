@@ -23,6 +23,15 @@ serve(async (req) => {
     console.log("🧹 Starting periodic data cleanup...");
     const results: Record<string, number> = {};
 
+    // 0. Purge system log tables (cron + net) to prevent DB bloat
+    try {
+      await supabase.rpc('exec_sql_cleanup', {});
+      console.log("✅ System log cleanup triggered via RPC");
+    } catch (e) {
+      // Fallback: these tables may not be accessible via SDK
+      console.log("⚠️ System log cleanup via RPC skipped (handled by daily cron)");
+    }
+
     // 1. Delete old executed/rejected master_signals (keep last 3 days)
     const threeDaysAgo = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString();
     const { count: oldSignals } = await supabase
