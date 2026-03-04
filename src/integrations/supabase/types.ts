@@ -936,11 +936,14 @@ export type Database = {
           max_drawdown: number | null
           module_id: string
           module_name: string | null
+          recent_performance: Json | null
           reliability: number | null
           sharpe_ratio: number | null
           signals_generated: number | null
+          status: string | null
           successful_signals: number | null
           total_signals: number | null
+          trend: string | null
           win_rate: number | null
         }
         Insert: {
@@ -954,11 +957,14 @@ export type Database = {
           max_drawdown?: number | null
           module_id: string
           module_name?: string | null
+          recent_performance?: Json | null
           reliability?: number | null
           sharpe_ratio?: number | null
           signals_generated?: number | null
+          status?: string | null
           successful_signals?: number | null
           total_signals?: number | null
+          trend?: string | null
           win_rate?: number | null
         }
         Update: {
@@ -972,11 +978,14 @@ export type Database = {
           max_drawdown?: number | null
           module_id?: string
           module_name?: string | null
+          recent_performance?: Json | null
           reliability?: number | null
           sharpe_ratio?: number | null
           signals_generated?: number | null
+          status?: string | null
           successful_signals?: number | null
           total_signals?: number | null
+          trend?: string | null
           win_rate?: number | null
         }
         Relationships: []
