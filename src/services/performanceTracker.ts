@@ -150,6 +150,7 @@ export class PerformanceTracker {
     await supabase
       .from('module_performance')
       .insert({
+        module_id: moduleId,
         module_name: moduleId,
         signals_generated: 1,
         successful_signals: outcome.success ? 1 : 0,
