@@ -1,0 +1,2 @@
+
+ALTER TABLE public.tick_data ADD COLUMN IF NOT EXISTS tick_volume NUMERIC DEFAULT 0;

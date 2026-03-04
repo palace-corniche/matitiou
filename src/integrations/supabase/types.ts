@@ -1292,6 +1292,7 @@ export type Database = {
           source: string | null
           spread: number | null
           symbol: string
+          tick_volume: number | null
           timestamp: string
           volume: number | null
         }
@@ -1306,6 +1307,7 @@ export type Database = {
           source?: string | null
           spread?: number | null
           symbol?: string
+          tick_volume?: number | null
           timestamp?: string
           volume?: number | null
         }
@@ -1320,6 +1322,7 @@ export type Database = {
           source?: string | null
           spread?: number | null
           symbol?: string
+          tick_volume?: number | null
           timestamp?: string
           volume?: number | null
         }
