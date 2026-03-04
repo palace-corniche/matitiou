@@ -102,32 +102,44 @@ export type Database = {
         Row: {
           confidence: number | null
           created_at: string
+          deployed: boolean | null
           description: string | null
           frequency: number | null
           id: string
           is_active: boolean | null
           parameters: Json | null
+          pattern_name: string | null
           pattern_type: string
+          sample_size: number | null
+          win_rate: number | null
         }
         Insert: {
           confidence?: number | null
           created_at?: string
+          deployed?: boolean | null
           description?: string | null
           frequency?: number | null
           id?: string
           is_active?: boolean | null
           parameters?: Json | null
+          pattern_name?: string | null
           pattern_type: string
+          sample_size?: number | null
+          win_rate?: number | null
         }
         Update: {
           confidence?: number | null
           created_at?: string
+          deployed?: boolean | null
           description?: string | null
           frequency?: number | null
           id?: string
           is_active?: boolean | null
           parameters?: Json | null
+          pattern_name?: string | null
           pattern_type?: string
+          sample_size?: number | null
+          win_rate?: number | null
         }
         Relationships: []
       }
@@ -332,6 +344,8 @@ export type Database = {
           module: string | null
           parameters: Json | null
           result: Json | null
+          success: boolean | null
+          trigger_reason: string | null
         }
         Insert: {
           action_type: string
@@ -342,6 +356,8 @@ export type Database = {
           module?: string | null
           parameters?: Json | null
           result?: Json | null
+          success?: boolean | null
+          trigger_reason?: string | null
         }
         Update: {
           action_type?: string
@@ -352,6 +368,8 @@ export type Database = {
           module?: string | null
           parameters?: Json | null
           result?: Json | null
+          success?: boolean | null
+          trigger_reason?: string | null
         }
         Relationships: []
       }
@@ -507,33 +525,57 @@ export type Database = {
       }
       master_signals_fusion: {
         Row: {
+          analysis_id: string | null
           confidence: number | null
+          confidence_score: number | null
+          contributing_signals: Json | null
           created_at: string
+          fusion_details: Json | null
           fusion_method: string | null
           id: string
           input_signals: Json | null
           master_signal_id: string | null
           result: Json | null
+          signal_type: string | null
+          symbol: string | null
+          timeframe: string | null
+          weighted_score: number | null
           weights: Json | null
         }
         Insert: {
+          analysis_id?: string | null
           confidence?: number | null
+          confidence_score?: number | null
+          contributing_signals?: Json | null
           created_at?: string
+          fusion_details?: Json | null
           fusion_method?: string | null
           id?: string
           input_signals?: Json | null
           master_signal_id?: string | null
           result?: Json | null
+          signal_type?: string | null
+          symbol?: string | null
+          timeframe?: string | null
+          weighted_score?: number | null
           weights?: Json | null
         }
         Update: {
+          analysis_id?: string | null
           confidence?: number | null
+          confidence_score?: number | null
+          contributing_signals?: Json | null
           created_at?: string
+          fusion_details?: Json | null
           fusion_method?: string | null
           id?: string
           input_signals?: Json | null
           master_signal_id?: string | null
           result?: Json | null
+          signal_type?: string | null
+          symbol?: string | null
+          timeframe?: string | null
+          weighted_score?: number | null
           weights?: Json | null
         }
         Relationships: [
@@ -813,6 +855,8 @@ export type Database = {
           pnl: number | null
           portfolio_id: string | null
           position_size: number | null
+          price_source: string | null
+          profit: number | null
           profit_pips: number | null
           signal_id: string | null
           status: string
@@ -844,6 +888,8 @@ export type Database = {
           pnl?: number | null
           portfolio_id?: string | null
           position_size?: number | null
+          price_source?: string | null
+          profit?: number | null
           profit_pips?: number | null
           signal_id?: string | null
           status?: string
@@ -875,6 +921,8 @@ export type Database = {
           pnl?: number | null
           portfolio_id?: string | null
           position_size?: number | null
+          price_source?: string | null
+          profit?: number | null
           profit_pips?: number | null
           signal_id?: string | null
           status?: string
@@ -994,6 +1042,7 @@ export type Database = {
           ask: number | null
           bid: number | null
           id: string
+          is_live: boolean | null
           price: number | null
           session_type: string | null
           source: string | null
@@ -1006,6 +1055,7 @@ export type Database = {
           ask?: number | null
           bid?: number | null
           id?: string
+          is_live?: boolean | null
           price?: number | null
           session_type?: string | null
           source?: string | null
@@ -1018,6 +1068,7 @@ export type Database = {
           ask?: number | null
           bid?: number | null
           id?: string
+          is_live?: boolean | null
           price?: number | null
           session_type?: string | null
           source?: string | null
@@ -1057,49 +1108,70 @@ export type Database = {
       }
       trading_signals: {
         Row: {
+          alert_level: string | null
           confidence: number | null
+          confluence_score: number | null
           created_at: string
+          description: string | null
           entry_price: number | null
+          factors: Json | null
           id: string
           lot_size: number | null
           metadata: Json | null
           outcome: string | null
+          pair: string | null
           pnl: number | null
+          risk_reward_ratio: number | null
           signal_id: string | null
           signal_type: string | null
           stop_loss: number | null
+          strength: number | null
           symbol: string | null
           take_profit: number | null
           was_executed: boolean | null
         }
         Insert: {
+          alert_level?: string | null
           confidence?: number | null
+          confluence_score?: number | null
           created_at?: string
+          description?: string | null
           entry_price?: number | null
+          factors?: Json | null
           id?: string
           lot_size?: number | null
           metadata?: Json | null
           outcome?: string | null
+          pair?: string | null
           pnl?: number | null
+          risk_reward_ratio?: number | null
           signal_id?: string | null
           signal_type?: string | null
           stop_loss?: number | null
+          strength?: number | null
           symbol?: string | null
           take_profit?: number | null
           was_executed?: boolean | null
         }
         Update: {
+          alert_level?: string | null
           confidence?: number | null
+          confluence_score?: number | null
           created_at?: string
+          description?: string | null
           entry_price?: number | null
+          factors?: Json | null
           id?: string
           lot_size?: number | null
           metadata?: Json | null
           outcome?: string | null
+          pair?: string | null
           pnl?: number | null
+          risk_reward_ratio?: number | null
           signal_id?: string | null
           signal_type?: string | null
           stop_loss?: number | null
+          strength?: number | null
           symbol?: string | null
           take_profit?: number | null
           was_executed?: boolean | null
