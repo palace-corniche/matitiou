@@ -445,10 +445,13 @@ export type Database = {
       intelligent_targets: {
         Row: {
           actual_sl: number | null
+          actual_tp: number | null
           confidence: number | null
           created_at: string | null
+          entry_price: number | null
           factors: Json | null
           id: string
+          key_levels: Json | null
           market_context: Json | null
           reasoning: string | null
           recommended_tp1: number | null
@@ -462,10 +465,13 @@ export type Database = {
         }
         Insert: {
           actual_sl?: number | null
+          actual_tp?: number | null
           confidence?: number | null
           created_at?: string | null
+          entry_price?: number | null
           factors?: Json | null
           id?: string
+          key_levels?: Json | null
           market_context?: Json | null
           reasoning?: string | null
           recommended_tp1?: number | null
@@ -479,10 +485,13 @@ export type Database = {
         }
         Update: {
           actual_sl?: number | null
+          actual_tp?: number | null
           confidence?: number | null
           created_at?: string | null
+          entry_price?: number | null
           factors?: Json | null
           id?: string
+          key_levels?: Json | null
           market_context?: Json | null
           reasoning?: string | null
           recommended_tp1?: number | null
@@ -1354,8 +1363,11 @@ export type Database = {
           average_loss: number | null
           average_win: number | null
           avg_loss_amount: number | null
+          avg_loss_pips: number | null
+          avg_trade_duration_hours: number | null
           avg_trade_duration_minutes: number | null
           avg_win_amount: number | null
+          avg_win_pips: number | null
           best_trade: Json | null
           created_at: string | null
           id: string
@@ -1370,6 +1382,7 @@ export type Database = {
           total_open_trades: number | null
           total_pnl: number | null
           total_realized_pnl: number | null
+          total_unrealized_pnl: number | null
           updated_at: string | null
           win_rate: number | null
           win_rate_percent: number | null
@@ -1380,8 +1393,11 @@ export type Database = {
           average_loss?: number | null
           average_win?: number | null
           avg_loss_amount?: number | null
+          avg_loss_pips?: number | null
+          avg_trade_duration_hours?: number | null
           avg_trade_duration_minutes?: number | null
           avg_win_amount?: number | null
+          avg_win_pips?: number | null
           best_trade?: Json | null
           created_at?: string | null
           id?: string
@@ -1396,6 +1412,7 @@ export type Database = {
           total_open_trades?: number | null
           total_pnl?: number | null
           total_realized_pnl?: number | null
+          total_unrealized_pnl?: number | null
           updated_at?: string | null
           win_rate?: number | null
           win_rate_percent?: number | null
@@ -1406,8 +1423,11 @@ export type Database = {
           average_loss?: number | null
           average_win?: number | null
           avg_loss_amount?: number | null
+          avg_loss_pips?: number | null
+          avg_trade_duration_hours?: number | null
           avg_trade_duration_minutes?: number | null
           avg_win_amount?: number | null
+          avg_win_pips?: number | null
           best_trade?: Json | null
           created_at?: string | null
           id?: string
@@ -1422,6 +1442,7 @@ export type Database = {
           total_open_trades?: number | null
           total_pnl?: number | null
           total_realized_pnl?: number | null
+          total_unrealized_pnl?: number | null
           updated_at?: string | null
           win_rate?: number | null
           win_rate_percent?: number | null
