@@ -232,135 +232,34 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         </div>
       </div>
 
-        {/* Enhanced Action buttons */}
-        <div className="flex flex-wrap gap-4 items-center">
-          <div className="flex gap-2">
-            <Button 
-              onClick={refreshData}
-              variant="outline"
-              disabled={isRefreshing}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              {isRefreshing ? <RefreshCw className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-              Refresh Data
-            </Button>
-            
-            <Button 
-              onClick={toggleAutoTrading}
-              variant={account?.auto_trading_enabled ? "default" : "outline"}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              {account?.auto_trading_enabled ? <Zap className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
-              {account?.auto_trading_enabled ? "Auto ON" : "Auto OFF"}
-            </Button>
-          </div>
-
-          <Separator orientation="vertical" className="h-6" />
-
-          <div className="flex items-center gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Badge variant={marketData ? "default" : "secondary"} className="flex items-center gap-1">
-                <Wifi className="h-3 w-3" />
-                {marketData ? "Connected" : "Disconnected"}
-              </Badge>
-            </div>
-            
-            <div className="text-muted-foreground">
-              Last update: {new Date().toLocaleTimeString()}
-            </div>
-          </div>
-
-          <div className="ml-auto">
-            <Button 
-              onClick={async () => {
-                // Enhanced confirmation with current data stats
-                const currentStats = {
-                  trades: openTrades?.length || 0,
-                  history: tradeHistory?.length || 0,
-                  balance: account?.balance || 0
-                };
-                
-                const confirmed = window.confirm(
-                  `⚠️ COMPLETE ACCOUNT RESET ⚠️\n\n` +
-                  `Current Status:\n` +
-                  `• Open Trades: ${currentStats.trades}\n` +
-                  `• Trade History: ${currentStats.history} records\n` +
-                  `• Account Balance: $${currentStats.balance.toFixed(2)}\n\n` +
-                  `This will:\n` +
-                  `• Delete ALL open positions\n` +
-                  `• Clear ALL trade history\n` +
-                  `• Reset balance to $100\n` +
-                  `• Reset all metrics to zero\n\n` +
-                  `This action cannot be undone!\n\n` +
-                  `Continue with reset?`
-                );
-                
-                if (confirmed) {
-                  try {
-                    await resetAccount();
-                    
-                    // Phase 4: Enhanced post-reset validation and feedback
-                    setTimeout(async () => {
-                      try {
-                        // Validate reset was successful
-                        const validation = await validateResetCompletion();
-                        
-                        if (validation.success) {
-                          toast({
-                            title: "✅ Account Reset Complete",
-                            description: `${validation.message}\n• Balance: $${validation.stats.accountBalance.toFixed(2)}\n• Trades: ${validation.stats.tradesCount}\n• History: ${validation.stats.historyCount}`,
-                          });
-                        } else {
-                          toast({
-                            variant: "destructive",
-                            title: "⚠️ Reset Incomplete",
-                            description: `Validation failed:\n${validation.errors.join('\n')}`,
-                          });
-                        }
-                      } catch (error) {
-                        console.error('Post-reset validation failed:', error);
-                        toast({
-                          variant: "destructive",
-                          title: "Validation Error",
-                          description: "Could not verify reset completion",
-                        });
-                      }
-                    }, 2000);
-                    
-                  } catch (error) {
-                    console.error('Reset failed:', error);
-                    toast({
-                      variant: "destructive",
-                      title: "Reset Failed",
-                      description: "Failed to reset account. Please try again or check console for details.",
-                    });
-                  }
-                }
-              }}
-              variant="destructive"
-              disabled={isResetting}
-              size="sm"
-              className="flex items-center gap-2"
-            >
-              {isResetting ? <RefreshCw className="h-4 w-4 animate-spin" /> : <AlertCircle className="h-4 w-4" />}
-              {isResetting ? 'Resetting & Validating...' : 'Reset Account'}
-            </Button>
-          </div>
-        </div>
-
-        {/* Enhanced Main content tabs */}
-        <Tabs defaultValue="overview" className="space-y-8">
-          <TabsList className="grid w-full grid-cols-6 h-12">
-            <TabsTrigger value="overview" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
+        {/* Main content tabs */}
+        <Tabs defaultValue="positions" className="space-y-4">
+          <TabsList className="inline-flex h-9 gap-1 bg-muted/50 p-1 rounded-lg">
+            <TabsTrigger value="positions" className="text-xs px-3 gap-1.5">
+              <Activity className="h-3.5 w-3.5" />
+              Positions ({openPositionsCount})
+            </TabsTrigger>
+            <TabsTrigger value="history" className="text-xs px-3 gap-1.5">
+              <Clock className="h-3.5 w-3.5" />
+              History
+            </TabsTrigger>
+            <TabsTrigger value="trading" className="text-xs px-3 gap-1.5">
+              <Zap className="h-3.5 w-3.5" />
+              Trade
+            </TabsTrigger>
+            <TabsTrigger value="overview" className="text-xs px-3 gap-1.5">
+              <BarChart3 className="h-3.5 w-3.5" />
               Overview
             </TabsTrigger>
-            <TabsTrigger value="trading" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              Trading
+            <TabsTrigger value="ml-analytics" className="text-xs px-3 gap-1.5">
+              <Brain className="h-3.5 w-3.5" />
+              ML
             </TabsTrigger>
+            <TabsTrigger value="account" className="text-xs px-3 gap-1.5">
+              <Settings className="h-3.5 w-3.5" />
+              Account
+            </TabsTrigger>
+          </TabsList>
             <TabsTrigger value="positions" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Positions ({openPositionsCount})
