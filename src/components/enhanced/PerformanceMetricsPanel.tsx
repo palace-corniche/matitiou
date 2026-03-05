@@ -59,7 +59,7 @@ export const PerformanceMetricsPanel: React.FC<PerformanceMetricsPanelProps> = (
     account.margin_level || 0
   );
   const dailyPnL = account.floating_pnl || 0;
-  const totalReturn = ((account.balance - 100) / 100) * 100;
+  const totalReturn = ((account.balance - 100000) / 100000) * 100;
   const marginUtilization = ((account.used_margin || 0) / (account.balance || 1)) * 100;
 
   return (

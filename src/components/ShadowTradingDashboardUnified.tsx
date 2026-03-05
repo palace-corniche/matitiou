@@ -147,7 +147,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
   }
 
   const dailyPnL = account?.floating_pnl || 0;
-  const totalReturn = account ? ((account.balance - 100) / 100) * 100 : 0;
+  const totalReturn = account ? ((account.balance - 100000) / 100000) * 100 : 0;
   const marginLevel = account?.margin_level || 0;
   const openPositionsCount = openTrades.length;
 
