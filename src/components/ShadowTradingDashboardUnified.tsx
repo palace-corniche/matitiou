@@ -769,7 +769,6 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             <ResetValidationPanel />
           </TabsContent>
         </Tabs>
-      </div>
     </div>
   );
 };
