@@ -1773,6 +1773,20 @@ export type Database = {
         }
         Returns: Json
       }
+      execute_global_shadow_trade: {
+        Args: {
+          p_comment?: string
+          p_entry_price: number
+          p_lot_size: number
+          p_master_signal_id?: string
+          p_signal_id?: string
+          p_stop_loss: number
+          p_symbol: string
+          p_take_profit: number
+          p_trade_type: string
+        }
+        Returns: string
+      }
       get_global_trading_account: {
         Args: never
         Returns: {
