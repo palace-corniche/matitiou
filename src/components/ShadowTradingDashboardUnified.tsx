@@ -164,173 +164,73 @@ const ShadowTradingDashboardUnified: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20">
-      <div className="container mx-auto px-4 py-6 space-y-8">
-        {/* Enhanced Header with comprehensive stats */}
-        <div className="space-y-6">
-          {/* Main Account Overview */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-l-4 border-l-primary shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Account Balance</p>
-                    <div className="text-3xl font-bold text-primary">
-                      ${account?.balance?.toFixed(2) || '0.00'}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Peak: ${account?.peak_balance?.toFixed(2) || '0.00'}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-primary/10">
-                    <DollarSign className="h-6 w-6 text-primary" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+    <div className="space-y-4">
+      {/* Compact Account Overview */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <Card className="border-l-4 border-l-primary">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Balance</p>
+            <div className="text-xl font-bold font-mono">${account?.balance?.toFixed(2) || '0.00'}</div>
+            <p className="text-[10px] text-muted-foreground">Peak: ${account?.peak_balance?.toFixed(2) || '0.00'}</p>
+          </CardContent>
+        </Card>
 
-            <Card className="border-l-4 border-l-blue-500 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Current Equity</p>
-                    <div className="text-3xl font-bold">
-                      ${account?.equity?.toFixed(2) || '0.00'}
-                    </div>
-                    <p className={`text-xs mt-1 ${getPnLColor(dailyPnL)}`}>
-                      Today: {dailyPnL >= 0 ? '+' : ''}${dailyPnL.toFixed(2)}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-blue-100">
-                    <TrendingUp className="h-6 w-6 text-blue-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="border-l-4 border-l-blue-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Equity</p>
+            <div className="text-xl font-bold font-mono">${account?.equity?.toFixed(2) || '0.00'}</div>
+            <p className={`text-[10px] ${getPnLColor(dailyPnL)}`}>
+              Floating: {dailyPnL >= 0 ? '+' : ''}${dailyPnL.toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
 
-            <Card className="border-l-4 border-l-purple-500 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Total Return</p>
-                    <div className={`text-3xl font-bold ${getPnLColor(totalReturn)}`}>
-                      {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(2)}%
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Since inception
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-purple-100">
-                    <BarChart3 className="h-6 w-6 text-purple-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <Card className="border-l-4 border-l-emerald-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Win Rate</p>
+            <div className="text-xl font-bold font-mono">{(account?.win_rate || 0).toFixed(1)}%</div>
+            <p className="text-[10px] text-muted-foreground">
+              {account?.winning_trades || 0}W / {account?.losing_trades || 0}L
+            </p>
+          </CardContent>
+        </Card>
 
-            <Card className="border-l-4 border-l-orange-500 shadow-lg">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground">Margin Level</p>
-                    <div className={`text-3xl font-bold ${getMarginColor(marginLevel)}`}>
-                      {marginLevel.toFixed(0)}%
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Free: ${account?.free_margin?.toFixed(2) || '0.00'}
-                    </p>
-                  </div>
-                  <div className="p-3 rounded-full bg-orange-100">
-                    <Shield className="h-6 w-6 text-orange-600" />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
+        <Card className="border-l-4 border-l-amber-500">
+          <CardContent className="p-4">
+            <p className="text-xs font-medium text-muted-foreground">Return</p>
+            <div className={`text-xl font-bold font-mono ${getPnLColor(totalReturn)}`}>
+              {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(3)}%
+            </div>
+            <p className="text-[10px] text-muted-foreground">
+              {account?.total_trades || 0} trades | PF: {(account?.profit_factor || 0).toFixed(2)}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
 
-          {/* Secondary Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold">{openPositionsCount}</div>
-                <div className="text-xs text-muted-foreground">Open Positions</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold">{account?.total_trades || 0}</div>
-                <div className="text-xs text-muted-foreground">Total Trades</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold text-primary">{(account?.win_rate || 0).toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground">Win Rate</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold">{(account?.profit_factor || 0).toFixed(2)}</div>
-                <div className="text-xs text-muted-foreground">Profit Factor</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold text-red-600">{(account?.max_drawdown || 0).toFixed(1)}%</div>
-                <div className="text-xs text-muted-foreground">Max Drawdown</div>
-              </CardContent>
-            </Card>
-
-            <Card className="bg-muted/30">
-              <CardContent className="p-4 text-center">
-                <div className="text-lg font-bold font-mono">{marketData?.price?.toFixed(5) || 'Loading...'}</div>
-                <div className="text-xs text-muted-foreground">EUR/USD</div>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* ML Model Status Card */}
-          <Card className="border-l-4 border-l-cyan-500">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">ML Exit Model</p>
-                  <div className="text-2xl font-bold text-cyan-600">
-                    {mlModelStatus.version || 'Not Trained'}
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {mlModelStatus.trainingStatus === 'training' ? (
-                      <span className="flex items-center gap-1">
-                        <RefreshCw className="h-3 w-3 animate-spin" />
-                        Training in progress...
-                      </span>
-                    ) : mlModelStatus.lastTrainedDays !== null ? (
-                      `Last trained: ${mlModelStatus.lastTrainedDays}d ago`
-                    ) : (
-                      `Waiting for 20 closed trades (${mlModelStatus.closedTradesCount}/20)`
-                    )}
-                  </p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <Badge variant={mlModelStatus.isActive ? 'default' : 'secondary'}>
-                      {mlModelStatus.isActive ? 'Active' : 'Inactive'}
-                    </Badge>
-                    {mlModelStatus.autoTrainingEnabled && (
-                      <Badge variant="outline" className="text-xs">
-                        Auto-Training ON
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-                <div className="p-3 rounded-full bg-cyan-100">
-                  <Brain className="h-6 w-6 text-cyan-600" />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Compact Stats Bar */}
+      <div className="flex flex-wrap items-center gap-2 px-1">
+        <Badge variant={marketData ? "default" : "secondary"} className="text-[10px] gap-1">
+          <Wifi className="h-2.5 w-2.5" />
+          {marketData ? "Live" : "Offline"}
+        </Badge>
+        <span className="text-xs font-mono text-muted-foreground">
+          EUR/USD {marketData?.price?.toFixed(5) || '—'}
+        </span>
+        <span className="text-xs text-muted-foreground">|</span>
+        <span className="text-xs text-muted-foreground">
+          {openPositionsCount} open | Margin: {marginLevel.toFixed(0)}% | Free: ${(account?.free_margin || 0).toFixed(0)}
+        </span>
+        <div className="ml-auto flex gap-1.5">
+          <Button onClick={refreshData} variant="ghost" size="sm" disabled={isRefreshing} className="h-7 px-2 text-xs">
+            {isRefreshing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+          </Button>
+          <Button onClick={toggleAutoTrading} variant={account?.auto_trading_enabled ? "default" : "ghost"} size="sm" className="h-7 px-2 text-xs gap-1">
+            <Zap className="h-3 w-3" />
+            {account?.auto_trading_enabled ? "Auto ON" : "Auto OFF"}
+          </Button>
         </div>
+      </div>
 
         {/* Enhanced Action buttons */}
         <div className="flex flex-wrap gap-4 items-center">
