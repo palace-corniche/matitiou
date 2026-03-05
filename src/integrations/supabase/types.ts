@@ -14,46 +14,91 @@ export type Database = {
   }
   public: {
     Tables: {
+      account_defaults: {
+        Row: {
+          created_at: string | null
+          id: string
+          max_position_size: number | null
+          min_signal_quality: number | null
+          portfolio_id: string
+          risk_per_trade: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          max_position_size?: number | null
+          min_signal_quality?: number | null
+          portfolio_id: string
+          risk_per_trade?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          max_position_size?: number | null
+          min_signal_quality?: number | null
+          portfolio_id?: string
+          risk_per_trade?: number | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       adaptive_thresholds: {
         Row: {
           confidence_adaptive: number | null
           confluence_adaptive: number | null
+          confluence_min: number | null
           created_at: string | null
           current_value: number | null
+          edge_adaptive: number | null
+          edge_min: number | null
           entropy_current: number | null
           entropy_max: number | null
           entropy_min: number | null
           id: string
           max_value: number | null
           min_value: number | null
+          probability_buy: number | null
+          probability_sell: number | null
           threshold_name: string
           updated_at: string | null
         }
         Insert: {
           confidence_adaptive?: number | null
           confluence_adaptive?: number | null
+          confluence_min?: number | null
           created_at?: string | null
           current_value?: number | null
+          edge_adaptive?: number | null
+          edge_min?: number | null
           entropy_current?: number | null
           entropy_max?: number | null
           entropy_min?: number | null
           id?: string
           max_value?: number | null
           min_value?: number | null
+          probability_buy?: number | null
+          probability_sell?: number | null
           threshold_name: string
           updated_at?: string | null
         }
         Update: {
           confidence_adaptive?: number | null
           confluence_adaptive?: number | null
+          confluence_min?: number | null
           created_at?: string | null
           current_value?: number | null
+          edge_adaptive?: number | null
+          edge_min?: number | null
           entropy_current?: number | null
           entropy_max?: number | null
           entropy_min?: number | null
           id?: string
           max_value?: number | null
           min_value?: number | null
+          probability_buy?: number | null
+          probability_sell?: number | null
           threshold_name?: string
           updated_at?: string | null
         }
@@ -61,13 +106,13 @@ export type Database = {
       }
       aggregated_candles: {
         Row: {
-          close: number
+          close_price: number
           created_at: string
-          high: number
+          high_price: number
           id: string
           is_complete: boolean | null
-          low: number
-          open: number
+          low_price: number
+          open_price: number
           symbol: string
           tick_count: number | null
           timeframe: string
@@ -75,13 +120,13 @@ export type Database = {
           volume: number | null
         }
         Insert: {
-          close: number
+          close_price: number
           created_at?: string
-          high: number
+          high_price: number
           id?: string
           is_complete?: boolean | null
-          low: number
-          open: number
+          low_price: number
+          open_price: number
           symbol?: string
           tick_count?: number | null
           timeframe: string
@@ -89,18 +134,48 @@ export type Database = {
           volume?: number | null
         }
         Update: {
-          close?: number
+          close_price?: number
           created_at?: string
-          high?: number
+          high_price?: number
           id?: string
           is_complete?: boolean | null
-          low?: number
-          open?: number
+          low_price?: number
+          open_price?: number
           symbol?: string
           tick_count?: number | null
           timeframe?: string
           timestamp?: string
           volume?: number | null
+        }
+        Relationships: []
+      }
+      correlations: {
+        Row: {
+          calculated_at: string | null
+          correlation_coefficient: number | null
+          id: string
+          metadata: Json | null
+          sample_size: number | null
+          symbol_pair: string
+          timeframe: string | null
+        }
+        Insert: {
+          calculated_at?: string | null
+          correlation_coefficient?: number | null
+          id?: string
+          metadata?: Json | null
+          sample_size?: number | null
+          symbol_pair: string
+          timeframe?: string | null
+        }
+        Update: {
+          calculated_at?: string | null
+          correlation_coefficient?: number | null
+          id?: string
+          metadata?: Json | null
+          sample_size?: number | null
+          symbol_pair?: string
+          timeframe?: string | null
         }
         Relationships: []
       }
@@ -282,6 +357,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      function_execution_locks: {
+        Row: {
+          function_name: string
+          id: string
+          lock_id: string | null
+          locked_at: string
+        }
+        Insert: {
+          function_name: string
+          id?: string
+          lock_id?: string | null
+          locked_at?: string
+        }
+        Update: {
+          function_name?: string
+          id?: string
+          lock_id?: string | null
+          locked_at?: string
+        }
+        Relationships: []
       }
       global_trading_account: {
         Row: {
@@ -632,6 +728,7 @@ export type Database = {
           fusion_parameters: Json | null
           id: string
           market_data_snapshot: Json | null
+          market_regime: string | null
           modular_signal_ids: string[] | null
           recommended_entry: number | null
           recommended_lot_size: number | null
@@ -640,6 +737,7 @@ export type Database = {
           rejection_reason: string | null
           risk_reward_ratio: number | null
           signal_hash: string | null
+          signal_quality_score: number | null
           signal_type: string | null
           status: string | null
           symbol: string
@@ -658,6 +756,7 @@ export type Database = {
           fusion_parameters?: Json | null
           id?: string
           market_data_snapshot?: Json | null
+          market_regime?: string | null
           modular_signal_ids?: string[] | null
           recommended_entry?: number | null
           recommended_lot_size?: number | null
@@ -666,6 +765,7 @@ export type Database = {
           rejection_reason?: string | null
           risk_reward_ratio?: number | null
           signal_hash?: string | null
+          signal_quality_score?: number | null
           signal_type?: string | null
           status?: string | null
           symbol?: string
@@ -684,6 +784,7 @@ export type Database = {
           fusion_parameters?: Json | null
           id?: string
           market_data_snapshot?: Json | null
+          market_regime?: string | null
           modular_signal_ids?: string[] | null
           recommended_entry?: number | null
           recommended_lot_size?: number | null
@@ -692,6 +793,7 @@ export type Database = {
           rejection_reason?: string | null
           risk_reward_ratio?: number | null
           signal_hash?: string | null
+          signal_quality_score?: number | null
           signal_type?: string | null
           status?: string | null
           symbol?: string
@@ -1075,6 +1177,7 @@ export type Database = {
           entry_price: number
           entry_time: string
           execution_timestamp: string | null
+          exit_check_count: number | null
           exit_intelligence_score: number | null
           exit_price: number | null
           exit_reason: string | null
@@ -1112,6 +1215,7 @@ export type Database = {
           entry_price: number
           entry_time?: string
           execution_timestamp?: string | null
+          exit_check_count?: number | null
           exit_intelligence_score?: number | null
           exit_price?: number | null
           exit_reason?: string | null
@@ -1149,6 +1253,7 @@ export type Database = {
           entry_price?: number
           entry_time?: string
           execution_timestamp?: string | null
+          exit_check_count?: number | null
           exit_intelligence_score?: number | null
           exit_price?: number | null
           exit_reason?: string | null
@@ -1189,25 +1294,52 @@ export type Database = {
       }
       signal_rejection_logs: {
         Row: {
+          confluence_score: number | null
           created_at: string
           details: Json | null
+          entropy: number | null
+          factors_count: number | null
           id: string
+          market_regime: string | null
+          net_edge: number | null
+          probability: number | null
           reason: string
           signal_id: string | null
+          signal_type: string | null
+          threshold: number | null
+          value: number | null
         }
         Insert: {
+          confluence_score?: number | null
           created_at?: string
           details?: Json | null
+          entropy?: number | null
+          factors_count?: number | null
           id?: string
+          market_regime?: string | null
+          net_edge?: number | null
+          probability?: number | null
           reason: string
           signal_id?: string | null
+          signal_type?: string | null
+          threshold?: number | null
+          value?: number | null
         }
         Update: {
+          confluence_score?: number | null
           created_at?: string
           details?: Json | null
+          entropy?: number | null
+          factors_count?: number | null
           id?: string
+          market_regime?: string | null
+          net_edge?: number | null
+          probability?: number | null
           reason?: string
           signal_id?: string | null
+          signal_type?: string | null
+          threshold?: number | null
+          value?: number | null
         }
         Relationships: []
       }
@@ -1583,6 +1715,47 @@ export type Database = {
     }
     Functions: {
       analyze_trade_performance: { Args: never; Returns: Json }
+      atomic_lock_signals: {
+        Args: {
+          p_limit?: number
+          p_max_age_minutes?: number
+          p_min_confluence_score?: number
+        }
+        Returns: {
+          actual_outcome: string | null
+          analysis_id: string | null
+          confluence_score: number | null
+          contributing_modules: string[] | null
+          created_at: string
+          final_confidence: number | null
+          final_strength: number | null
+          fusion_algorithm: string | null
+          fusion_parameters: Json | null
+          id: string
+          market_data_snapshot: Json | null
+          market_regime: string | null
+          modular_signal_ids: string[] | null
+          recommended_entry: number | null
+          recommended_lot_size: number | null
+          recommended_stop_loss: number | null
+          recommended_take_profit: number | null
+          rejection_reason: string | null
+          risk_reward_ratio: number | null
+          signal_hash: string | null
+          signal_quality_score: number | null
+          signal_type: string | null
+          status: string | null
+          symbol: string
+          timeframe: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "master_signals"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       calculate_optimal_lot_size: {
         Args: {
           p_account_balance: number
@@ -1599,6 +1772,20 @@ export type Database = {
           p_trade_id: string
         }
         Returns: Json
+      }
+      execute_global_shadow_trade: {
+        Args: {
+          p_comment?: string
+          p_entry_price: number
+          p_lot_size: number
+          p_master_signal_id?: string
+          p_signal_id?: string
+          p_stop_loss: number
+          p_symbol: string
+          p_take_profit: number
+          p_trade_type: string
+        }
+        Returns: string
       }
       get_global_trading_account: {
         Args: never
