@@ -5,7 +5,6 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
 import { useToast } from '@/hooks/use-toast';
@@ -13,7 +12,6 @@ import { useGlobalShadowTrading } from '@/hooks/useGlobalShadowTrading';
 import { globalShadowTradingEngine } from '@/services/globalShadowTradingEngine';
 import { useMLModel } from '@/hooks/useMLModel';
 
-// Enhanced Components
 import { PerformanceMetricsPanel } from '@/components/enhanced/PerformanceMetricsPanel';
 import { PositionsTable } from '@/components/enhanced/PositionsTable';
 import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
@@ -21,127 +19,37 @@ import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
 import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
 import { ExitIntelligenceStatus } from '@/components/enhanced/ExitIntelligenceStatus';
 
-// Global Shadow Trading Dashboard - Professional trading interface
 import {
-  Activity,
-  TrendingUp,
-  TrendingDown,
-  DollarSign,
-  Target,
-  AlertCircle,
-  Zap,
-  Wifi,
-  PlayCircle,
-  Square,
-  RefreshCw,
-  Settings,
-  BarChart3,
-  PieChart,
-  LineChart,
-  Users,
-  Shield,
-  Clock,
-  Percent,
-  Brain
+  Activity, TrendingUp, DollarSign, Target, AlertCircle, Zap, Wifi,
+  RefreshCw, Settings, BarChart3, Clock, Shield, Brain
 } from 'lucide-react';
 
 const ShadowTradingDashboardUnified: React.FC = () => {
   const {
-    // State
-    account,
-    openTrades,
-    tradeHistory,
-    performanceMetrics,
-    marketData,
-    
-    // Loading states
-    isLoading,
-    isExecutingTrade,
-    isClosingTrade,
-    isRefreshing,
-    isResetting,
-    error,
-    
-    // Actions
-    executeTrade,
-    closeTrade,
-    resetAccount,
-    refreshData,
-    
-    // Settings
-    toggleAutoTrading,
-    updateMaxOpenTrades,
-    
-    // Analytics
-    calculateOptimalLotSize,
-    
-    // Phase 4: Validation
-    validateResetCompletion
+    account, openTrades, tradeHistory, performanceMetrics, marketData,
+    isLoading, isExecutingTrade, isClosingTrade, isRefreshing, isResetting, error,
+    executeTrade, closeTrade, resetAccount, refreshData,
+    toggleAutoTrading, updateMaxOpenTrades, calculateOptimalLotSize, validateResetCompletion
   } = useGlobalShadowTrading();
 
   const { toast } = useToast();
-
-  // ML Model hook
-  const {
-    mlModelStatus,
-    mlPerformance,
-    mlAnalytics,
-    isTrainingML,
-    triggerMLTraining,
-    refreshMLData
-  } = useMLModel();
-
-  // Local state for UI
-  const [quickTradeData, setQuickTradeData] = useState({
-    tradeType: 'buy' as 'buy' | 'sell',
-    lotSize: 0.01,
-    symbol: 'EUR/USD',
-    comment: ''
-  });
-
+  const { mlModelStatus, mlPerformance, mlAnalytics, isTrainingML, triggerMLTraining } = useMLModel();
   const [maxTradesInput, setMaxTradesInput] = useState(account?.max_open_positions || 50);
-
-  // Quick trade execution
-  const handleQuickTrade = async () => {
-    if (isExecutingTrade) return;
-    
-    try {
-      await executeTrade({
-        symbol: 'EUR/USD',
-        trade_type: quickTradeData.tradeType,
-        lot_size: quickTradeData.lotSize,
-        entry_price: undefined, // Let engine fetch fresh price from market_data_feed
-        comment: `Quick ${quickTradeData.tradeType} trade`
-      });
-    } catch (error) {
-      console.error('Quick trade failed:', error);
-    }
-  };
-
-  // Handle max trades update
-  const handleMaxTradesUpdate = async () => {
-    await updateMaxOpenTrades(maxTradesInput);
-  };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto" />
-          <p>Loading Global Trading System...</p>
-        </div>
+      <div className="flex items-center justify-center py-20">
+        <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <AlertCircle className="h-8 w-8 text-destructive mx-auto" />
-          <p className="text-destructive">{error}</p>
-          <Button onClick={refreshData}>Try Again</Button>
-        </div>
+      <div className="flex flex-col items-center justify-center py-20 gap-3">
+        <AlertCircle className="h-6 w-6 text-destructive" />
+        <p className="text-sm text-destructive">{error}</p>
+        <Button onClick={refreshData} size="sm">Retry</Button>
       </div>
     );
   }
@@ -152,29 +60,42 @@ const ShadowTradingDashboardUnified: React.FC = () => {
   const openPositionsCount = openTrades.length;
 
   const getPnLColor = (value: number) => {
-    if (value > 0) return "text-green-600";
-    if (value < 0) return "text-red-600";
+    if (value > 0) return "text-emerald-500";
+    if (value < 0) return "text-red-500";
     return "text-muted-foreground";
   };
 
-  const getMarginColor = (level: number) => {
-    if (level >= 200) return "text-green-600";
-    if (level >= 100) return "text-yellow-600";
-    return "text-red-600";
+  const handleReset = async () => {
+    const confirmed = window.confirm(
+      `⚠️ RESET ACCOUNT?\n\nBalance: $${(account?.balance || 0).toFixed(2)}\nOpen: ${openTrades.length} trades\n\nThis deletes everything and resets to $100,000.`
+    );
+    if (!confirmed) return;
+    try {
+      await resetAccount();
+      setTimeout(async () => {
+        const v = await validateResetCompletion();
+        toast({
+          title: v.success ? "✅ Reset Complete" : "⚠️ Reset Incomplete",
+          description: v.message,
+          variant: v.success ? undefined : "destructive",
+        });
+      }, 2000);
+    } catch {
+      toast({ variant: "destructive", title: "Reset Failed" });
+    }
   };
 
   return (
     <div className="space-y-4">
-      {/* Compact Account Overview */}
+      {/* Account Overview - Compact Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-l-4 border-l-primary">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Balance</p>
             <div className="text-xl font-bold font-mono">${account?.balance?.toFixed(2) || '0.00'}</div>
-            <p className="text-[10px] text-muted-foreground">Peak: ${account?.peak_balance?.toFixed(2) || '0.00'}</p>
+            <p className="text-[10px] text-muted-foreground">Peak: ${account?.peak_balance?.toFixed(2)}</p>
           </CardContent>
         </Card>
-
         <Card className="border-l-4 border-l-blue-500">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Equity</p>
@@ -184,7 +105,6 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             </p>
           </CardContent>
         </Card>
-
         <Card className="border-l-4 border-l-emerald-500">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Win Rate</p>
@@ -194,7 +114,6 @@ const ShadowTradingDashboardUnified: React.FC = () => {
             </p>
           </CardContent>
         </Card>
-
         <Card className="border-l-4 border-l-amber-500">
           <CardContent className="p-4">
             <p className="text-xs font-medium text-muted-foreground">Return</p>
@@ -208,7 +127,7 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         </Card>
       </div>
 
-      {/* Compact Stats Bar */}
+      {/* Status Bar */}
       <div className="flex flex-wrap items-center gap-2 px-1">
         <Badge variant={marketData ? "default" : "secondary"} className="text-[10px] gap-1">
           <Wifi className="h-2.5 w-2.5" />
@@ -217,13 +136,13 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         <span className="text-xs font-mono text-muted-foreground">
           EUR/USD {marketData?.price?.toFixed(5) || '—'}
         </span>
-        <span className="text-xs text-muted-foreground">|</span>
+        <span className="text-xs text-muted-foreground">·</span>
         <span className="text-xs text-muted-foreground">
-          {openPositionsCount} open | Margin: {marginLevel.toFixed(0)}% | Free: ${(account?.free_margin || 0).toFixed(0)}
+          {openPositionsCount} open · Margin: {marginLevel.toFixed(0)}% · Free: ${(account?.free_margin || 0).toFixed(0)}
         </span>
         <div className="ml-auto flex gap-1.5">
           <Button onClick={refreshData} variant="ghost" size="sm" disabled={isRefreshing} className="h-7 px-2 text-xs">
-            {isRefreshing ? <RefreshCw className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
+            <RefreshCw className={`h-3 w-3 ${isRefreshing ? 'animate-spin' : ''}`} />
           </Button>
           <Button onClick={toggleAutoTrading} variant={account?.auto_trading_enabled ? "default" : "ghost"} size="sm" className="h-7 px-2 text-xs gap-1">
             <Zap className="h-3 w-3" />
@@ -232,442 +151,251 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         </div>
       </div>
 
-        {/* Main content tabs */}
-        <Tabs defaultValue="positions" className="space-y-4">
-          <TabsList className="inline-flex h-9 gap-1 bg-muted/50 p-1 rounded-lg">
-            <TabsTrigger value="positions" className="text-xs px-3 gap-1.5">
-              <Activity className="h-3.5 w-3.5" />
-              Positions ({openPositionsCount})
-            </TabsTrigger>
-            <TabsTrigger value="history" className="text-xs px-3 gap-1.5">
-              <Clock className="h-3.5 w-3.5" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="trading" className="text-xs px-3 gap-1.5">
-              <Zap className="h-3.5 w-3.5" />
-              Trade
-            </TabsTrigger>
-            <TabsTrigger value="overview" className="text-xs px-3 gap-1.5">
-              <BarChart3 className="h-3.5 w-3.5" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="ml-analytics" className="text-xs px-3 gap-1.5">
-              <Brain className="h-3.5 w-3.5" />
-              ML
-            </TabsTrigger>
-            <TabsTrigger value="account" className="text-xs px-3 gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
-              Account
-            </TabsTrigger>
-          </TabsList>
-            <TabsTrigger value="positions" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Positions ({openPositionsCount})
-            </TabsTrigger>
-            <TabsTrigger value="history" className="flex items-center gap-2">
-              <Clock className="h-4 w-4" />
-              History
-            </TabsTrigger>
-            <TabsTrigger value="ml-analytics" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              ML Analytics
-            </TabsTrigger>
-            <TabsTrigger value="account" className="flex items-center gap-2">
-              <Settings className="h-4 w-4" />
-              Account
-            </TabsTrigger>
-          </TabsList>
+      {/* Main Tabs */}
+      <Tabs defaultValue="positions" className="space-y-4">
+        <TabsList className="inline-flex h-9 gap-1 bg-muted/50 p-1 rounded-lg">
+          <TabsTrigger value="positions" className="text-xs px-3 gap-1.5">
+            <Activity className="h-3.5 w-3.5" />
+            Positions ({openPositionsCount})
+          </TabsTrigger>
+          <TabsTrigger value="history" className="text-xs px-3 gap-1.5">
+            <Clock className="h-3.5 w-3.5" />
+            History
+          </TabsTrigger>
+          <TabsTrigger value="trading" className="text-xs px-3 gap-1.5">
+            <Zap className="h-3.5 w-3.5" />
+            Trade
+          </TabsTrigger>
+          <TabsTrigger value="overview" className="text-xs px-3 gap-1.5">
+            <BarChart3 className="h-3.5 w-3.5" />
+            Overview
+          </TabsTrigger>
+          <TabsTrigger value="ml-analytics" className="text-xs px-3 gap-1.5">
+            <Brain className="h-3.5 w-3.5" />
+            ML
+          </TabsTrigger>
+          <TabsTrigger value="account" className="text-xs px-3 gap-1.5">
+            <Settings className="h-3.5 w-3.5" />
+            Account
+          </TabsTrigger>
+        </TabsList>
 
-          <TabsContent value="overview" className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <PerformanceMetricsPanel 
-                account={account}
-                performanceMetrics={performanceMetrics}
-              />
-              <ExitIntelligenceStatus />
-            </div>
-          </TabsContent>
+        {/* Positions */}
+        <TabsContent value="positions">
+          <PositionsTable
+            openTrades={openTrades}
+            isClosingTrade={isClosingTrade}
+            onCloseTrade={async (tradeId) => { await closeTrade(tradeId); }}
+          />
+        </TabsContent>
 
-          <TabsContent value="trading" className="space-y-8">
-            <TradingControlPanel
-              marketData={marketData}
-              isExecutingTrade={isExecutingTrade}
-              onExecuteTrade={async (request) => {
-                await executeTrade(request);
-              }}
-              onCalculateOptimalLotSize={calculateOptimalLotSize}
-            />
+        {/* History */}
+        <TabsContent value="history">
+          <TradeHistoryTable tradeHistory={tradeHistory} />
+        </TabsContent>
 
-            {/* Market Data Overview */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5" />
-                    Market Overview
-                  </CardTitle>
-                  <CardDescription>Real-time market information</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-sm text-muted-foreground">Bid Price</p>
-                        <p className="text-2xl font-mono font-bold">{marketData?.bid?.toFixed(5) || '1.17000'}</p>
-                      </div>
-                      <div className="text-center p-4 bg-muted/30 rounded-lg">
-                        <p className="text-sm text-muted-foreground">Ask Price</p>
-                        <p className="text-2xl font-mono font-bold">{marketData?.ask?.toFixed(5) || '1.17005'}</p>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div className="flex justify-between">
-                        <span>Spread:</span>
-                        <span className="font-mono">{marketData?.spread?.toFixed(1) || '1.5'} pips</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Last Update:</span>
-                        <span>{new Date().toLocaleTimeString()}</span>
-                      </div>
-                    </div>
+        {/* Trading */}
+        <TabsContent value="trading" className="space-y-4">
+          <TradingControlPanel
+            marketData={marketData}
+            isExecutingTrade={isExecutingTrade}
+            onExecuteTrade={async (request) => { await executeTrade(request); }}
+            onCalculateOptimalLotSize={calculateOptimalLotSize}
+          />
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Target className="h-4 w-4" />
+                  Market Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 bg-muted/30 rounded-lg">
+                    <p className="text-xs text-muted-foreground">Bid</p>
+                    <p className="text-lg font-mono font-bold">{marketData?.bid?.toFixed(5) || '—'}</p>
                   </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Quick Stats
-                  </CardTitle>
-                  <CardDescription>Current session summary</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="text-center p-3 bg-muted/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Open Trades</p>
-                      <p className="text-xl font-bold">{openPositionsCount}</p>
-                    </div>
-                    <div className="text-center p-3 bg-muted/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Used Margin</p>
-                      <p className="text-xl font-bold">${(account?.used_margin || 0).toFixed(0)}</p>
-                    </div>
-                    <div className="text-center p-3 bg-muted/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Free Margin</p>
-                      <p className="text-xl font-bold">${(account?.free_margin || 0).toFixed(0)}</p>
-                    </div>
-                    <div className="text-center p-3 bg-muted/30 rounded-lg">
-                      <p className="text-sm text-muted-foreground">Margin Level</p>
-                      <p className={`text-xl font-bold ${getMarginColor(marginLevel)}`}>
-                        {marginLevel.toFixed(0)}%
-                      </p>
-                    </div>
+                  <div className="text-center p-3 bg-muted/30 rounded-lg">
+                    <p className="text-xs text-muted-foreground">Ask</p>
+                    <p className="text-lg font-mono font-bold">{marketData?.ask?.toFixed(5) || '—'}</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
+                </div>
+                <div className="flex justify-between text-xs text-muted-foreground mt-3">
+                  <span>Spread: {marketData?.spread?.toFixed(1) || '—'} pips</span>
+                  <span>{new Date().toLocaleTimeString()}</span>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Activity className="h-4 w-4" />
+                  Quick Stats
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="text-center p-3 bg-muted/30 rounded-lg">
+                    <p className="text-xs text-muted-foreground">Used Margin</p>
+                    <p className="text-lg font-bold font-mono">${(account?.used_margin || 0).toFixed(0)}</p>
+                  </div>
+                  <div className="text-center p-3 bg-muted/30 rounded-lg">
+                    <p className="text-xs text-muted-foreground">Free Margin</p>
+                    <p className="text-lg font-bold font-mono">${(account?.free_margin || 0).toFixed(0)}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-          <TabsContent value="positions" className="space-y-8">
-            <PositionsTable
-              openTrades={openTrades}
-              isClosingTrade={isClosingTrade}
-              onCloseTrade={async (tradeId) => {
-                await closeTrade(tradeId);
-              }}
-            />
-          </TabsContent>
+        {/* Overview */}
+        <TabsContent value="overview">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <PerformanceMetricsPanel account={account} performanceMetrics={performanceMetrics} />
+            <ExitIntelligenceStatus />
+          </div>
+        </TabsContent>
 
-          <TabsContent value="history" className="space-y-8">
-            <TradeHistoryTable tradeHistory={tradeHistory} />
-          </TabsContent>
-
-          <TabsContent value="ml-analytics" className="space-y-8">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Performance Comparison Card */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>ML vs Traditional Exits</CardTitle>
-                  <CardDescription>Performance comparison (Last 30 days)</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {mlAnalytics.comparison.length > 0 ? (
-                    <div className="space-y-4">
-                      {mlAnalytics.comparison.map((row, idx) => (
-                        <div key={idx} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <p className="font-medium">{row.metric}</p>
-                            <div className="flex items-center gap-4 mt-2 text-sm">
-                              <div>
-                                <span className="text-muted-foreground">ML: </span>
-                                <span className="font-bold text-cyan-600">{row.ml}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground">Traditional: </span>
-                                <span className="font-medium">{row.traditional}</span>
-                              </div>
-                            </div>
-                          </div>
-                          <div className={`text-lg font-bold ${
-                            row.improvement > 0 ? 'text-green-600' : row.improvement < 0 ? 'text-red-600' : 'text-muted-foreground'
-                          }`}>
-                            {row.improvement > 0 ? '+' : ''}{row.improvement.toFixed(1)}%
+        {/* ML Analytics */}
+        <TabsContent value="ml-analytics" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">ML vs Traditional Exits</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {mlAnalytics.comparison.length > 0 ? (
+                  <div className="space-y-3">
+                    {mlAnalytics.comparison.map((row, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-2 border rounded-lg text-sm">
+                        <div>
+                          <p className="font-medium">{row.metric}</p>
+                          <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+                            <span>ML: <strong className="text-foreground">{row.ml}</strong></span>
+                            <span>Trad: <strong className="text-foreground">{row.traditional}</strong></span>
                           </div>
                         </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No ML exit data yet</p>
-                      <p className="text-sm">Train a model to see performance comparisons</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Model Version History */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Model Version Performance</CardTitle>
-                  <CardDescription>Historical model accuracy</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {mlAnalytics.versions.length > 0 ? (
-                    <ScrollArea className="h-[300px]">
-                      {mlAnalytics.versions.map((version, idx) => (
-                        <div key={idx} className="mb-4 p-3 border rounded-lg">
-                          <div className="flex justify-between items-center mb-2">
-                            <span className="font-mono text-sm">{version.version}</span>
-                            <Badge variant={version.status === 'Active' ? 'default' : 'secondary'}>
-                              {version.status}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 gap-2 text-sm">
-                            <div>
-                              <p className="text-muted-foreground">Trained:</p>
-                              <p className="font-medium">{version.trained_date}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Win Rate:</p>
-                              <p className="font-medium">{version.win_rate.toFixed(1)}%</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Trades:</p>
-                              <p className="font-medium">{version.trades_executed}</p>
-                            </div>
-                            <div>
-                              <p className="text-muted-foreground">Avg Profit:</p>
-                              <p className="font-medium">{version.avg_profit.toFixed(2)} pips</p>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </ScrollArea>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <RefreshCw className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No model versions yet</p>
-                      <p className="text-sm">Models will appear here after training</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Exit Timing Analysis */}
-              <Card className="lg:col-span-2">
-                <CardHeader>
-                  <CardTitle>ML Exit Timing Analysis</CardTitle>
-                  <CardDescription>Exit performance by profit level</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {mlAnalytics.exitTiming.length > 0 ? (
-                    <div className="space-y-4">
-                      {mlAnalytics.exitTiming.map((scenario, idx) => (
-                        <div key={idx} className="flex items-center gap-4 p-3 border rounded-lg">
-                          <div className="flex-1">
-                            <p className="font-medium">{scenario.scenario}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {scenario.trade_count} trades | {scenario.win_rate.toFixed(1)}% win rate
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className={`text-lg font-bold ${
-                              scenario.avg_profit > 0 ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {scenario.avg_profit > 0 ? '+' : ''}{scenario.avg_profit.toFixed(2)} pips
-                            </p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <Target className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                      <p>No timing analysis available</p>
-                      <p className="text-sm">Data will appear after ML exits are executed</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="account" className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Account Stats */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Account Statistics</CardTitle>
-                  <CardDescription>Performance overview</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Total Trades</Label>
-                      <div className="text-2xl font-bold">{account?.total_trades || 0}</div>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Win Rate</Label>
-                      <div className="text-2xl font-bold">{account?.win_rate?.toFixed(1) || '0.0'}%</div>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Profit Factor</Label>
-                      <div className="text-2xl font-bold">{account?.profit_factor?.toFixed(2) || '0.00'}</div>
-                    </div>
-                    <div>
-                      <Label className="text-sm text-muted-foreground">Max Drawdown</Label>
-                      <div className="text-2xl font-bold">{account?.max_drawdown?.toFixed(2) || '0.00'}%</div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* ML Model Performance */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Brain className="h-5 w-5" />
-                    ML Model Performance
-                  </CardTitle>
-                  <CardDescription>Exit optimization effectiveness</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm text-muted-foreground">ML Exit Accuracy</p>
-                        <p className="text-2xl font-bold">{mlPerformance.exitAccuracy.toFixed(1)}%</p>
-                      </div>
-                      <div>
-                        <p className="text-sm text-muted-foreground">Avg Profit Improvement</p>
-                        <p className={`text-2xl font-bold ${
-                          mlPerformance.profitImprovement > 0 ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {mlPerformance.profitImprovement > 0 ? '+' : ''}{mlPerformance.profitImprovement.toFixed(1)} pips
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div className="space-y-2">
-                      <div className="flex justify-between">
-                        <span className="text-sm">Training Progress</span>
-                        <span className="text-sm font-medium">
-                          {mlModelStatus.closedTradesCount} / 20 trades
+                        <span className={`font-bold ${row.improvement > 0 ? 'text-emerald-500' : row.improvement < 0 ? 'text-red-500' : 'text-muted-foreground'}`}>
+                          {row.improvement > 0 ? '+' : ''}{row.improvement.toFixed(1)}%
                         </span>
                       </div>
-                      <div className="w-full bg-secondary rounded-full h-2">
-                        <div 
-                          className="bg-cyan-600 h-2 rounded-full transition-all" 
-                          style={{ width: `${Math.min((mlModelStatus.closedTradesCount / 20) * 100, 100)}%` }}
-                        />
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    <Brain className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No ML exit data yet</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Model Versions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {mlAnalytics.versions.length > 0 ? (
+                  <ScrollArea className="h-[250px]">
+                    {mlAnalytics.versions.map((v, idx) => (
+                      <div key={idx} className="mb-3 p-2 border rounded-lg text-sm">
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="font-mono text-xs">{v.version}</span>
+                          <Badge variant={v.status === 'Active' ? 'default' : 'secondary'} className="text-[10px]">
+                            {v.status}
+                          </Badge>
+                        </div>
+                        <div className="grid grid-cols-2 gap-1 text-xs text-muted-foreground">
+                          <span>WR: {v.win_rate.toFixed(1)}%</span>
+                          <span>Trades: {v.trades_executed}</span>
+                        </div>
                       </div>
-                    </div>
-                    
-                    {mlModelStatus.closedTradesCount >= 20 && (
-                      <Button 
-                        onClick={triggerMLTraining} 
-                        className="w-full"
-                        disabled={isTrainingML}
-                      >
-                        {isTrainingML ? (
-                          <>
-                            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-                            Training Model...
-                          </>
-                        ) : (
-                          <>
-                            <Zap className="h-4 w-4 mr-2" />
-                            Train ML Model Now
-                          </>
-                        )}
-                      </Button>
-                    )}
-                    
-                    {mlModelStatus.autoTrainingEnabled && mlModelStatus.closedTradesCount >= 20 && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        ✨ Auto-training enabled (triggers every 20 trades or when model is &gt;10 days old)
-                      </p>
-                    )}
+                    ))}
+                  </ScrollArea>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground text-sm">
+                    <RefreshCw className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                    <p>No model versions yet</p>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
-            {/* Account Settings - Full Width */}
-            <div className="grid grid-cols-1 gap-6">
-              {/* Settings */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Global Settings</CardTitle>
-                  <CardDescription>Configure trading parameters</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Max Open Positions</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        type="number"
-                        value={maxTradesInput}
-                        onChange={(e) => setMaxTradesInput(parseInt(e.target.value) || 50)}
-                        min="1"
-                        max="200"
-                      />
-                      <Button onClick={handleMaxTradesUpdate} size="sm">
-                        Update
-                      </Button>
-                    </div>
+        {/* Account */}
+        <TabsContent value="account" className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Account Stats</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Total Trades</Label>
+                    <div className="text-xl font-bold">{account?.total_trades || 0}</div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label>Auto Trading</Label>
-                    <div className="flex items-center gap-2">
-                      <Badge variant={account?.auto_trading_enabled ? "default" : "secondary"}>
-                        {account?.auto_trading_enabled ? "Enabled" : "Disabled"}
-                      </Badge>
-                      <Button onClick={toggleAutoTrading} size="sm" variant="outline">
-                        Toggle
-                      </Button>
-                    </div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Win Rate</Label>
+                    <div className="text-xl font-bold">{account?.win_rate?.toFixed(1) || '0.0'}%</div>
                   </div>
-
-                  <div className="space-y-2">
-                    <Label>Account Leverage</Label>
-                    <div className="text-lg font-medium">1:{account?.leverage || 100}</div>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Profit Factor</Label>
+                    <div className="text-xl font-bold">{account?.profit_factor?.toFixed(2) || '0.00'}</div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Phase 4: Reset Validation Panel */}
-            <ResetValidationPanel />
-          </TabsContent>
-        </Tabs>
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Max Drawdown</Label>
+                    <div className="text-xl font-bold">{account?.max_drawdown?.toFixed(2) || '0.00'}%</div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm">Settings</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-2">
+                  <Label className="text-xs">Max Open Positions</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="number"
+                      value={maxTradesInput}
+                      onChange={(e) => setMaxTradesInput(parseInt(e.target.value) || 50)}
+                      min="1" max="200"
+                      className="h-8"
+                    />
+                    <Button onClick={() => updateMaxOpenTrades(maxTradesInput)} size="sm" className="h-8">
+                      Update
+                    </Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Auto Trading</Label>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={account?.auto_trading_enabled ? "default" : "secondary"} className="text-[10px]">
+                      {account?.auto_trading_enabled ? "ON" : "OFF"}
+                    </Badge>
+                    <Button onClick={toggleAutoTrading} size="sm" variant="outline" className="h-7 text-xs">Toggle</Button>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs">Leverage</Label>
+                  <span className="text-sm font-medium">1:{account?.leverage || 100}</span>
+                </div>
+                <Separator />
+                <Button onClick={handleReset} variant="destructive" size="sm" disabled={isResetting} className="w-full h-8 text-xs">
+                  {isResetting ? <RefreshCw className="h-3 w-3 animate-spin mr-1" /> : <AlertCircle className="h-3 w-3 mr-1" />}
+                  {isResetting ? 'Resetting...' : 'Reset Account'}
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+          <ResetValidationPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 };
