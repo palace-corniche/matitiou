@@ -276,7 +276,7 @@ serve(async (req) => {
       status: 'success',
       execution_time_ms: executionTime,
       processed_items: totalCandlesInserted,
-      details: {
+      metadata: {
         data_points_processed: marketData.length,
         candles_generated: totalCandlesInserted,
         lookback_hours: lookbackHours,
