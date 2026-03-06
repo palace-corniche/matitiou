@@ -352,15 +352,15 @@ serve(async (req) => {
         .order('timestamp', { ascending: false })
         .limit(100);
       
-      // LOWER THRESHOLD TO 5 CANDLES for faster signal generation
-      if (!error && data && data.length >= 5) {
+      // LOWER THRESHOLD TO 3 CANDLES for faster signal generation with limited API data
+      if (!error && data && data.length >= 3) {
         marketData = data;
         selectedTimeframe = tf;
         dataError = null;
         console.log(`✅ Found ${data.length} complete candles for ${tf} timeframe (avg ${Math.round(data.reduce((sum, c) => sum + c.tick_count, 0) / data.length)} ticks/candle)`);
         break;
       } else {
-        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles (need 5+)`);
+        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles (need 3+)`);
       }
     }
 
