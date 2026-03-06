@@ -1292,6 +1292,42 @@ export type Database = {
           },
         ]
       }
+      signal_execution_attempts: {
+        Row: {
+          attempt_number: number | null
+          attempted_at: string | null
+          created_at: string | null
+          execution_stage: string | null
+          failure_reason: string | null
+          id: string
+          lock_acquired: boolean | null
+          market_price: number | null
+          signal_id: string | null
+        }
+        Insert: {
+          attempt_number?: number | null
+          attempted_at?: string | null
+          created_at?: string | null
+          execution_stage?: string | null
+          failure_reason?: string | null
+          id?: string
+          lock_acquired?: boolean | null
+          market_price?: number | null
+          signal_id?: string | null
+        }
+        Update: {
+          attempt_number?: number | null
+          attempted_at?: string | null
+          created_at?: string | null
+          execution_stage?: string | null
+          failure_reason?: string | null
+          id?: string
+          lock_acquired?: boolean | null
+          market_price?: number | null
+          signal_id?: string | null
+        }
+        Relationships: []
+      }
       signal_rejection_logs: {
         Row: {
           confluence_score: number | null
@@ -1761,6 +1797,15 @@ export type Database = {
           p_account_balance: number
           p_risk_percentage: number
           p_stop_loss_pips: number
+        }
+        Returns: number
+      }
+      calculate_trade_quality_score: {
+        Args: {
+          p_confluence_score: number
+          p_market_regime: string
+          p_signal_id: string
+          p_volatility_percentile?: number
         }
         Returns: number
       }
