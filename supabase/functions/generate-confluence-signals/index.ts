@@ -369,20 +369,20 @@ serve(async (req) => {
       throw new Error(`Market data error: ${String(dataError)}`);
     }
     
-    // LOWER THRESHOLD TO 5 CANDLES
-    if (!marketData || marketData.length < 5) {
+    // LOWER THRESHOLD TO 3 CANDLES to match the loop above
+    if (!marketData || marketData.length < 3) {
       const executionTime = Date.now() - startTime;
       console.log('⏳ Insufficient aggregated candle data - system is building candles from tick data');
       
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Signal generation skipped - waiting for candle aggregation (have ${marketData?.length || 0}/5 candles)`,
+          message: `Signal generation skipped - waiting for candle aggregation (have ${marketData?.length || 0}/3 candles)`,
           signal: null,
           analysis: {
             status: 'building_candles',
             availableCandles: marketData?.length || 0,
-            requiredCandles: 5,
+            requiredCandles: 3,
             message: 'System is building candles from tick data'
           },
           processedItems: 0,
