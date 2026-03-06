@@ -352,15 +352,15 @@ serve(async (req) => {
         .order('timestamp', { ascending: false })
         .limit(100);
       
-      // LOWER THRESHOLD TO 5 CANDLES for faster signal generation
-      if (!error && data && data.length >= 5) {
+      // LOWER THRESHOLD TO 3 CANDLES for faster signal generation with limited API data
+      if (!error && data && data.length >= 3) {
         marketData = data;
         selectedTimeframe = tf;
         dataError = null;
         console.log(`✅ Found ${data.length} complete candles for ${tf} timeframe (avg ${Math.round(data.reduce((sum, c) => sum + c.tick_count, 0) / data.length)} ticks/candle)`);
         break;
       } else {
-        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles (need 5+)`);
+        console.log(`⚠️ Insufficient data for ${tf}: ${data?.length || 0} complete candles (need 3+)`);
       }
     }
 
@@ -369,20 +369,20 @@ serve(async (req) => {
       throw new Error(`Market data error: ${String(dataError)}`);
     }
     
-    // LOWER THRESHOLD TO 5 CANDLES
-    if (!marketData || marketData.length < 5) {
+    // LOWER THRESHOLD TO 3 CANDLES to match the loop above
+    if (!marketData || marketData.length < 3) {
       const executionTime = Date.now() - startTime;
       console.log('⏳ Insufficient aggregated candle data - system is building candles from tick data');
       
       return new Response(
         JSON.stringify({
           success: true,
-          message: `Signal generation skipped - waiting for candle aggregation (have ${marketData?.length || 0}/5 candles)`,
+          message: `Signal generation skipped - waiting for candle aggregation (have ${marketData?.length || 0}/3 candles)`,
           signal: null,
           analysis: {
             status: 'building_candles',
             availableCandles: marketData?.length || 0,
-            requiredCandles: 5,
+            requiredCandles: 3,
             message: 'System is building candles from tick data'
           },
           processedItems: 0,
