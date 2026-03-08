@@ -1,5 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.58.0";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -13,77 +13,48 @@ serve(async (req) => {
 
   try {
     console.log('🔄 Starting news sentiment fetch...');
-    
+
     const ALPHA_VANTAGE_API_KEY = Deno.env.get('ALPHA_VANTAGE_API_KEY');
     if (!ALPHA_VANTAGE_API_KEY) {
       throw new Error('ALPHA_VANTAGE_API_KEY not configured');
     }
 
-    const supabaseClient = createClient(
+    const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Fetch news from Alpha Vantage News Sentiment API with timeout
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-    
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const newsUrl = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&topics=forex&apikey=${ALPHA_VANTAGE_API_KEY}&limit=50`;
-    
-    console.log('📰 Fetching news from Alpha Vantage...');
+
     let newsResponse;
-    
     try {
       newsResponse = await fetch(newsUrl, { signal: controller.signal });
       clearTimeout(timeoutId);
-      
-      if (!newsResponse.ok) {
-        throw new Error(`Alpha Vantage API error: ${newsResponse.status}`);
-      }
+      if (!newsResponse.ok) throw new Error(`Alpha Vantage error: ${newsResponse.status}`);
     } catch (error) {
       clearTimeout(timeoutId);
-      
       if (error instanceof Error && error.name === 'AbortError') {
-        console.error('⏱️ News fetch timeout after 15 seconds');
-        
-        // Update module health to reflect timeout (don't increment error count)
-        await supabaseClient
-          .from('module_health')
-          .update({
-            last_error: 'News API timeout - will retry next cycle',
-            last_run: new Date().toISOString()
-          })
-          .eq('module_name', 'sentiment_analysis');
-        
         return new Response(
-          JSON.stringify({ 
-            success: false, 
-            error: 'Timeout',
-            message: 'News fetch timed out - will retry on next cycle'
-          }),
+          JSON.stringify({ success: false, error: 'Timeout' }),
           { status: 408, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      
       throw error;
     }
 
     const newsData = await newsResponse.json();
-    
+
     if (newsData.Note) {
-      console.warn('⚠️ API rate limit reached:', newsData.Note);
       return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'API rate limit reached',
-          message: newsData.Note 
-        }),
+        JSON.stringify({ success: false, error: 'Rate limited', message: newsData.Note }),
         { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     if (!newsData.feed || newsData.feed.length === 0) {
-      console.log('ℹ️ No news articles found');
       return new Response(
         JSON.stringify({ success: true, processed: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -92,123 +63,88 @@ serve(async (req) => {
 
     console.log(`📊 Processing ${newsData.feed.length} articles...`);
 
-    // Process and insert news sentiment
-    const newsRecords = [];
     const currencies = ['EUR', 'USD', 'GBP', 'JPY'];
+    const newsRecords = [];
 
     for (const article of newsData.feed) {
-      // Extract relevant currency sentiment
       const tickerSentiment = article.ticker_sentiment || [];
-      const relevantTickers = tickerSentiment.filter((t: any) => 
+      const relevant = tickerSentiment.filter((t: any) =>
         currencies.some(c => t.ticker?.includes(c))
       );
+      if (relevant.length === 0) continue;
 
-      if (relevantTickers.length === 0) continue;
+      const sentimentScore = parseFloat(article.overall_sentiment_score || '0');
+      const symbol = determineSymbol(relevant);
 
-      // Calculate overall sentiment for the article
-      const sentimentScore = parseFloat(article.overall_sentiment_score || 0);
-      let sentimentLabel = 'Neutral';
-      if (sentimentScore > 0.15) sentimentLabel = 'Bullish';
-      else if (sentimentScore < -0.15) sentimentLabel = 'Bearish';
-
-      // Determine which symbol this affects (e.g., EUR/USD)
-      const symbol = determineSymbol(relevantTickers);
-
-      const record = {
+      // Write to news_events table (correct schema)
+      newsRecords.push({
         symbol,
-        headline: article.title?.substring(0, 500) || '',
-        summary: article.summary?.substring(0, 1000) || null,
-        source: article.source || 'Unknown',
+        headline: (article.title || '').substring(0, 500),
+        source: article.source || 'Alpha Vantage',
         published_at: new Date(article.time_published).toISOString(),
+        sentiment: sentimentScore,
         sentiment_score: sentimentScore,
-        sentiment_label: sentimentLabel,
-        relevance_score: parseFloat(article.relevance_score || 0.5),
-        ticker_sentiment: relevantTickers,
-        topics: article.topics || [],
-      };
-
-      newsRecords.push(record);
+        relevance_score: parseFloat(article.relevance_score || '0.5'),
+        impact: Math.abs(sentimentScore) > 0.3 ? 'high' : 'medium',
+        url: article.url || null,
+        metadata: {
+          topics: article.topics || [],
+          ticker_sentiment: relevant,
+        },
+      });
     }
 
     if (newsRecords.length === 0) {
-      console.log('ℹ️ No relevant forex news found');
       return new Response(
         JSON.stringify({ success: true, processed: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Insert news records (upsert to avoid duplicates)
-    const { data, error } = await supabaseClient
-      .from('news_sentiment')
-      .upsert(newsRecords, {
-        onConflict: 'headline,published_at',
-        ignoreDuplicates: true
-      });
+    // Insert into news_events (the table that actually exists)
+    const { error } = await supabase
+      .from('news_events')
+      .insert(newsRecords);
 
     if (error) {
-      console.error('❌ Error inserting news sentiment:', error);
+      console.error('❌ Error inserting news:', error);
       throw error;
     }
 
-    // Clean up old news (keep only last 7 days)
+    // Cleanup old news
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-
-    await supabaseClient
-      .from('news_sentiment')
+    await supabase
+      .from('news_events')
       .delete()
       .lt('published_at', sevenDaysAgo.toISOString());
 
-    console.log(`✅ Successfully processed ${newsRecords.length} news articles`);
+    console.log(`✅ Processed ${newsRecords.length} news articles into news_events`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        processed: newsRecords.length,
-        timestamp: new Date().toISOString()
-      }),
+      JSON.stringify({ success: true, processed: newsRecords.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('❌ Error in fetch-news-sentiment:', error);
+    console.error('❌ Error:', error);
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error' 
-      }),
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
 
-// Helper function to determine which forex pair is most relevant
 function determineSymbol(tickers: any[]): string {
-  const currencies: { [key: string]: number } = {};
-  
-  for (const ticker of tickers) {
-    const matches = ticker.ticker?.match(/([A-Z]{3})/g) || [];
-    for (const currency of matches) {
-      currencies[currency] = (currencies[currency] || 0) + parseFloat(ticker.relevance_score || 0);
+  const currencies: Record<string, number> = {};
+  for (const t of tickers) {
+    const matches = t.ticker?.match(/([A-Z]{3})/g) || [];
+    for (const c of matches) {
+      currencies[c] = (currencies[c] || 0) + parseFloat(t.relevance_score || '0');
     }
   }
-
-  // Sort by relevance
-  const sortedCurrencies = Object.entries(currencies)
-    .sort((a, b) => b[1] - a[1])
-    .map(([curr]) => curr);
-
-  // Default to EUR/USD if we have EUR or USD, otherwise use top 2
-  if (sortedCurrencies.includes('EUR') && sortedCurrencies.includes('USD')) {
-    return 'EUR/USD';
-  } else if (sortedCurrencies.includes('GBP') && sortedCurrencies.includes('USD')) {
-    return 'GBP/USD';
-  } else if (sortedCurrencies.includes('USD') && sortedCurrencies.includes('JPY')) {
-    return 'USD/JPY';
-  } else if (sortedCurrencies.length >= 2) {
-    return `${sortedCurrencies[0]}/${sortedCurrencies[1]}`;
-  }
-
-  return 'EUR/USD'; // Default fallback
+  const sorted = Object.entries(currencies).sort((a, b) => b[1] - a[1]).map(([c]) => c);
+  if (sorted.includes('EUR') && sorted.includes('USD')) return 'EUR/USD';
+  if (sorted.includes('GBP') && sorted.includes('USD')) return 'GBP/USD';
+  if (sorted.includes('USD') && sorted.includes('JPY')) return 'USD/JPY';
+  return 'EUR/USD';
 }
