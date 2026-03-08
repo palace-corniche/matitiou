@@ -715,9 +715,28 @@ serve(async (req) => {
 
   const executedTrades = [];
 
-    // Execute trades for each locked signal
-    for (const signal of signals) {
+    // Execute trades for each filtered signal
+    for (const signal of filteredSignals) {
       console.log(`\n🔒 Processing locked signal ${signal.signal_id.slice(0,8)} (${signal.signal_type.toUpperCase()})...`);
+
+      // **FIX: Check if same-direction trade already open — skip if so**
+      const { data: existingOpenTrades } = await supabase
+        .from('shadow_trades')
+        .select('id, trade_type')
+        .eq('symbol', signal.pair)
+        .eq('trade_type', signal.signal_type)
+        .eq('status', 'open')
+        .limit(1);
+
+      if (existingOpenTrades?.length) {
+        console.log(`⚠️ Skipping ${signal.signal_type.toUpperCase()} — same-direction trade already open (${existingOpenTrades[0].id.slice(0,8)})`);
+        await supabase.from('master_signals').update({ 
+          status: 'executed', 
+          rejection_reason: 'same_direction_trade_open',
+          updated_at: new Date().toISOString()
+        }).eq('id', signal.signal_id);
+        continue;
+      }
       
       // **PHASE 5: PRE-EXECUTION VALIDATION WITH SL/TP CHECKS**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
