@@ -1,19 +1,16 @@
 
-# Update Branding to "JALLOUL A.K.A MATITOU"
 
-## Changes Required
+# Fix Balance to $119
 
-Update the system name in two files:
+The current balance in the database is `$100,019.24`. The user wants it set to `$119`.
 
-### 1. `src/components/AppSidebar.tsx` (line 38)
-- Change `"ProTrade AI"` → `"JALLOUL A.K.A MATITOU"`
-- Update subtitle from `"Trading System"` → `"Trading System"` (keep or customize)
+## Plan
+Run a single SQL migration to update the `global_trading_account` row:
+```sql
+UPDATE global_trading_account
+SET balance = 119, equity = 119
+WHERE id = '00000000-0000-0000-0000-000000000001';
+```
 
-### 2. `src/components/NavigationBar.tsx` (line 120)
-- Change `"ProTrade AI"` → `"JALLOUL A.K.A MATITOU"`
-- Update subtitle from `"Professional Trading System"` → `"Trading System"` (for consistency)
+No code changes needed — the dashboard already reads `account.balance` directly.
 
-### 3. `index.html` (title tag)
-- Update page title from `"matitou"` → `"JALLOUL A.K.A MATITOU"`
-
-The logo icon (Activity icon) will remain as-is since no new logo image was provided.
