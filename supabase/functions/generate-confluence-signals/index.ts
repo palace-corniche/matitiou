@@ -962,55 +962,8 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
 
   console.log(`📊 Total modular signals generated: ${signals.length}`);
 
-  // Store individual module signals into modular_signals table for analysis pages
-  try {
-    const moduleMapping: Record<string, string> = {
-      'technical': 'technical_analysis',
-      'fundamental': 'fundamental_analysis',
-      'sentiment': 'sentiment_analysis',
-      'pattern': 'specialized_analysis',
-      'strategy': 'specialized_analysis',
-      'timeframe': 'quantitative_analysis',
-      'intermarket': 'intermarket_analysis',
-    };
-
-    const modularInserts = signals.slice(0, 20).map((s: any) => {
-      const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k)) || 'technical';
-      return {
-        module_id: moduleMapping[sourceKey] || 'technical_analysis',
-        symbol: pair,
-        timeframe,
-        signal_type: s.signal || 'hold',
-        confidence: Math.min(1, s.confidence || 0), // Cap at 1.0
-        strength: Math.round((s.strength || 0) * (s.strength > 1 ? 1 : 10)),
-        suggested_entry: s.entryPrice || null,
-        suggested_stop_loss: s.stopLoss || null,
-        suggested_take_profit: s.takeProfit || null,
-        trend_context: regime || 'unknown',
-        volatility_regime: regime || 'unknown',
-        market_session: 'auto',
-        calculation_parameters: { source: s.source, factors: (s.factors || []).length },
-        market_data_snapshot: { price: s.entryPrice, factors_count: (s.factors || []).length }
-      };
-    });
-
-    if (modularInserts.length > 0) {
-      const { error: modInsertError } = await supabase
-        .from('modular_signals')
-        .insert(modularInserts);
-      
-      if (modInsertError) {
-        console.warn('⚠️ Failed to store modular signals:', modInsertError.message);
-      } else {
-        console.log(`✅ Stored ${modularInserts.length} modular signals for analysis pages`);
-        
-        // Update module_performance with real signal counts
-        await updateModulePerformance(supabase, modularInserts);
-      }
-    }
-  } catch (modError) {
-    console.warn('⚠️ Error storing modular signals:', modError);
-  }
+  // NOTE: Modular signals are now stored in the master signal success block
+  // with proper analysis_id linking. This legacy block is removed to prevent duplicates.
 
   return {
     allSignals: signals,
