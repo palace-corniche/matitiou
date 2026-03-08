@@ -611,7 +611,8 @@ serve(async (req) => {
                 'sentiment': 'sentiment_analysis',
                 'pattern': 'specialized_analysis',
                 'strategy': 'specialized_analysis',
-                'timeframe': 'quantitative_analysis',
+                'quantitative': 'quantitative_analysis',
+                'timeframe': 'multi_timeframe_analysis',
                 'intermarket': 'intermarket_analysis',
               };
               const allSignals = signalAnalysis?.modularResults?.allSignals || [];
