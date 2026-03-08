@@ -1149,6 +1149,18 @@ serve(async (req) => {
 
           console.log(`✅ Trade created successfully: ${trade_id}`);
 
+          // Send Telegram notification (fire-and-forget)
+          try {
+            const slPrice = dynamicStopLoss || signal.stop_loss || 0;
+            const tpPrice = dynamicTakeProfit || signal.take_profit || 0;
+            const telegramMsg = `📈 <b>TRADE OPENED</b>\nSymbol: ${signal.pair}\nType: ${signal.signal_type.toUpperCase()}\nEntry: ${entryPrice}\nSL: ${slPrice} | TP: ${tpPrice}\nLot: ${fixedLotSize}\nConfluence: ${signal.confluence_score}`;
+            await supabase.functions.invoke('send-telegram-notification', {
+              body: { message: telegramMsg }
+            });
+          } catch (tgErr) {
+            console.warn('⚠️ Telegram notification failed:', tgErr);
+          }
+
           // Update price source tracking
           await supabase
             .from('shadow_trades')

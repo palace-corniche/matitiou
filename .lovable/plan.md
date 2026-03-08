@@ -1,50 +1,57 @@
 
 
-# Telegram Trade Notifications - Implementation Plan
+# System Diagnostic Report
 
-## Approach
-Since the secrets UI is blocked, I will **hardcode the Telegram credentials directly** in the edge function. This is safe because edge functions run server-side only and are never exposed to the browser.
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-- **Bot Token**: `8754141486:AAFcJPcpuk3WHTwbXvBREBAvJkQKz2b13uw`
-- **Chat ID**: `7480819673`
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-## Changes
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-### 1. Create `supabase/functions/send-telegram-notification/index.ts`
-A simple edge function that accepts `{ message: string }` and calls the Telegram Bot API `sendMessage` endpoint with HTML parse mode. Credentials hardcoded directly.
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-### 2. Edit `supabase/functions/execute-shadow-trades/index.ts`
-After line ~1150 (after `console.log('✅ Trade created successfully: ${trade_id}')`), add a non-blocking call to send a "TRADE OPENED" notification:
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-```
-📈 <b>TRADE OPENED</b>
-Symbol: EUR/USD
-Type: BUY
-Entry: 1.15563
-SL: 1.15363 | TP: 1.15963
-Lot: 0.01
-```
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-Uses `supabase.functions.invoke('send-telegram-notification', ...)` wrapped in try/catch so notification failures never block trade execution.
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-### 3. Edit `supabase/functions/check-trade-exits/index.ts`
-After line ~130 (after successful `close_shadow_trade` RPC at `closedCount++`), add a "TRADE CLOSED" notification:
+## Is the System Profitable / "Next Level"?
 
-```
-📊 <b>TRADE CLOSED</b>
-Type: BUY
-Entry: 1.15563 → Exit: 1.15963
-Reason: TP Hit
-PnL: $4.00 (40.0 pips)
-```
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-The close reason is mapped to human-readable labels (stop_loss_hit → "SL Hit", take_profit_hit → "TP Hit", max_hold_time_reached → "Time Limit").
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### 4. Edit `supabase/functions/monitor-exit-intelligence/index.ts`
-After line ~125 (after successful FORCE_EXIT close at `exitedCount++`), add the same close notification format with reason "Intelligent Exit".
+## What You Need To Do
 
-## Technical Notes
-- All notification calls are fire-and-forget (wrapped in try/catch) so they never block or crash the trading logic.
-- No database changes needed.
-- No secrets storage needed — credentials are hardcoded in the edge function (server-side only).
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
