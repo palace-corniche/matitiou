@@ -1110,6 +1110,37 @@ async function updateModulePerformance(supabase: any, modularInserts: any[]) {
   }
 }
 
+// Calculate a true weighted confluence score based on module agreement, confidence, and strength
+function calculateWeightedConfluenceScore(masterSignal: any): number {
+  const signals = masterSignal.contributingSignals || [];
+  if (signals.length === 0) return Math.round((masterSignal.confidence || 0.5) * 100);
+  
+  const direction = masterSignal.signal; // 'buy' or 'sell'
+  let score = 0;
+  
+  // Module count factor (max 30 points): more agreeing modules = higher confluence
+  const agreeingSignals = signals.filter((s: any) => s.signal === direction);
+  score += Math.min(30, agreeingSignals.length * 6);
+  
+  // Agreement ratio factor (max 25 points)
+  const agreementRatio = signals.length > 0 ? agreeingSignals.length / signals.length : 0;
+  score += Math.round(agreementRatio * 25);
+  
+  // Average confidence factor (max 25 points)
+  const avgConfidence = agreeingSignals.length > 0
+    ? agreeingSignals.reduce((sum: number, s: any) => sum + Math.min(1, s.confidence || 0), 0) / agreeingSignals.length
+    : 0;
+  score += Math.round(avgConfidence * 25);
+  
+  // Average strength factor (max 20 points)
+  const avgStrength = agreeingSignals.length > 0
+    ? agreeingSignals.reduce((sum: number, s: any) => sum + Math.min(1, s.strength || 0), 0) / agreeingSignals.length
+    : 0;
+  score += Math.round(avgStrength * 20);
+  
+  return Math.min(100, Math.max(0, score));
+}
+
 // Legacy function removed - using enhanced version at line 540 with real database integration
 
 // Convert master signal to database format - PHASE 1: FIX NULL HANDLING & VALIDATION
