@@ -1954,7 +1954,7 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
       ? Math.abs(avgTP - avgEntry) / Math.abs(avgEntry - avgSL)
       : Math.abs(avgEntry - avgTP) / Math.abs(avgSL - avgEntry);
 
-    const kellyFraction = calculateKellyFraction(dominantProbability, riskRewardRatio, 1);
+    const kellyFraction = calculateKellyFractionLegacy(dominantProbability, riskRewardRatio, 1);
 
     return {
       signal: dominantSignal,
