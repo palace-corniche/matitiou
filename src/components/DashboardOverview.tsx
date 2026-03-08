@@ -8,7 +8,7 @@ import {
   DollarSign, TrendingUp, TrendingDown, Target, Clock, Activity,
   ArrowUpRight, ArrowDownRight, BarChart3
 } from 'lucide-react';
-import { LineChart, Line, ResponsiveContainer, XAxis, YAxis, Tooltip } from 'recharts';
+import { AreaChart, Area, ResponsiveContainer, XAxis, YAxis, Tooltip, CartesianGrid, ReferenceLine } from 'recharts';
 
 interface RecentSignal {
   id: string;
