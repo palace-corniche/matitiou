@@ -1857,95 +1857,248 @@ function calculateSRStrength(currentPrice: number, srLevels: any): any {
 }
 
 function detectCandlestickPatterns(candles: any[]): any[] {
-  // Simplified candlestick pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 3) {
-    const latest = candles[candles.length - 1];
-    const previous = candles[candles.length - 2];
-    
-    // Hammer pattern
-    const bodySize = Math.abs(latest.close - latest.open);
-    const lowerShadow = latest.open < latest.close ? latest.open - latest.low : latest.close - latest.low;
-    const upperShadow = latest.high - Math.max(latest.open, latest.close);
-    
-    if (lowerShadow > bodySize * 2 && upperShadow < bodySize * 0.5) {
-      patterns.push({
-        name: 'hammer',
-        signal: 'buy',
-        strength: Math.min(1, lowerShadow / bodySize / 3),
-        confidence: 0.7,
-        score: 0.8,
-        confirmation: 0.6
-      });
+  const patterns: any[] = [];
+  if (candles.length < 3) return patterns;
+
+  for (let i = 2; i < candles.length; i++) {
+    const c = candles[i];
+    const p = candles[i - 1];
+    const pp = candles[i - 2];
+    const body = Math.abs(c.close - c.open);
+    const range = c.high - c.low;
+    if (range === 0) continue;
+    const bodyRatio = body / range;
+    const isGreen = c.close > c.open;
+    const pBody = Math.abs(p.close - p.open);
+    const pIsGreen = p.close > p.open;
+    const lowerShadow = Math.min(c.open, c.close) - c.low;
+    const upperShadow = c.high - Math.max(c.open, c.close);
+
+    // Doji
+    if (bodyRatio < 0.1) {
+      patterns.push({ name: 'doji', signal: 'hold' as const, strength: 0.5, confidence: 0.6, score: 0.7, confirmation: 0.5 });
     }
-    
-    // Doji pattern
-    if (bodySize < (latest.high - latest.low) * 0.1) {
-      patterns.push({
-        name: 'doji',
-        signal: 'hold',
-        strength: 0.5,
-        confidence: 0.6,
-        score: 0.7,
-        confirmation: 0.5
-      });
+    // Hammer
+    if (lowerShadow > body * 2 && upperShadow < body * 0.5 && body > 0) {
+      patterns.push({ name: 'hammer', signal: 'buy' as const, strength: Math.min(1, lowerShadow / body / 3), confidence: 0.75, score: 0.8, confirmation: 0.65 });
+    }
+    // Hanging Man
+    if (lowerShadow > body * 2 && upperShadow < body * 0.5 && body > 0 && i > 5) {
+      const trend = candles.slice(i - 5, i).every((x: any, j: number, a: any[]) => j === 0 || x.close >= a[j-1].close);
+      if (trend) patterns.push({ name: 'hanging_man', signal: 'sell' as const, strength: Math.min(1, lowerShadow / body / 3), confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Inverted Hammer
+    if (upperShadow > body * 2 && lowerShadow < body * 0.5 && body > 0) {
+      patterns.push({ name: 'inverted_hammer', signal: 'buy' as const, strength: Math.min(1, upperShadow / body / 3), confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Shooting Star
+    if (upperShadow > body * 2 && lowerShadow < body * 0.3 && body > 0) {
+      patterns.push({ name: 'shooting_star', signal: 'sell' as const, strength: Math.min(1, upperShadow / body / 3), confidence: 0.75, score: 0.8, confirmation: 0.65 });
+    }
+    // Bullish Engulfing
+    if (!pIsGreen && isGreen && c.close > p.open && c.open < p.close && body > pBody * 1.3) {
+      patterns.push({ name: 'bullish_engulfing', signal: 'buy' as const, strength: Math.min(1, body / pBody / 2), confidence: 0.8, score: 0.85, confirmation: 0.7 });
+    }
+    // Bearish Engulfing
+    if (pIsGreen && !isGreen && c.close < p.open && c.open > p.close && body > pBody * 1.3) {
+      patterns.push({ name: 'bearish_engulfing', signal: 'sell' as const, strength: Math.min(1, body / pBody / 2), confidence: 0.8, score: 0.85, confirmation: 0.7 });
+    }
+    // Morning Star (3-candle)
+    if (i >= 2) {
+      const ppBody = Math.abs(pp.close - pp.open);
+      const ppRange = pp.high - pp.low;
+      if (pp.close < pp.open && ppBody > ppRange * 0.5 && pBody < range * 0.3 && isGreen && c.close > (pp.open + pp.close) / 2) {
+        patterns.push({ name: 'morning_star', signal: 'buy' as const, strength: 0.85, confidence: 0.8, score: 0.85, confirmation: 0.75 });
+      }
+    }
+    // Evening Star (3-candle)
+    if (i >= 2) {
+      const ppBody = Math.abs(pp.close - pp.open);
+      const ppRange = pp.high - pp.low;
+      if (pp.close > pp.open && ppBody > ppRange * 0.5 && pBody < range * 0.3 && !isGreen && c.close < (pp.open + pp.close) / 2) {
+        patterns.push({ name: 'evening_star', signal: 'sell' as const, strength: 0.85, confidence: 0.8, score: 0.85, confirmation: 0.75 });
+      }
+    }
+    // Piercing Line
+    if (!pIsGreen && isGreen && c.open < p.low && c.close > (p.open + p.close) / 2 && c.close < p.open) {
+      patterns.push({ name: 'piercing_line', signal: 'buy' as const, strength: 0.7, confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Dark Cloud Cover
+    if (pIsGreen && !isGreen && c.open > p.high && c.close < (p.open + p.close) / 2 && c.close > p.open) {
+      patterns.push({ name: 'dark_cloud_cover', signal: 'sell' as const, strength: 0.7, confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Three White Soldiers
+    if (i >= 2 && pp.close > pp.open && p.close > p.open && isGreen && p.close > pp.close && c.close > p.close) {
+      patterns.push({ name: 'three_white_soldiers', signal: 'buy' as const, strength: 0.9, confidence: 0.85, score: 0.9, confirmation: 0.8 });
+    }
+    // Three Black Crows
+    if (i >= 2 && pp.close < pp.open && p.close < p.open && !isGreen && p.close < pp.close && c.close < p.close) {
+      patterns.push({ name: 'three_black_crows', signal: 'sell' as const, strength: 0.9, confidence: 0.85, score: 0.9, confirmation: 0.8 });
+    }
+    // Tweezer Top
+    if (Math.abs(c.high - p.high) < range * 0.05 && !isGreen && pIsGreen) {
+      patterns.push({ name: 'tweezer_top', signal: 'sell' as const, strength: 0.65, confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Tweezer Bottom
+    if (Math.abs(c.low - p.low) < range * 0.05 && isGreen && !pIsGreen) {
+      patterns.push({ name: 'tweezer_bottom', signal: 'buy' as const, strength: 0.65, confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Bullish Harami
+    if (!pIsGreen && isGreen && c.open > p.close && c.close < p.open && body < pBody * 0.5) {
+      patterns.push({ name: 'bullish_harami', signal: 'buy' as const, strength: 0.6, confidence: 0.65, score: 0.65, confirmation: 0.55 });
+    }
+    // Bearish Harami
+    if (pIsGreen && !isGreen && c.open < p.close && c.close > p.open && body < pBody * 0.5) {
+      patterns.push({ name: 'bearish_harami', signal: 'sell' as const, strength: 0.6, confidence: 0.65, score: 0.65, confirmation: 0.55 });
     }
   }
-  
+
   return patterns;
 }
 
 function detectChartPatterns(candles: any[]): any[] {
-  // Simplified chart pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 20) {
-    const prices = candles.map(c => c.close);
-    const recent = prices.slice(-10);
-    const trend = (recent[recent.length - 1] - recent[0]) / recent[0];
+  const patterns: any[] = [];
+  if (candles.length < 20) return patterns;
+
+  const prices = candles.map((c: any) => c.close);
+  const highs = candles.map((c: any) => c.high);
+  const lows = candles.map((c: any) => c.low);
+  const currentPrice = prices[prices.length - 1];
+  const lookback = Math.min(50, candles.length);
+
+  // Support & Resistance
+  const recentHighs = highs.slice(-lookback);
+  const recentLows = lows.slice(-lookback);
+  const maxHigh = Math.max(...recentHighs);
+  const minLow = Math.min(...recentLows);
+
+  // Double Top
+  const topZone = maxHigh * 0.998;
+  const topTouches = recentHighs.filter((h: number) => h >= topZone);
+  if (topTouches.length >= 2 && currentPrice < maxHigh * 0.99) {
+    patterns.push({ type: 'double_top', signal: 'sell', strength: Math.min(1, topTouches.length * 0.35), confidence: 0.75, reliability: 0.8, maturity: 0.7, stopLoss: maxHigh * 1.005, takeProfit: currentPrice - (maxHigh - minLow) * 0.618 });
+  }
+
+  // Double Bottom
+  const bottomZone = minLow * 1.002;
+  const bottomTouches = recentLows.filter((l: number) => l <= bottomZone);
+  if (bottomTouches.length >= 2 && currentPrice > minLow * 1.01) {
+    patterns.push({ type: 'double_bottom', signal: 'buy', strength: Math.min(1, bottomTouches.length * 0.35), confidence: 0.75, reliability: 0.8, maturity: 0.7, stopLoss: minLow * 0.995, takeProfit: currentPrice + (maxHigh - minLow) * 0.618 });
+  }
+
+  // Head & Shoulders (simplified using 3 peaks)
+  if (candles.length >= 30) {
+    const third = Math.floor(lookback / 3);
+    const seg1Highs = highs.slice(-lookback, -lookback + third);
+    const seg2Highs = highs.slice(-lookback + third, -lookback + 2 * third);
+    const seg3Highs = highs.slice(-lookback + 2 * third);
+    const peak1 = Math.max(...seg1Highs);
+    const peak2 = Math.max(...seg2Highs);
+    const peak3 = Math.max(...seg3Highs);
     
-    if (Math.abs(trend) > 0.02) {
-      patterns.push({
-        type: trend > 0 ? 'uptrend' : 'downtrend',
-        signal: trend > 0 ? 'buy' : 'sell',
-        strength: Math.min(1, Math.abs(trend) * 20),
-        confidence: 0.6,
-        reliability: Math.min(1, Math.abs(trend) * 25),
-        maturity: 0.7,
-        stopLoss: prices[prices.length - 1] * (trend > 0 ? 0.95 : 1.05),
-        takeProfit: prices[prices.length - 1] * (trend > 0 ? 1.1 : 0.9)
-      });
+    // Head higher than shoulders, shoulders roughly equal
+    if (peak2 > peak1 && peak2 > peak3 && Math.abs(peak1 - peak3) / peak2 < 0.02) {
+      const neckline = Math.min(...lows.slice(-lookback));
+      if (currentPrice < (peak1 + peak3) / 2) {
+        patterns.push({ type: 'head_and_shoulders', signal: 'sell', strength: 0.85, confidence: 0.8, reliability: 0.85, maturity: 0.8, stopLoss: peak2 * 1.003, takeProfit: neckline - (peak2 - neckline) * 0.618 });
+      }
     }
   }
-  
+
+  // Ascending Triangle
+  const recentCloses = prices.slice(-20);
+  const closeLows = recentCloses.filter((_: number, i: number) => i < recentCloses.length - 1);
+  const isRisingLows = closeLows.length >= 3 && closeLows.every((v: number, i: number) => i === 0 || v >= closeLows[i-1] * 0.999);
+  const flatResistance = Math.abs(Math.max(...highs.slice(-20)) - Math.max(...highs.slice(-10))) / currentPrice < 0.003;
+  if (isRisingLows && flatResistance) {
+    patterns.push({ type: 'ascending_triangle', signal: 'buy', strength: 0.75, confidence: 0.7, reliability: 0.75, maturity: 0.7, stopLoss: Math.min(...lows.slice(-10)) * 0.998, takeProfit: maxHigh + (maxHigh - minLow) * 0.5 });
+  }
+
+  // Descending Triangle
+  const isLowerHighs = recentCloses.length >= 3 && recentCloses.every((v: number, i: number) => i === 0 || v <= recentCloses[i-1] * 1.001);
+  const flatSupport = Math.abs(Math.min(...lows.slice(-20)) - Math.min(...lows.slice(-10))) / currentPrice < 0.003;
+  if (isLowerHighs && flatSupport) {
+    patterns.push({ type: 'descending_triangle', signal: 'sell', strength: 0.75, confidence: 0.7, reliability: 0.75, maturity: 0.7, stopLoss: Math.max(...highs.slice(-10)) * 1.002, takeProfit: minLow - (maxHigh - minLow) * 0.5 });
+  }
+
+  // Trend continuation
+  const trend = (recentCloses[recentCloses.length - 1] - recentCloses[0]) / recentCloses[0];
+  if (Math.abs(trend) > 0.015) {
+    patterns.push({ type: trend > 0 ? 'uptrend_channel' : 'downtrend_channel', signal: trend > 0 ? 'buy' : 'sell', strength: Math.min(1, Math.abs(trend) * 20), confidence: 0.6, reliability: Math.min(1, Math.abs(trend) * 25), maturity: 0.7, stopLoss: currentPrice * (trend > 0 ? 0.995 : 1.005), takeProfit: currentPrice * (trend > 0 ? 1.02 : 0.98) });
+  }
+
   return patterns;
 }
 
 function detectHarmonicPatterns(candles: any[]): any[] {
-  // Simplified harmonic pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 50) {
-    const prices = candles.map(c => c.close);
-    const currentPrice = prices[prices.length - 1];
-    
-    // Simplified Gartley pattern detection
-    const fibAccuracy = Math.random() * 0.3 + 0.7; // 0.7 to 1.0
-    
-    if (fibAccuracy > 0.85) {
-      patterns.push({
-        type: 'gartley',
-        signal: Math.random() > 0.5 ? 'buy' : 'sell',
-        accuracy: fibAccuracy,
-        strength: fibAccuracy,
-        fibAccuracy,
-        stopLoss: currentPrice * (Math.random() > 0.5 ? 0.97 : 1.03),
-        takeProfit: currentPrice * (Math.random() > 0.5 ? 1.05 : 0.95)
-      });
+  const patterns: any[] = [];
+  if (candles.length < 50) return patterns;
+
+  // Find swing points for harmonic detection
+  const lookback = 5;
+  type SP = { index: number; price: number; type: 'high' | 'low' };
+  const swingPoints: SP[] = [];
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    let isHigh = true, isLow = true;
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= candles[i].high) isHigh = false;
+      if (candles[j].low <= candles[i].low) isLow = false;
+    }
+    if (isHigh) swingPoints.push({ index: i, price: candles[i].high, type: 'high' });
+    if (isLow) swingPoints.push({ index: i, price: candles[i].low, type: 'low' });
+  }
+  swingPoints.sort((a, b) => a.index - b.index);
+
+  const inRange = (v: number, min: number, max: number, tol = 0.1) =>
+    v >= min * (1 - tol) && v <= max * (1 + tol);
+
+  const currentPrice = candles[candles.length - 1].close;
+
+  // Pattern definitions: name, ratio test, ideal ratios for confidence
+  const patternDefs = [
+    { name: 'gartley', test: (r: any) => inRange(r.ab, 0.618, 0.618) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.272, 1.618) && inRange(r.ad, 0.786, 0.786) },
+    { name: 'butterfly', test: (r: any) => inRange(r.ab, 0.786, 0.786) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.618, 2.618) && inRange(r.ad, 1.272, 1.272) },
+    { name: 'bat', test: (r: any) => inRange(r.ab, 0.382, 0.5) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.618, 2.618) && inRange(r.ad, 0.886, 0.886) },
+    { name: 'crab', test: (r: any) => inRange(r.ab, 0.382, 0.618) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 2.24, 3.618) && inRange(r.ad, 1.618, 1.618) },
+    { name: 'shark', test: (r: any) => inRange(r.ab, 1.13, 1.618) && inRange(r.bc, 1.618, 2.24) && inRange(r.ad, 0.886, 1.13) },
+    { name: 'cypher', test: (r: any) => inRange(r.ab, 0.382, 0.618) && inRange(r.bc, 1.272, 1.414) && inRange(r.ad, 0.786, 0.786) },
+  ];
+
+  for (let i = 0; i < swingPoints.length - 4; i++) {
+    const [X, A, B, C, D] = [swingPoints[i], swingPoints[i+1], swingPoints[i+2], swingPoints[i+3], swingPoints[i+4]];
+    const XA = Math.abs(A.price - X.price);
+    const AB = Math.abs(B.price - A.price);
+    const BC = Math.abs(C.price - B.price);
+    const CD = Math.abs(D.price - C.price);
+    const AD = Math.abs(D.price - A.price);
+    if (XA === 0 || AB === 0 || BC === 0) continue;
+
+    const r = { ab: AB / XA, bc: BC / AB, cd: CD / BC, ad: AD / XA };
+
+    for (const def of patternDefs) {
+      if (def.test(r)) {
+        const isBullish = X.price < A.price;
+        // Calculate confidence based on ratio accuracy
+        let confidence = 0.7;
+        // Tighter ratios = higher confidence
+        const avgDeviation = [Math.abs(r.ab - 0.618), Math.abs(r.ad - 0.786)].reduce((a, b) => a + b, 0) / 2;
+        confidence = Math.min(0.95, 0.7 + (1 - avgDeviation) * 0.25);
+
+        patterns.push({
+          type: def.name,
+          signal: isBullish ? 'buy' : 'sell',
+          accuracy: confidence,
+          strength: confidence,
+          fibAccuracy: confidence,
+          stopLoss: isBullish ? D.price - XA * 0.1 : D.price + XA * 0.1,
+          takeProfit: isBullish ? D.price + XA * 0.618 : D.price - XA * 0.618,
+        });
+        break; // One pattern per 5-point combo
+      }
     }
   }
-  
+
   return patterns;
 }
 

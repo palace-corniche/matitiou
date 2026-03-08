@@ -1,6 +1,6 @@
 import { TechnicalAnalysisEngine, type CandleData, type IndicatorResult } from './technicalAnalysis';
 import { CandlestickPatternRecognition, ChartPatternRecognition, type CandlestickPattern, type ChartPattern } from './patternRecognition';
-import { HarmonicPatternRecognition, type HarmonicPattern, type ElliottWave } from './harmonicPatterns';
+import { HarmonicPatternRecognition, ElliottWaveAnalysis, type HarmonicPattern, type ElliottWave } from './harmonicPatterns';
 import { 
   ScalpingStrategies, 
   DayTradingStrategies, 
@@ -192,17 +192,17 @@ export class EnhancedSignalEngine {
 
   async analyzeAllPatterns(candles: CandleData[]) {
     try {
-      // Candlestick patterns
-      const candlestickPatterns = this.detectCandlestickPatterns(candles);
+      // Real candlestick patterns from patternRecognition.ts (28 patterns)
+      const candlestickPatterns = CandlestickPatternRecognition.detectPatterns(candles);
       
-      // Chart patterns (simplified)
-      const chartPatterns = this.detectChartPatterns(candles);
+      // Real chart patterns (H&S, triangles, wedges, flags, double top/bottom)
+      const chartPatterns = ChartPatternRecognition.analyzePatterns(candles);
       
-      // Harmonic patterns - simplified implementation
-      const harmonicPatterns: any[] = []; // Simple placeholder
+      // Real harmonic patterns (ABCD, Gartley, Butterfly, Bat, Crab, Shark, Cypher, Three Drives)
+      const harmonicPatterns = HarmonicPatternRecognition.detectAllPatterns(candles);
       
-      // Elliott waves (simplified)
-      const elliottWaves = this.detectElliottWaves(candles);
+      // Real Elliott Wave analysis (impulse + corrective: zigzag, flat, triangle)
+      const elliottWaves = ElliottWaveAnalysis.analyzeWaves(candles);
       
       // Fibonacci levels
       const fibonacciLevels = this.calculateFibonacciLevels(candles);
@@ -235,82 +235,58 @@ export class EnhancedSignalEngine {
     const strategies: StrategySignal[] = [];
     
     try {
-      // RSI strategy
-      const rsi = this.calculateRSI(candles, 14);
-      if (rsi.length > 0) {
-        const currentRSI = rsi[rsi.length - 1];
-        if (currentRSI < 30) {
-          strategies.push({
-            name: 'RSI Oversold Strategy',
-            type: 'day_trading',
-            signal: 'buy',
-            confidence: (30 - currentRSI) / 30,
-            strength: 8,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 0.99,
-            takeProfit: candles[candles.length - 1].close * 1.02,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['RSI < 30'],
-            description: 'RSI oversold reversal strategy'
-          } as StrategySignal);
-        } else if (currentRSI > 70) {
-          strategies.push({
-            name: 'RSI Overbought Strategy',
-            type: 'day_trading',
-            signal: 'sell',
-            confidence: (currentRSI - 70) / 30,
-            strength: 8,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 1.01,
-            takeProfit: candles[candles.length - 1].close * 0.98,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['RSI > 70'],
-            description: 'RSI overbought reversal strategy'
-          } as StrategySignal);
+      // Run all real strategy engines from tradingStrategies.ts (1 arg each)
+      const scalpingSignals = [
+        ScalpingStrategies.rsiDivergenceScalp(candles),
+        ScalpingStrategies.stochasticCrossover(candles),
+        ScalpingStrategies.macdHistogramScalp(candles),
+      ];
+
+      const dayTradingSignals = [
+        DayTradingStrategies.pivotPointBounce(candles),
+        DayTradingStrategies.keltnerChannelBreakout(candles),
+        DayTradingStrategies.tripleEmaCrossover(candles),
+        DayTradingStrategies.macdHistogramReversal(candles),
+      ];
+
+      const swingSignals = [
+        SwingTradingStrategies.superTrendFollowing(candles),
+        SwingTradingStrategies.doubleTopBottomEntry(candles),
+        SwingTradingStrategies.adxTrendStrength(candles),
+      ];
+
+      // Collect all non-null, non-neutral signals
+      const allSignals = [
+        ...scalpingSignals,
+        ...dayTradingSignals,
+        ...swingSignals,
+      ];
+
+      for (const sig of allSignals) {
+        if (sig && sig.signal !== 'neutral') {
+          strategies.push(sig);
         }
       }
 
-      // MACD strategy
-      const macd = this.calculateMACD(candles);
-      if (macd.length > 1) {
-        const current = macd[macd.length - 1];
-        const previous = macd[macd.length - 2];
-        
-        if (current.macd > current.signal && previous.macd <= previous.signal) {
-          strategies.push({
-            name: 'MACD Crossover Strategy',
-            type: 'swing_trading',
-            signal: 'buy',
-            confidence: 0.7,
-            strength: 7,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 0.99,
-            takeProfit: candles[candles.length - 1].close * 1.02,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['MACD > Signal'],
-            description: 'MACD bullish crossover'
-          } as StrategySignal);
-        } else if (current.macd < current.signal && previous.macd >= previous.signal) {
-          strategies.push({
-            name: 'MACD Crossover Strategy',
-            type: 'swing_trading',
-            signal: 'sell',
-            confidence: 0.7,
-            strength: 7,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 1.01,
-            takeProfit: candles[candles.length - 1].close * 0.98,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['MACD < Signal'],
-            description: 'MACD bearish crossover'
-          } as StrategySignal);
-        }
+      // Multi-timeframe analysis using single candle set (simulated timeframes)
+      const mtfData: { [key: string]: CandleData[] } = { [timeframe]: candles };
+      const mtf = MultiTimeframeEngine.analyzeMultipleTimeframes(mtfData);
+      if (mtf.overallBias !== 'neutral') {
+        strategies.push({
+          name: 'Multi-Timeframe Alignment',
+          type: 'swing_trading',
+          signal: mtf.overallBias === 'bullish' ? 'buy' : 'sell',
+          confidence: mtf.alignment / 100,
+          strength: mtf.alignment / 100 * 8,
+          entry: candles[candles.length - 1].close,
+          stopLoss: candles[candles.length - 1].close * (mtf.overallBias === 'bullish' ? 0.99 : 1.01),
+          takeProfit: candles[candles.length - 1].close * (mtf.overallBias === 'bullish' ? 1.02 : 0.98),
+          riskReward: 2.0,
+          timeframe,
+          conditions: [`MTF alignment: ${mtf.alignment.toFixed(0)}%`],
+          description: `Multi-timeframe ${mtf.overallBias} alignment`
+        });
       }
-
     } catch (error) {
       console.error('Error analyzing strategies:', error);
     }
@@ -383,153 +359,7 @@ export class EnhancedSignalEngine {
     }
   }
 
-  private detectCandlestickPatterns(candles: CandleData[]): CandlestickPattern[] {
-    const patterns: CandlestickPattern[] = [];
-    
-    if (candles.length < 3) return patterns;
-
-    for (let i = 2; i < candles.length; i++) {
-      const current = candles[i];
-      const previous = candles[i - 1];
-      const beforePrevious = candles[i - 2];
-
-      // Doji pattern
-      const bodySize = Math.abs(current.close - current.open);
-      const candleRange = current.high - current.low;
-      if (bodySize < candleRange * 0.1) {
-        patterns.push({
-          name: 'Doji',
-          type: 'reversal',
-          signal: 'neutral',
-          strength: 6,
-          position: i,
-          description: 'Doji candlestick pattern'
-        });
-      }
-
-      // Hammer pattern
-      const lowerShadow = current.open < current.close ? 
-        current.open - current.low : current.close - current.low;
-      const upperShadow = current.high - Math.max(current.open, current.close);
-      
-      if (lowerShadow > bodySize * 2 && upperShadow < bodySize * 0.5) {
-        patterns.push({
-          name: 'Hammer',
-          type: 'reversal',
-          signal: 'bullish',
-          strength: 8,
-          position: i,
-          description: 'Hammer reversal pattern'
-        });
-      }
-
-      // Engulfing pattern
-      if (i > 0) {
-        const prevBodySize = Math.abs(previous.close - previous.open);
-        const currBodySize = Math.abs(current.close - current.open);
-        
-        if (currBodySize > prevBodySize * 1.5) {
-          if (previous.close < previous.open && current.close > current.open &&
-              current.close > previous.open && current.open < previous.close) {
-            patterns.push({
-              name: 'Bullish Engulfing',
-              type: 'reversal',
-              signal: 'bullish',
-              strength: 9,
-              position: i,
-              description: 'Bullish engulfing pattern'
-            });
-          } else if (previous.close > previous.open && current.close < current.open &&
-                     current.close < previous.open && current.open > previous.close) {
-            patterns.push({
-              name: 'Bearish Engulfing',
-              type: 'reversal',
-              signal: 'bearish',
-              strength: 9,
-              position: i,
-              description: 'Bearish engulfing pattern'
-            });
-          }
-        }
-      }
-    }
-
-    return patterns;
-  }
-
-  private detectChartPatterns(candles: CandleData[]): ChartPattern[] {
-    const patterns: ChartPattern[] = [];
-    
-    if (candles.length < 20) return patterns;
-
-    // Simplified chart pattern detection
-    const highs = candles.map(c => c.high);
-    const lows = candles.map(c => c.low);
-    
-    // Look for double top/bottom patterns
-    const recentHighs = highs.slice(-20);
-    const recentLows = lows.slice(-20);
-    
-    const maxHigh = Math.max(...recentHighs);
-    const minLow = Math.min(...recentLows);
-    
-    // Double top detection (simplified)
-    const highIndices = recentHighs.map((h, i) => ({ value: h, index: i }))
-      .filter(h => h.value > maxHigh * 0.98)
-      .map(h => h.index);
-    
-    if (highIndices.length >= 2) {
-      patterns.push({
-        name: 'Double Top',
-        type: 'reversal',
-        signal: 'bearish',
-        strength: 0.7,
-        startIndex: highIndices[0],
-        endIndex: highIndices[1],
-        description: 'Double top formation detected'
-      });
-    }
-
-    // Double bottom detection (simplified)
-    const lowIndices = recentLows.map((l, i) => ({ value: l, index: i }))
-      .filter(l => l.value < minLow * 1.02)
-      .map(l => l.index);
-    
-    if (lowIndices.length >= 2) {
-      patterns.push({
-        name: 'Double Bottom',
-        type: 'reversal',
-        signal: 'bullish',
-        strength: 0.7,
-        startIndex: lowIndices[0],
-        endIndex: lowIndices[1],
-        description: 'Double bottom formation detected'
-      });
-    }
-
-    return patterns;
-  }
-
-  private detectElliottWaves(candles: CandleData[]): ElliottWave[] {
-    const waves: ElliottWave[] = [];
-    
-    if (candles.length < 50) return waves;
-
-    // Simplified Elliott Wave detection
-    const prices = candles.map(c => c.close);
-    const peaks = this.findPeaksAndTroughs(prices);
-    
-    if (peaks.length >= 5) {
-      waves.push({
-        waves: [{ number: 5, startIndex: 0, endIndex: peaks.length-1, startPrice: peaks[0].value, endPrice: peaks[peaks.length-1].value, type: 'impulse' }],
-        degree: 'primary',
-        type: 'impulse',
-        projection: { wave3Target: peaks[0].value, wave5Target: peaks[0].value, confidence: 0.6 }
-      });
-    }
-
-    return waves;
-  }
+  // Old inline methods removed — now using CandlestickPatternRecognition, ChartPatternRecognition, ElliottWaveAnalysis from imported modules
 
   private calculateFibonacciLevels(candles: CandleData[]): FibonacciLevel[] {
     const levels: FibonacciLevel[] = [];
