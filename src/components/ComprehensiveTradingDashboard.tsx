@@ -242,7 +242,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">120+ Technical Indicators</h3>
+                  <h3 className="font-medium mb-2">75+ Technical Indicators</h3>
                   <p className="text-sm text-muted-foreground">Comprehensive indicator analysis including Ichimoku, SuperTrend, advanced oscillators</p>
                 </div>
                 <div className="p-4 border rounded-lg">
