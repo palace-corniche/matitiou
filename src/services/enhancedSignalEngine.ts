@@ -235,24 +235,24 @@ export class EnhancedSignalEngine {
     const strategies: StrategySignal[] = [];
     
     try {
-      // Run all real strategy engines from tradingStrategies.ts
+      // Run all real strategy engines from tradingStrategies.ts (1 arg each)
       const scalpingSignals = [
-        ScalpingStrategies.rsiDivergenceScalp(candles, timeframe),
-        ScalpingStrategies.stochasticCrossover(candles, timeframe),
-        ScalpingStrategies.macdHistogramScalp(candles, timeframe),
+        ScalpingStrategies.rsiDivergenceScalp(candles),
+        ScalpingStrategies.stochasticCrossover(candles),
+        ScalpingStrategies.macdHistogramScalp(candles),
       ];
 
       const dayTradingSignals = [
-        DayTradingStrategies.pivotPointBounce(candles, timeframe),
-        DayTradingStrategies.keltnerChannelBreakout(candles, timeframe),
-        DayTradingStrategies.tripleEmaCrossover(candles, timeframe),
-        DayTradingStrategies.macdHistogramReversal(candles, timeframe),
+        DayTradingStrategies.pivotPointBounce(candles),
+        DayTradingStrategies.keltnerChannelBreakout(candles),
+        DayTradingStrategies.tripleEmaCrossover(candles),
+        DayTradingStrategies.macdHistogramReversal(candles),
       ];
 
       const swingSignals = [
-        SwingTradingStrategies.superTrendFollowing(candles, timeframe),
-        SwingTradingStrategies.doubleTopBottomEntry(candles, timeframe),
-        SwingTradingStrategies.adxTrendStrength(candles, timeframe),
+        SwingTradingStrategies.superTrendFollowing(candles),
+        SwingTradingStrategies.doubleTopBottomEntry(candles),
+        SwingTradingStrategies.adxTrendStrength(candles),
       ];
 
       // Collect all non-null, non-neutral signals
@@ -268,8 +268,9 @@ export class EnhancedSignalEngine {
         }
       }
 
-      // Multi-timeframe trend alignment
-      const mtf = MultiTimeframeEngine.analyzeTrend(candles, timeframe);
+      // Multi-timeframe analysis using single candle set (simulated timeframes)
+      const mtfData: { [key: string]: CandleData[] } = { [timeframe]: candles };
+      const mtf = MultiTimeframeEngine.analyzeMultipleTimeframes(mtfData);
       if (mtf.overallBias !== 'neutral') {
         strategies.push({
           name: 'Multi-Timeframe Alignment',
