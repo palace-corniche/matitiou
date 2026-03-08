@@ -1223,121 +1223,252 @@ export async function generateStrategySignals(candles: any[], pair: string, time
   return signals;
 }
 
-// ===================== ENHANCED INTERMARKET ANALYSIS SIGNALS =====================
-// ✅ FIX #3: Added regime parameter to balance BUY/SELL signals
+// ===================== GODMODE INTERMARKET ANALYSIS ENGINE =====================
+// 5-model composite system computing from correlations table + candles + news sentiment
+
 export async function generateIntermarketSignals(supabase: any, pair: string, timeframe: string, regime?: string, candles?: any[]): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
-  
+
   try {
-    // Get intermarket analysis signals from modular_signals
-    const { data: intermarketSignals } = await supabase
-      .from('modular_signals')
-      .select('*')
-      .eq('module_id', 'intermarket_analysis')
-      .eq('symbol', pair)
-      .eq('timeframe', timeframe)
-      
-      .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
-      .order('confidence', { ascending: false })
-      .limit(5);
+    console.log(`🌐 Intermarket Godmode: Computing 5-model composite for ${pair}...`);
 
-    if (intermarketSignals && intermarketSignals.length > 0) {
-      for (const signal of intermarketSignals) {
-        const intermarketData = signal.intermediate_values?.intermarket_data || {};
-        const analysisResult = signal.intermediate_values?.analysis_result || {};
-        
-        // ✅ FIX #3: Regime-aware confidence adjustment
-        let confidenceBoost = 1.0;
-        
-        // In ranging markets, reduce intermarket signal confidence (counter-trend focus)
-        if (regime?.includes('ranging')) {
-          confidenceBoost = 0.7; // Reduce by 30% in ranging markets
-          console.log(`📊 Intermarket signal in RANGING market - reducing confidence to ${(signal.confidence * confidenceBoost).toFixed(2)}`);
-        } else if (analysisResult.risk_environment === 'risk_off' && 
-            (analysisResult.primary_driver === 'safe_haven_flow' || analysisResult.primary_driver === 'USD_strength')) {
-          confidenceBoost = 1.3; // 30% boost in risk-off for safe haven signals
-        } else if (analysisResult.risk_environment === 'risk_on' && analysisResult.primary_driver === 'commodity_correlation') {
-          confidenceBoost = 1.2; // 20% boost in risk-on for commodity signals
-        }
+    // ---- Gather real data from DB ----
+    const [corrResult, newsResult, candleResult] = await Promise.all([
+      supabase.from('correlations').select('*').order('calculated_at', { ascending: false }).limit(30),
+      supabase.from('news_events').select('sentiment_score, headline, impact').order('published_at', { ascending: false }).limit(10),
+      candles && candles.length >= 20 ? Promise.resolve({ data: null }) :
+        supabase.from('aggregated_candles').select('close_price, high_price, low_price')
+          .eq('symbol', pair).order('timestamp', { ascending: false }).limit(50),
+    ]);
 
-        signals.push({
-          source: `intermarket_${analysisResult.primary_driver || 'multi'}`,
-          timestamp: new Date(signal.created_at),
-          pair,
-          timeframe,
-          signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * confidenceBoost),
-          strength: Math.min(1, (signal.strength / 10) * confidenceBoost),
-          entryPrice: signal.suggested_entry || signal.trigger_price,
-          stopLoss: signal.suggested_stop_loss,
-          takeProfit: signal.suggested_take_profit,
-          factors: [
-            { 
-              name: 'correlation_strength', 
-              value: analysisResult.correlation_strength || 0.5, 
-              weight: 0.35, 
-              contribution: (analysisResult.correlation_strength || 0.5) * 0.35 
-            },
-            { 
-              name: 'risk_environment', 
-              value: analysisResult.risk_environment === 'risk_off' ? 0.8 : 0.5, 
-              weight: 0.30, 
-              contribution: (analysisResult.risk_environment === 'risk_off' ? 0.8 : 0.5) * 0.30 
-            },
-            { 
-              name: 'primary_driver_strength', 
-              value: signal.confidence, 
-              weight: 0.35, 
-              contribution: signal.confidence * 0.35 
-            }
-          ]
-        });
+    const correlations = corrResult.data || [];
+    const news = newsResult.data || [];
+    const priceCandles = candles && candles.length >= 20 ? candles : (candleResult.data || []);
+
+    // Build correlation map: symbol_pair "A|B" → coefficient
+    const corrMap: Record<string, number> = {};
+    for (const c of correlations) {
+      const parts = (c.symbol_pair || '').split('|');
+      if (parts.length === 2) {
+        // Store both directions
+        corrMap[`${parts[0]}|${parts[1]}`] = c.correlation_coefficient ?? 0;
+        corrMap[`${parts[1]}|${parts[0]}`] = c.correlation_coefficient ?? 0;
       }
     }
-    
-    // ✅ FIX #3: In ranging markets, generate counter-trend signals (STRENGTHENED)
-    if (regime?.includes('ranging') && candles && candles.length >= 20) {
-      const currentPrice = candles[candles.length - 1]?.close || 1.17065;
-      const closes = candles.map((c: any) => c.close);
-      const sma20 = calculateSMA(closes, 20);
-      
-      if (sma20 && sma20.length > 0) {
-        const avgPrice = sma20[sma20.length - 1];
-        const deviation = (currentPrice - avgPrice) / avgPrice;
-        
-        // ✅ STRENGTHENED: Generate counter-trend signal at 5 pips deviation (was 10 pips)
-        if (Math.abs(deviation) > 0.0005) { // 5 pips from average (more aggressive)
-          const counterSignal: 'buy' | 'sell' = currentPrice > avgPrice ? 'sell' : 'buy';
-          const strength = Math.min(1, Math.abs(deviation) * 150); // Increased sensitivity
-          
-          // ✅ Higher confidence for counter-trend in ranging markets
-          const baseConfidence = 0.70; // Increased from 0.65
-          const confidenceBoost = Math.min(0.20, strength * 0.20); // Up to 20% boost
-          
-          signals.push({
-            source: 'intermarket_ranging_reversion',
-            timestamp: new Date(),
-            pair,
-            timeframe,
-            signal: counterSignal,
-            confidence: baseConfidence + confidenceBoost,
-            strength: strength,
-            entryPrice: currentPrice,
-            stopLoss: counterSignal === 'buy' ? currentPrice * 0.9965 : currentPrice * 1.0035, // 35 pips SL
-            takeProfit: avgPrice, // Target mean reversion
-            factors: [
-              { name: 'range_deviation', value: Math.abs(deviation), weight: 0.6, contribution: strength * 0.6 },
-              { name: 'ranging_regime', value: 1, weight: 0.4, contribution: 0.4 }
-            ]
-          });
-          
-          console.log(`✅ STRENGTHENED RANGING counter-trend ${counterSignal.toUpperCase()} signal generated`);
-          console.log(`   📊 Deviation: ${(deviation * 100).toFixed(2)}% | Confidence: ${(baseConfidence + confidenceBoost).toFixed(2)} | Strength: ${strength.toFixed(2)}`);
-        }
+    const getCorr = (a: string, b: string): number => corrMap[`${a}|${b}`] ?? corrMap[`${b}|${a}`] ?? 0;
+
+    // Current price from candles
+    const currentPrice = priceCandles.length > 0
+      ? (priceCandles[0]?.close || priceCandles[0]?.close_price || 1.085)
+      : 1.085;
+
+    // ---- MODEL 1: Correlation Alignment Score ----
+    // When multiple correlated assets agree on direction → stronger signal
+    const dxyCorr = getCorr(pair, 'DXY');       // expect ~ -0.85
+    const gbpCorr = getCorr(pair, 'GBP/USD');    // expect ~ +0.72
+    const jpyCorr = getCorr(pair, 'USD/JPY');    // expect ~ -0.45
+    const audCorr = getCorr(pair, 'AUD/USD');    // expect ~ +0.55
+    const goldCorr = getCorr(pair, 'GOLD');      // expect ~ +0.42
+    const spxCorr = getCorr(pair, 'SPX');        // expect ~ +0.38
+    const vixCorr = getCorr(pair, 'VIX');        // expect ~ -0.32
+
+    const corrValues = [dxyCorr, gbpCorr, jpyCorr, audCorr, goldCorr, spxCorr, vixCorr].filter(v => v !== 0);
+    const avgAbsCorr = corrValues.length > 0 ? corrValues.reduce((s, v) => s + Math.abs(v), 0) / corrValues.length : 0;
+    // Alignment: how many strong correlations exist (|corr| > 0.4)?
+    const strongCorrs = corrValues.filter(v => Math.abs(v) > 0.4).length;
+    const correlationAlignmentScore = Math.min(1, (strongCorrs / 4) * 0.6 + avgAbsCorr * 0.4);
+
+    // ---- MODEL 2: DXY Divergence ----
+    // EUR/USD should be strongly inversely correlated with DXY
+    // If they move same direction → anomaly → reversion opportunity
+    let dxyDivergenceScore = 0;
+    let dxyDivergenceDirection: 'buy' | 'sell' | 'hold' = 'hold';
+    if (Math.abs(dxyCorr) > 0.3) {
+      // Expected: dxyCorr ~ -0.85. If it's positive or weak negative = divergence
+      const expectedCorr = -0.85;
+      const divergenceMagnitude = Math.abs(dxyCorr - expectedCorr);
+      dxyDivergenceScore = Math.min(1, divergenceMagnitude / 0.8);
+      // If DXY correlation is less negative than expected → EUR/USD should go down
+      if (dxyCorr > expectedCorr + 0.3) {
+        dxyDivergenceDirection = 'sell';
+      } else if (dxyCorr < expectedCorr - 0.3) {
+        dxyDivergenceDirection = 'buy';
       }
     }
+
+    // ---- MODEL 3: Risk Appetite Index ----
+    // VIX negative corr + SPX positive corr + Gold = risk assessment
+    let riskScore = 0.5; // neutral
+    let riskRegime: 'risk_on' | 'risk_off' | 'neutral' = 'neutral';
+
+    // News sentiment as risk proxy
+    const avgNewsSentiment = news.length > 0
+      ? news.reduce((s: number, n: any) => s + (n.sentiment_score || 0), 0) / news.length
+      : 0;
+
+    // VIX proxy from candle volatility
+    let computedVol = 0;
+    if (priceCandles.length >= 5) {
+      const atrs = priceCandles.slice(0, 20).map((c: any) => {
+        const h = c.high_price || c.high || 0;
+        const l = c.low_price || c.low || 0;
+        return h - l;
+      });
+      const avgATR = atrs.reduce((a: number, b: number) => a + b, 0) / atrs.length;
+      computedVol = currentPrice > 0 ? (avgATR / currentPrice) * 100 * Math.sqrt(252) * 10 : 0;
+      computedVol = Math.max(10, Math.min(50, computedVol));
+    }
+
+    // Composite risk: low vol + positive news + positive SPX corr = risk-on
+    const volComponent = computedVol > 0 ? Math.max(0, 1 - (computedVol - 15) / 20) : 0.5;
+    const newsComponent = (avgNewsSentiment + 1) / 2; // normalize [-1,1] → [0,1]
+    const spxComponent = (spxCorr + 1) / 2;
+    riskScore = volComponent * 0.4 + newsComponent * 0.3 + spxComponent * 0.3;
+    riskRegime = riskScore > 0.6 ? 'risk_on' : riskScore < 0.4 ? 'risk_off' : 'neutral';
+
+    let riskDirection: 'buy' | 'sell' | 'hold' = 'hold';
+    if (riskRegime === 'risk_on') riskDirection = 'buy';  // EUR/USD benefits from risk-on
+    else if (riskRegime === 'risk_off') riskDirection = 'sell'; // USD strengthens
+
+    // ---- MODEL 4: Commodity Flow Analysis ----
+    let commodityFlowScore = 0;
+    let commodityDirection: 'buy' | 'sell' | 'hold' = 'hold';
+    const oilCorr = getCorr(pair, 'OIL');
+    const copperCorr = getCorr(pair, 'COPPER');
+
+    // Strong positive gold/copper correlation + positive news = bullish commodity flow
+    const commoditySentiment = avgNewsSentiment; // proxy for commodity direction
+    if (Math.abs(goldCorr) > 0.3 || Math.abs(copperCorr) > 0.3) {
+      const avgCommodityCorr = (Math.abs(goldCorr) + Math.abs(copperCorr) + Math.abs(oilCorr)) / 3;
+      commodityFlowScore = Math.min(1, avgCommodityCorr * 1.5);
+      if (commoditySentiment > 0.1 && goldCorr > 0.2) commodityDirection = 'buy';
+      else if (commoditySentiment < -0.1 && goldCorr > 0.2) commodityDirection = 'sell';
+    }
+
+    // ---- MODEL 5: Cross-Currency Confirmation ----
+    let crossCurrencyScore = 0;
+    let crossDirection: 'buy' | 'sell' | 'hold' = 'hold';
+    // GBP/USD and AUD/USD should trend with EUR/USD if correlated
+    if (Math.abs(gbpCorr) > 0.4 && Math.abs(audCorr) > 0.3) {
+      // Both positively correlated → they confirm each other
+      const agreement = (gbpCorr > 0 && audCorr > 0) ? 1 : (gbpCorr < 0 && audCorr < 0) ? 0.8 : 0.3;
+      crossCurrencyScore = agreement * Math.min(1, (Math.abs(gbpCorr) + Math.abs(audCorr)) / 1.5);
+
+      // Use price momentum of candles to determine direction
+      if (priceCandles.length >= 5) {
+        const recentClose = priceCandles[0]?.close_price || priceCandles[0]?.close || currentPrice;
+        const olderClose = priceCandles[4]?.close_price || priceCandles[4]?.close || currentPrice;
+        if (recentClose > olderClose) crossDirection = 'buy';
+        else if (recentClose < olderClose) crossDirection = 'sell';
+      }
+    }
+
+    // ---- COMPOSITE SCORING ----
+    const weights = { alignment: 0.25, dxy: 0.25, risk: 0.20, commodity: 0.15, cross: 0.15 };
+    const compositeScore =
+      correlationAlignmentScore * weights.alignment +
+      dxyDivergenceScore * weights.dxy +
+      Math.abs(riskScore - 0.5) * 2 * weights.risk + // distance from neutral
+      commodityFlowScore * weights.commodity +
+      crossCurrencyScore * weights.cross;
+
+    // Direction voting
+    const directionVotes = { buy: 0, sell: 0 };
+    const voteWeight = (dir: 'buy' | 'sell' | 'hold', w: number) => {
+      if (dir === 'buy') directionVotes.buy += w;
+      else if (dir === 'sell') directionVotes.sell += w;
+    };
+    voteWeight(dxyDivergenceDirection, weights.dxy);
+    voteWeight(riskDirection, weights.risk);
+    voteWeight(commodityDirection, weights.commodity);
+    voteWeight(crossDirection, weights.cross);
+    // Correlation alignment doesn't vote on direction — it's a confidence amplifier
+
+    const netVote = directionVotes.buy - directionVotes.sell;
+    const signalType: 'buy' | 'sell' | 'hold' = netVote > 0.1 ? 'buy' : netVote < -0.1 ? 'sell' : 'hold';
+
+    console.log(`🌐 Intermarket Godmode: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} | CorrAlign=${correlationAlignmentScore.toFixed(2)} DXYDiv=${dxyDivergenceScore.toFixed(2)} Risk=${riskScore.toFixed(2)}(${riskRegime}) Commodity=${commodityFlowScore.toFixed(2)} Cross=${crossCurrencyScore.toFixed(2)}`);
+
+    // Build factors for storage
+    const factors = [
+      { name: 'correlation_alignment', value: correlationAlignmentScore, weight: weights.alignment, contribution: correlationAlignmentScore * weights.alignment },
+      { name: 'dxy_divergence', value: dxyDivergenceScore, weight: weights.dxy, contribution: dxyDivergenceScore * weights.dxy },
+      { name: 'risk_appetite', value: riskScore, weight: weights.risk, contribution: Math.abs(riskScore - 0.5) * 2 * weights.risk },
+      { name: 'commodity_flow', value: commodityFlowScore, weight: weights.commodity, contribution: commodityFlowScore * weights.commodity },
+      { name: 'cross_currency', value: crossCurrencyScore, weight: weights.cross, contribution: crossCurrencyScore * weights.cross },
+    ];
+
+    const calcParams = {
+      correlation_alignment: correlationAlignmentScore,
+      dxy_divergence: dxyDivergenceScore,
+      dxy_divergence_direction: dxyDivergenceDirection,
+      risk_appetite: riskScore,
+      risk_regime: riskRegime,
+      commodity_flow: commodityFlowScore,
+      commodity_direction: commodityDirection,
+      cross_currency: crossCurrencyScore,
+      cross_direction: crossDirection,
+      composite_score: compositeScore,
+      computed_volatility: computedVol,
+      avg_news_sentiment: avgNewsSentiment,
+      correlation_map: { dxy: dxyCorr, gbp: gbpCorr, jpy: jpyCorr, aud: audCorr, gold: goldCorr, spx: spxCorr, vix: vixCorr, oil: oilCorr, copper: copperCorr },
+      strong_correlations: strongCorrs,
+      factors,
+    };
+
+    // Always store diagnostic record (even on HOLD)
+    const volatility = priceCandles.length >= 2
+      ? Math.abs((priceCandles[0]?.high_price || priceCandles[0]?.high || currentPrice) - (priceCandles[0]?.low_price || priceCandles[0]?.low || currentPrice))
+      : currentPrice * 0.001;
+    const buffer = volatility * (1 + correlationAlignmentScore);
+
+    const entryPrice = signalType === 'buy' ? currentPrice + buffer * 0.4 : signalType === 'sell' ? currentPrice - buffer * 0.4 : currentPrice;
+    const stopLoss = signalType === 'buy' ? currentPrice - buffer * 2 : currentPrice + buffer * 2;
+    const takeProfit = signalType === 'buy' ? currentPrice + buffer * 3.5 : currentPrice - buffer * 3.5;
+
+    await supabase.from('modular_signals').insert({
+      module_id: 'intermarket_analysis',
+      analysis_id: crypto.randomUUID(),
+      symbol: pair,
+      timeframe,
+      signal_type: signalType,
+      confidence: compositeScore,
+      strength: Math.round(compositeScore * 10),
+      weight: 0.9,
+      trigger_price: currentPrice,
+      suggested_entry: entryPrice,
+      suggested_stop_loss: stopLoss,
+      suggested_take_profit: takeProfit,
+      trend_context: riskRegime,
+      volatility_regime: signalType === 'hold' ? 'diagnostic' : 'active',
+      market_data_snapshot: { timestamp: new Date().toISOString(), price: currentPrice },
+      calculation_parameters: calcParams,
+    });
+
+    // If actionable signal, push to StandardSignal output
+    if (signalType !== 'hold' && compositeScore > 0.35) {
+      // Regime-aware confidence adjustment
+      let confidenceMult = 1.0;
+      if (regime?.includes('ranging')) confidenceMult = 0.7;
+      else if (riskRegime === 'risk_off') confidenceMult = 1.2;
+
+      signals.push({
+        source: `intermarket_godmode`,
+        timestamp: new Date(),
+        pair,
+        timeframe,
+        signal: signalType,
+        confidence: Math.min(1, compositeScore * confidenceMult),
+        strength: Math.min(1, compositeScore),
+        entryPrice,
+        stopLoss,
+        takeProfit,
+        factors,
+      });
+    }
+
   } catch (error) {
-    console.error('Error generating intermarket signals:', error);
+    console.error('Error in Intermarket Godmode engine:', error);
   }
 
   return signals;
