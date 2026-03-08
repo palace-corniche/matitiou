@@ -1957,28 +1957,76 @@ function detectCandlestickPatterns(candles: any[]): any[] {
 }
 
 function detectChartPatterns(candles: any[]): any[] {
-  // Simplified chart pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 20) {
-    const prices = candles.map(c => c.close);
-    const recent = prices.slice(-10);
-    const trend = (recent[recent.length - 1] - recent[0]) / recent[0];
+  const patterns: any[] = [];
+  if (candles.length < 20) return patterns;
+
+  const prices = candles.map((c: any) => c.close);
+  const highs = candles.map((c: any) => c.high);
+  const lows = candles.map((c: any) => c.low);
+  const currentPrice = prices[prices.length - 1];
+  const lookback = Math.min(50, candles.length);
+
+  // Support & Resistance
+  const recentHighs = highs.slice(-lookback);
+  const recentLows = lows.slice(-lookback);
+  const maxHigh = Math.max(...recentHighs);
+  const minLow = Math.min(...recentLows);
+
+  // Double Top
+  const topZone = maxHigh * 0.998;
+  const topTouches = recentHighs.filter((h: number) => h >= topZone);
+  if (topTouches.length >= 2 && currentPrice < maxHigh * 0.99) {
+    patterns.push({ type: 'double_top', signal: 'sell', strength: Math.min(1, topTouches.length * 0.35), confidence: 0.75, reliability: 0.8, maturity: 0.7, stopLoss: maxHigh * 1.005, takeProfit: currentPrice - (maxHigh - minLow) * 0.618 });
+  }
+
+  // Double Bottom
+  const bottomZone = minLow * 1.002;
+  const bottomTouches = recentLows.filter((l: number) => l <= bottomZone);
+  if (bottomTouches.length >= 2 && currentPrice > minLow * 1.01) {
+    patterns.push({ type: 'double_bottom', signal: 'buy', strength: Math.min(1, bottomTouches.length * 0.35), confidence: 0.75, reliability: 0.8, maturity: 0.7, stopLoss: minLow * 0.995, takeProfit: currentPrice + (maxHigh - minLow) * 0.618 });
+  }
+
+  // Head & Shoulders (simplified using 3 peaks)
+  if (candles.length >= 30) {
+    const third = Math.floor(lookback / 3);
+    const seg1Highs = highs.slice(-lookback, -lookback + third);
+    const seg2Highs = highs.slice(-lookback + third, -lookback + 2 * third);
+    const seg3Highs = highs.slice(-lookback + 2 * third);
+    const peak1 = Math.max(...seg1Highs);
+    const peak2 = Math.max(...seg2Highs);
+    const peak3 = Math.max(...seg3Highs);
     
-    if (Math.abs(trend) > 0.02) {
-      patterns.push({
-        type: trend > 0 ? 'uptrend' : 'downtrend',
-        signal: trend > 0 ? 'buy' : 'sell',
-        strength: Math.min(1, Math.abs(trend) * 20),
-        confidence: 0.6,
-        reliability: Math.min(1, Math.abs(trend) * 25),
-        maturity: 0.7,
-        stopLoss: prices[prices.length - 1] * (trend > 0 ? 0.95 : 1.05),
-        takeProfit: prices[prices.length - 1] * (trend > 0 ? 1.1 : 0.9)
-      });
+    // Head higher than shoulders, shoulders roughly equal
+    if (peak2 > peak1 && peak2 > peak3 && Math.abs(peak1 - peak3) / peak2 < 0.02) {
+      const neckline = Math.min(...lows.slice(-lookback));
+      if (currentPrice < (peak1 + peak3) / 2) {
+        patterns.push({ type: 'head_and_shoulders', signal: 'sell', strength: 0.85, confidence: 0.8, reliability: 0.85, maturity: 0.8, stopLoss: peak2 * 1.003, takeProfit: neckline - (peak2 - neckline) * 0.618 });
+      }
     }
   }
-  
+
+  // Ascending Triangle
+  const recentCloses = prices.slice(-20);
+  const closeLows = recentCloses.filter((_: number, i: number) => i < recentCloses.length - 1);
+  const isRisingLows = closeLows.length >= 3 && closeLows.every((v: number, i: number) => i === 0 || v >= closeLows[i-1] * 0.999);
+  const flatResistance = Math.abs(Math.max(...highs.slice(-20)) - Math.max(...highs.slice(-10))) / currentPrice < 0.003;
+  if (isRisingLows && flatResistance) {
+    patterns.push({ type: 'ascending_triangle', signal: 'buy', strength: 0.75, confidence: 0.7, reliability: 0.75, maturity: 0.7, stopLoss: Math.min(...lows.slice(-10)) * 0.998, takeProfit: maxHigh + (maxHigh - minLow) * 0.5 });
+  }
+
+  // Descending Triangle
+  const isLowerHighs = recentCloses.length >= 3 && recentCloses.every((v: number, i: number) => i === 0 || v <= recentCloses[i-1] * 1.001);
+  const flatSupport = Math.abs(Math.min(...lows.slice(-20)) - Math.min(...lows.slice(-10))) / currentPrice < 0.003;
+  if (isLowerHighs && flatSupport) {
+    patterns.push({ type: 'descending_triangle', signal: 'sell', strength: 0.75, confidence: 0.7, reliability: 0.75, maturity: 0.7, stopLoss: Math.max(...highs.slice(-10)) * 1.002, takeProfit: minLow - (maxHigh - minLow) * 0.5 });
+  }
+
+  // Trend continuation
+  const trend = (recentCloses[recentCloses.length - 1] - recentCloses[0]) / recentCloses[0];
+  if (Math.abs(trend) > 0.015) {
+    patterns.push({ type: trend > 0 ? 'uptrend_channel' : 'downtrend_channel', signal: trend > 0 ? 'buy' : 'sell', strength: Math.min(1, Math.abs(trend) * 20), confidence: 0.6, reliability: Math.min(1, Math.abs(trend) * 25), maturity: 0.7, stopLoss: currentPrice * (trend > 0 ? 0.995 : 1.005), takeProfit: currentPrice * (trend > 0 ? 1.02 : 0.98) });
+  }
+
   return patterns;
 }
 
