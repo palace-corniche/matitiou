@@ -1051,6 +1051,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     multiTimeframeCount: signals.filter(s => s.source?.includes('timeframe')).length,
     strategyCount: signals.filter(s => s.source?.includes('strategy')).length,
     intermarketCount: signals.filter(s => s.source?.includes('intermarket')).length,
+    quantitativeCount: signals.filter(s => s.source?.includes('quantitative')).length,
     moduleErrors,
     qualityMetrics: {
       dataFreshness: calculateDataFreshness(signals),
