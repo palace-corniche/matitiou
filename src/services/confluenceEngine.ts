@@ -1,5 +1,5 @@
 // Professional Confluence Engine for Multi-Source Trading Signal Analysis
-// Integrates 120+ technical indicators, patterns, strategies, and news analysis
+// Integrates 75+ technical indicators, patterns, strategies, and news analysis
 // Phase 3: Regime-Adaptive Weight System
 // Phase 4: Enhanced Market Sentiment with COT + Alternative Data
 
@@ -264,8 +264,8 @@ export class ConfluenceEngine {
         signal: pattern.signal,
         weight: adaptiveWeight,
         strength: pattern.strength || 6,
-        description: `${pattern.name} detected at ${pattern.price?.toFixed(4)}`,
-        price: pattern.price
+        description: `${pattern.name} detected at position ${pattern.position ?? 'N/A'}`,
+        price: undefined
       });
     });
   }

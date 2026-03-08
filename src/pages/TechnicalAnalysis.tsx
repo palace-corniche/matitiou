@@ -466,7 +466,7 @@ export default function TechnicalAnalysisPage() {
           <div className="text-center">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
             <div className="text-lg font-medium">Loading Real-time Technical Analysis...</div>
-            <div className="text-sm text-muted-foreground">Initializing 120+ indicators and live price feeds</div>
+            <div className="text-sm text-muted-foreground">Initializing 75+ indicators and live price feeds</div>
           </div>
         </div>
       </div>
@@ -489,7 +489,7 @@ export default function TechnicalAnalysisPage() {
             Advanced Technical Analysis
           </h1>
           <p className="text-muted-foreground">
-            Real-time analysis with 120+ technical indicators and live market data
+            Real-time analysis with 75+ technical indicators and live market data
           </p>
         </div>
 

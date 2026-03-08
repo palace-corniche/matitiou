@@ -1,5 +1,5 @@
 // ============= ADVANCED TECHNICAL INDICATORS SYSTEM =============
-// 120+ Technical Indicators with Real-time Calculation Engine
+// 75+ Technical Indicators with Real-time Calculation Engine
 
 import { CandleData } from './technicalAnalysis';
 import { unifiedMarketData, UnifiedTick } from './unifiedMarketData';

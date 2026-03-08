@@ -34,8 +34,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
     setLoading(true);
     setAnalysisProgress('Initializing comprehensive analysis...');
     try {
-      // Phase 1: Generate comprehensive signal using all 120+ indicators
-      setAnalysisProgress('Calculating 120+ technical indicators...');
+      // Phase 1: Generate comprehensive signal using all 75+ indicators
+      setAnalysisProgress('Calculating 75+ technical indicators...');
       const confluenceSignal = await enhancedEngine.generateComprehensiveSignal(data, pair, '1h');
       if (confluenceSignal) {
         setConfluenceSignal(confluenceSignal);
@@ -103,8 +103,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <div className="text-xl font-semibold mb-2">Comprehensive Market Analysis</div>
               <div className="text-muted-foreground mb-4">{analysisProgress}</div>
               <div className="text-sm text-muted-foreground max-w-md mx-auto">
-                Analyzing 120+ indicators, 50+ patterns, harmonic analysis, Elliott waves, 
-                Fibonacci levels, Gann analysis, 50+ strategies, and multi-timeframe confluence...
+                Analyzing 75+ indicators, 15+ patterns, harmonic analysis, Elliott waves, 
+                Fibonacci levels, Gann analysis, multi-strategy confluence, and multi-timeframe analysis...
               </div>
             </CardContent>
           </Card>
@@ -242,7 +242,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">120+ Technical Indicators</h3>
+                  <h3 className="font-medium mb-2">75+ Technical Indicators</h3>
                   <p className="text-sm text-muted-foreground">Comprehensive indicator analysis including Ichimoku, SuperTrend, advanced oscillators</p>
                 </div>
                 <div className="p-4 border rounded-lg">
