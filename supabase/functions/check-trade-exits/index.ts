@@ -19,7 +19,6 @@ serve(async (req) => {
 
     console.log('🎯 Checking for stop loss and take profit hits...')
 
-    // Get current market price
     const { data: priceData, error: priceError } = await supabase
       .from('market_data_feed')
       .select('price')
@@ -36,7 +35,6 @@ serve(async (req) => {
     const currentPrice = priceData.price
     console.log(`📊 Current EUR/USD price: ${currentPrice}`)
 
-    // Get all open trades with SL or TP
     const { data: openTrades, error: tradesError } = await supabase
       .from('shadow_trades')
       .select('*')
@@ -48,11 +46,7 @@ serve(async (req) => {
     if (!openTrades || openTrades.length === 0) {
       console.log('✅ No open trades with SL/TP to check')
       return new Response(
-        JSON.stringify({ 
-          success: true, 
-          message: 'No trades to check',
-          checked: 0
-        }),
+        JSON.stringify({ success: true, message: 'No trades to check', checked: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
@@ -66,13 +60,12 @@ serve(async (req) => {
       let shouldClose = false
       let closeReason = ''
 
-      // Update exit check count
       await supabase
         .from('shadow_trades')
         .update({ exit_check_count: (trade.exit_check_count || 0) + 1 })
         .eq('id', trade.id)
 
-      // **TIME-BASED EXIT: Force close after 3 hours**
+      // Time-based exit: Force close after 3 hours
       const entryTime = new Date(trade.entry_time).getTime()
       const currentTime = Date.now()
       const holdingHours = (currentTime - entryTime) / (1000 * 60 * 60)
@@ -110,7 +103,6 @@ serve(async (req) => {
       }
 
       if (shouldClose) {
-        // Close the trade using the database function
         const { data: closeResult, error: closeError } = await supabase
           .rpc('close_shadow_trade', {
             p_trade_id: trade.id,
@@ -121,14 +113,26 @@ serve(async (req) => {
 
         if (closeError) {
           console.error(`❌ Error closing trade ${trade.id}:`, closeError)
-          results.push({
-            trade_id: trade.id,
-            success: false,
-            error: closeError.message
-          })
+          results.push({ trade_id: trade.id, success: false, error: closeError.message })
         } else {
           console.log(`✅ Trade ${trade.id} closed: ${closeReason}`)
           closedCount++
+
+          // ===== FIX #1: TRIGGER LEARNING PIPELINE =====
+          // Invoke process-trade-outcome to analyze WHY and update module performance
+          try {
+            console.log(`🧠 Triggering learning for trade ${trade.id}...`)
+            const { error: learningError } = await supabase.functions.invoke('process-trade-outcome', {
+              body: { trade_id: trade.id }
+            })
+            if (learningError) {
+              console.warn(`⚠️ Learning pipeline error for trade ${trade.id}:`, learningError)
+            } else {
+              console.log(`🧠 Learning pipeline completed for trade ${trade.id}`)
+            }
+          } catch (learnErr) {
+            console.warn('⚠️ Learning pipeline invocation failed:', learnErr)
+          }
 
           // Send Telegram notification (fire-and-forget)
           try {
@@ -136,16 +140,16 @@ serve(async (req) => {
               'stop_loss_hit': '🛑 SL Hit',
               'take_profit_hit': '✅ TP Hit',
               'max_hold_time_reached': '⏰ Time Limit'
-            };
-            const pnlValue = closeResult?.pnl ?? 0;
-            const pipsValue = closeResult?.pips ?? 0;
-            const pnlEmoji = pnlValue >= 0 ? '💰' : '📉';
-            const telegramMsg = `📊 <b>TRADE CLOSED</b>\nType: ${trade.trade_type.toUpperCase()}\nEntry: ${trade.entry_price} → Exit: ${currentPrice}\nReason: ${reasonMap[closeReason] || closeReason}\n${pnlEmoji} PnL: $${pnlValue.toFixed(2)} (${pipsValue.toFixed(1)} pips)`;
+            }
+            const pnlValue = closeResult?.pnl ?? 0
+            const pipsValue = closeResult?.pips ?? 0
+            const pnlEmoji = pnlValue >= 0 ? '💰' : '📉'
+            const telegramMsg = `📊 <b>TRADE CLOSED</b>\nType: ${trade.trade_type.toUpperCase()}\nEntry: ${trade.entry_price} → Exit: ${currentPrice}\nReason: ${reasonMap[closeReason] || closeReason}\n${pnlEmoji} PnL: $${pnlValue.toFixed(2)} (${pipsValue.toFixed(1)} pips)`
             await supabase.functions.invoke('send-telegram-notification', {
               body: { message: telegramMsg }
-            });
+            })
           } catch (tgErr) {
-            console.warn('⚠️ Telegram notification failed:', tgErr);
+            console.warn('⚠️ Telegram notification failed:', tgErr)
           }
 
           results.push({
@@ -153,7 +157,8 @@ serve(async (req) => {
             success: true,
             reason: closeReason,
             close_price: currentPrice,
-            pnl: closeResult.pnl
+            pnl: closeResult.pnl,
+            learning_triggered: true
           })
         }
       }
@@ -170,23 +175,14 @@ serve(async (req) => {
         results,
         timestamp: new Date().toISOString()
       }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200
-      }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
 
   } catch (error) {
     console.error('❌ Fatal error:', error)
     return new Response(
-      JSON.stringify({ 
-        success: false, 
-        error: error instanceof Error ? error.message : 'Unknown error'
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500
-      }
+      JSON.stringify({ success: false, error: error instanceof Error ? error.message : 'Unknown error' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     )
   }
 })
