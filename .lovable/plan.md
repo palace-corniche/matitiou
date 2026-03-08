@@ -1,21 +1,16 @@
 
 
-# Fix Total Return Calculation
+# Fix Balance to $119
 
-## Problem
-In `PerformanceMetricsPanel.tsx` line 62, the return is calculated against a hardcoded `100000` initial balance:
-```typescript
-const totalReturn = ((account.balance - 100000) / 100000) * 100;
-```
-With balance at `$119`, this gives `(119 - 100000) / 100000 * 100 = -99.881%`. The user wants it based on an initial balance of `$100`.
+The current balance in the database is `$100,019.24`. The user wants it set to `$119`.
 
-## Fix
-Change line 62 in `src/components/enhanced/PerformanceMetricsPanel.tsx`:
-```typescript
-const totalReturn = ((account.balance - 100) / 100) * 100;
+## Plan
+Run a single SQL migration to update the `global_trading_account` row:
+```sql
+UPDATE global_trading_account
+SET balance = 119, equity = 119
+WHERE id = '00000000-0000-0000-0000-000000000001';
 ```
 
-This yields `(119 - 100) / 100 * 100 = 19%` — correctly showing profit.
-
-Single line change, one file.
+No code changes needed — the dashboard already reads `account.balance` directly.
 
