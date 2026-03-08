@@ -192,17 +192,17 @@ export class EnhancedSignalEngine {
 
   async analyzeAllPatterns(candles: CandleData[]) {
     try {
-      // Candlestick patterns
-      const candlestickPatterns = this.detectCandlestickPatterns(candles);
+      // Real candlestick patterns from patternRecognition.ts (28 patterns)
+      const candlestickPatterns = CandlestickPatternRecognition.detectPatterns(candles);
       
-      // Chart patterns (simplified)
-      const chartPatterns = this.detectChartPatterns(candles);
+      // Real chart patterns (H&S, triangles, wedges, flags, double top/bottom)
+      const chartPatterns = ChartPatternRecognition.analyzePatterns(candles);
       
-      // Harmonic patterns - simplified implementation
-      const harmonicPatterns: any[] = []; // Simple placeholder
+      // Real harmonic patterns (ABCD, Gartley, Butterfly, Bat, Crab, Shark, Cypher, Three Drives)
+      const harmonicPatterns = HarmonicPatternRecognition.detectAllPatterns(candles);
       
-      // Elliott waves (simplified)
-      const elliottWaves = this.detectElliottWaves(candles);
+      // Real Elliott Wave analysis (impulse + corrective: zigzag, flat, triangle)
+      const elliottWaves = ElliottWaveAnalysis.analyzeWaves(candles);
       
       // Fibonacci levels
       const fibonacciLevels = this.calculateFibonacciLevels(candles);
