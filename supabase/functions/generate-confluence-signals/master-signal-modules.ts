@@ -268,7 +268,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     const isValidRangingSell = isRanging && maAlignment.signal === 'sell' && currentPrice > sma20[sma20.length - 1];
     
     if (maAlignment.strength > 0.4 && (isTrendAligned || isValidRangingSell)) {
-      const confidenceBoost = isValidRangingSell ? maAlignment.strength * 0.9 : maAlignment.strength * 1.1;
+      const confidenceBoost = Math.min(1, isValidRangingSell ? maAlignment.strength * 0.9 : maAlignment.strength * 1.1);
       
       signals.push({
         source: 'technical_ma_confluence',
