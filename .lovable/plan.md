@@ -1,57 +1,102 @@
 
 
-# System Diagnostic Report
+# UI Redesign: Clean, Readable Trading System
 
-## Database Status: HEALTHY
-- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
-- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
-- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
+## Problem
+The current UI is over-engineered with:
+- 14 sidebar navigation items across 4 groups — too many pages
+- Deeply nested tabs within tabs (ShadowTrading page has 5 tabs, each with sub-sections)
+- Redundant pages (Enhanced Trading = exact same component as Shadow Trading)
+- Dense monitoring panels that clutter the main trading view
+- Pages like Intelligence Hub, Signal Analytics, and Enhanced Signal Analytics overlap heavily
+- Tiny text (10px), excessive badges, and information overload
 
-## Edge Functions: BLOCKED (402)
-The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
-- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
-- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
+## Design Philosophy
+**"Command center, not a control room."** One primary view to trade from, with drill-down access to details. Think Bloomberg Terminal simplicity — show what matters, hide what doesn't until asked.
 
-**This is the single blocker.** Everything else is correctly configured and ready.
+## New Navigation Structure (4 pages, down from 14)
 
-## Trading Account: RESET and READY
-| Field | Value |
-|---|---|
-| Balance | $100,000 |
-| Equity | $100,000 |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Auto Trading | Enabled |
+```text
+┌─────────────────────────────────────┐
+│  ProTrade AI                        │
+├─────────────────────────────────────┤
+│  📊 Dashboard        (home)        │
+│  🎯 Trading          (execute)     │
+│  📈 Analysis         (all 6 merged)│
+│  ⚙️ System           (health+learn)│
+└─────────────────────────────────────┘
+```
 
-## Module Health: 6 modules active, 0 errors
-All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
+- **Dashboard** — Account overview + latest signals + quick performance summary (replaces Index + SignalAnalytics + EnhancedSignalAnalytics)
+- **Trading** — Positions, history, trade execution, exit intelligence (replaces ShadowTrading + EnhancedTrading)
+- **Analysis** — All 6 analysis types as tabs in one page (Technical, Fundamental, Sentiment, Quantitative, Intermarket, Specialized) + Intelligence Hub content
+- **System** — System health + Autonomous Learning + Module Performance (replaces SystemMonitor + AutonomousLearning)
 
-## Cron Jobs: 11 active schedules
-All cron jobs are active and correctly configured:
-- Market data fetch (every minute)
-- Signal generation (every 5 min)
-- Trade execution (every minute)
-- Exit monitoring (every 5 min)
-- Pattern detection (every 15 min)
-- News sentiment (every 30 min)
-- Learning orchestrator (hourly)
-- **Log cleanup (daily at 3 AM)** -- new
+## Page Redesigns
 
-## Trading Configuration
-- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
+### 1. Dashboard (new Index page)
+```text
+┌──────────────────────────────────────────┐
+│ Balance    Equity    Win Rate    P&L     │  ← 4 stat cards (existing)
+├──────────────────────────────────────────┤
+│ ┌─────────────────┐ ┌──────────────────┐│
+│ │ Latest Signals   │ │ Performance      ││
+│ │ - BUY EUR/USD    │ │ Chart (mini)     ││
+│ │   85% confluence │ │ equity curve     ││
+│ │ - SELL ...        │ │                  ││
+│ └─────────────────┘ └──────────────────┘│
+│ ┌──────────────────────────────────────┐│
+│ │ Recent Trades (last 5)               ││
+│ │ Symbol | Type | PnL | Duration       ││
+│ └──────────────────────────────────────┘│
+└──────────────────────────────────────────┘
+```
 
-## Is the System Profitable / "Next Level"?
+### 2. Trading Page (merged Shadow + Enhanced)
+- Remove the outer 5-tab structure from ShadowTrading page
+- Show: Account bar + Positions table + Trade history (stacked, no tabs needed)
+- Collapsible "Trade Execution" panel at top
+- Exit Intelligence as a subtle status row on each open position, not a separate dashboard
+- Monitoring/diagnostics moved to System page
 
-**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
-1. The 402 block clearing so data starts flowing
-2. Signals being generated from live market data
-3. Trades being executed and closed
+### 3. Analysis Page (6 analysis types as tabs)
+- Single page with 6 tab triggers: Technical | Fundamental | Sentiment | Quantitative | Intermarket | Specialized
+- Each renders its existing component
+- Add "Confluence" summary card at the top showing current signal
 
-The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
+### 4. System Page (merged monitor + learning)
+- System health cards at top
+- Module performance tracker
+- Autonomous learning dashboard
+- Data integrity monitors (currently hidden in Shadow Trading collapsible)
 
-## What You Need To Do
+## Visual Improvements (all pages)
+- Increase base text from 10px to 12-13px
+- Reduce badge density — only show badges for actionable states
+- Use consistent color language: green = profit/healthy, red = loss/alert, amber = warning
+- Larger stat numbers (2xl → 3xl for key figures like balance)
+- More whitespace between sections
+- Remove redundant "Loading..." spinners — use skeleton placeholders instead
 
-**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+## Files to Create/Edit
 
-You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
+| File | Action |
+|------|--------|
+| `src/components/AppSidebar.tsx` | Simplify to 4 nav items |
+| `src/pages/Index.tsx` | Rebuild as clean dashboard |
+| `src/pages/ShadowTrading.tsx` | Rename route to `/trading`, merge with EnhancedTrading, flatten UI |
+| `src/pages/AnalysisHub.tsx` | **New** — 6 analysis tabs + confluence summary |
+| `src/pages/SystemHub.tsx` | **New** — merge SystemMonitor + AutonomousLearning + ModulePerformance |
+| `src/App.tsx` | Update routes, remove old pages, add redirects |
+| `src/components/DashboardOverview.tsx` | **New** — clean dashboard with signals + performance + recent trades |
+| `src/components/TradingPage.tsx` | **New** — flattened trading view (positions + history + execution) |
+| `src/components/enhanced/ExitIntelligenceDashboard.tsx` | Simplify to inline status badges on positions |
+
+## Removed/Redirected Routes
+- `/enhanced-trading` → redirect to `/trading`
+- `/signal-analytics` → redirect to `/`
+- `/enhanced-signal-analytics` → redirect to `/`
+- `/intelligence-hub` → redirect to `/analysis`
+- `/autonomous-learning` → redirect to `/system`
+- `/technical-analysis` through `/specialized-analysis` → redirect to `/analysis`
 
