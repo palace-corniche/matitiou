@@ -49,7 +49,7 @@ export default function IntermarketAnalysisPage() {
       setLoading(true);
       
       // Fetch real data from existing database tables
-      const [signalsResult, marketSnapshotResult, volatilityResult] = await Promise.all([
+      const [signalsResult, correlationsResult] = await Promise.all([
         supabase
           .from('modular_signals')
           .select('*')
@@ -57,17 +57,10 @@ export default function IntermarketAnalysisPage() {
           .order('created_at', { ascending: false })
           .limit(10),
         supabase
-          .from('market_snapshot')
+          .from('correlations')
           .select('*')
-          .in('symbol', ['DXY', 'XAUUSD', 'WTI', 'SPX'])
-          .order('snapshot_time', { ascending: false })
-          .limit(20),
-        supabase
-          .from('volatility_metrics')
-          .select('*')
-          .eq('symbol', 'EUR/USD')
-          .order('calculation_date', { ascending: false })
-          .limit(5)
+          .order('calculated_at', { ascending: false })
+          .limit(20)
       ]);
 
       if (signalsResult.error) throw signalsResult.error;
