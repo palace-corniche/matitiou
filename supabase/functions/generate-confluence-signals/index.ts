@@ -8,6 +8,7 @@ import {
   generatePatternSignals,
   generateStrategySignals,
   generateIntermarketSignals,
+  generateQuantitativeSignals,
   fuseSignalsWithBayesian,
   generateSignalDiagnostics
 } from './master-signal-modules.ts';
@@ -610,7 +611,8 @@ serve(async (req) => {
                 'sentiment': 'sentiment_analysis',
                 'pattern': 'specialized_analysis',
                 'strategy': 'specialized_analysis',
-                'timeframe': 'quantitative_analysis',
+                'quantitative': 'quantitative_analysis',
+                'timeframe': 'multi_timeframe_analysis',
                 'intermarket': 'intermarket_analysis',
               };
               const allSignals = signalAnalysis?.modularResults?.allSignals || [];
@@ -996,6 +998,18 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     moduleErrors.push({ module: 'strategy', error: (error as Error).message });
   }
 
+  // Quantitative analysis signals (real statistical calculations from candle data)
+  try {
+    const quantSignals = generateQuantitativeSignals(candles, pair, timeframe);
+    if (quantSignals?.length > 0) {
+      signals.push(...quantSignals);
+      console.log(`✅ Generated ${quantSignals.length} quantitative signals`);
+    }
+  } catch (error) {
+    console.error('Error generating quantitative signals:', error);
+    moduleErrors.push({ module: 'quantitative', error: (error as Error).message });
+  }
+
   // Intermarket signals with enhanced error handling
   try {
     const intermarketSignals = await generateIntermarketSignals(supabase, pair, timeframe, regime, candles);
@@ -1037,6 +1051,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     multiTimeframeCount: signals.filter(s => s.source?.includes('timeframe')).length,
     strategyCount: signals.filter(s => s.source?.includes('strategy')).length,
     intermarketCount: signals.filter(s => s.source?.includes('intermarket')).length,
+    quantitativeCount: signals.filter(s => s.source?.includes('quantitative')).length,
     moduleErrors,
     qualityMetrics: {
       dataFreshness: calculateDataFreshness(signals),
