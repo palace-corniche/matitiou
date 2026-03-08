@@ -75,8 +75,8 @@ export const MarketRegimeIndicator: React.FC<MarketRegimeIndicatorProps> = ({ re
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Equities:</span>
-              <span className={regime.indicators.equities > 50 ? 'text-bullish' : 'text-bearish'}>
-                {regime.indicators.equities.toFixed(0)}%
+              <span className={(regime.indicators.equities ?? 0) > 50 ? 'text-bullish' : 'text-bearish'}>
+                {(regime.indicators.equities ?? 0).toFixed(0)}%
               </span>
             </div>
           </div>
