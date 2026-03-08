@@ -620,8 +620,10 @@ export class StatisticalArbitrage {
       returns.reduce((sum, r) => sum + r * r, 0) / returns.length * 252
     );
     
-    // Simulate implied volatility (in production, get from options data)
-    const impliedVolatility = realizedVolatility * (1 + (Math.random() - 0.5) * 0.3);
+    // Estimate implied volatility from realized vol with typical vol premium
+    // IV typically trades at ~10-15% premium to realized vol in forex
+    const volPremiumFactor = 1.12; // 12% premium (typical for major FX pairs)
+    const impliedVolatility = realizedVolatility * volPremiumFactor;
     
     // Volatility of volatility
     const volReturns = this.calculateRollingVolatility(returns, 20).slice(1);

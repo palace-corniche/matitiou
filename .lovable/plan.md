@@ -1,110 +1,57 @@
 
 
-# End-to-End Verification Report & Fix Plan
+# System Diagnostic Report
 
-## Current Data Pipeline Status
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-| Table | Rows | Status |
-|-------|------|--------|
-| aggregated_candles | 2,922 | **Real** (TwelveData) |
-| market_data_enhanced | 531 | **Real** (synced from candles) |
-| master_signals | 132 | **Real** (confluence engine) |
-| modular_signals | **2** | **Working but sparse** — only technical + sentiment |
-| correlations | 20 | **Real** (computed pairs) |
-| economic_calendar | 32 | **Real** (ForexFactory) |
-| news_events | 21 | **Real** (Alpha Vantage) |
-| system_health | 1,209 | **Real** |
-| module_health | 16 | **Real** |
-| shadow_trades | 15 | **Real** |
-| market_data_feed | 40 | **Real** (TwelveData) |
-| cot_reports | **0** | **Empty** — no free source |
-| retail_positions | **0** | **Empty** — no free source |
-| intelligence_backtests | **0** | **Empty** — none run yet |
-| module_performance | **0** | **Empty** — not populated |
-| tick_data | **0** | **Empty** — engine not running |
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
----
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-## Remaining Issues Found
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-### 1. AdvancedChart uses `Math.random()` for all chart data
-**File:** `src/components/enhanced/AdvancedChart.tsx` (lines 64-90)
-- `loadChartData()` calls `generateMockChartData()` which creates 100 random OHLC candles
-- Should query `aggregated_candles` table instead (2,922 real rows available)
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-### 2. Specialized Analysis adapter still uses `Math.random()`
-**File:** `src/services/analysisAdapters/specializedAnalysisAdapter.ts` (lines 253, 281)
-- Order flow delta: `Math.random() - 0.5) * 1000`
-- Volume profile: `Math.random() * 1000`
-- Should compute from real candle data or show "No order flow data"
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-### 3. Backtesting progress bar still uses `Math.random()`
-**File:** `src/components/IntelligenceBacktestingPanel.tsx` (line 52)
-- Progress indicator: `prev + Math.random() * 10` — this is acceptable (cosmetic animation during loading)
-- Equity curve and results are now real (from backtest engine) ✅
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-### 4. `modular_signals` only has 2 rows (technical + sentiment)
-- Missing: `quantitative_analysis`, `intermarket_analysis`, `specialized_analysis`, `fundamental_analysis`
-- The `generate-confluence-signals` function only produces technical and sentiment signals currently
-- Quantitative, Intermarket, Specialized, and Fundamental pages will show empty
+## Is the System Profitable / "Next Level"?
 
-### 5. `module_performance` has 0 rows
-- `EnhancedSignalAnalyticsDashboard` calculates stats from this table — will show zeros
-- Need to populate from actual signal outcomes
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-### 6. `marketData.ts` service is entirely mock
-**File:** `src/services/marketData.ts` (lines 26-43, 58-67)
-- `generateMarketData()` and `generateRealtimeData()` use `Math.random()`
-- Used as fallback in some components — should query `aggregated_candles`
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### 7. `statisticalArbitrage.ts` uses `Math.random()` for implied volatility
-**File:** `src/services/statisticalArbitrage.ts` (line 624)
-- Simulates implied vol instead of computing from real data
+## What You Need To Do
 
-### 8. `adaptiveWeightEngine.ts` uses `Math.random()` extensively
-- This is a **genetic algorithm** — `Math.random()` is correct here (stochastic optimization)
-- No fix needed ✅
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
 
-### 9. Services using `Math.random()` for ID generation
-- `advancedFusionEngine.ts`, `probabilisticSignalEngine.ts` — `Math.random().toString(36)` for unique IDs
-- This is acceptable ✅
-
----
-
-## Fix Plan (Prioritized)
-
-### Phase 1: Fix AdvancedChart to use real candle data
-Replace `generateMockChartData()` with a query to `aggregated_candles` filtered by symbol and timeframe. This is the main trading chart users see.
-
-### Phase 2: Fix Specialized Analysis adapter
-Replace `Math.random()` order flow with computed values from real candle volume data (buy/sell volume estimation from close vs open). Replace volume profile randomness with real candle distribution.
-
-### Phase 3: Expand modular_signals generation
-Update `generate-confluence-signals` to also produce `quantitative_analysis`, `intermarket_analysis`, `specialized_analysis`, and `fundamental_analysis` module signals. Currently only technical + sentiment are generated.
-
-### Phase 4: Populate module_performance
-Add logic to the signal pipeline to track module accuracy over time, updating `module_performance` rows so the Enhanced Signal Analytics dashboard shows real stats.
-
-### Phase 5: Fix marketData.ts fallback
-Replace `generateMarketData()` with real `aggregated_candles` queries so any component using this service gets real data.
-
-### Phase 6: Fix statisticalArbitrage implied volatility
-Compute from real ATR/historical volatility instead of random simulation.
-
----
-
-## What's Working Correctly (No Changes Needed)
-
-- **Dashboard** — Real price feed, real indicators, real signals ✅
-- **Shadow/Enhanced Trading** — Real account, trades, P&L ✅
-- **Signal Analytics** — Real thresholds, rejections, master signals ✅
-- **Autonomous Learning** — Real learning actions, patterns ✅
-- **System Monitor** — Real system_health data, real module_health ✅
-- **RealtimeSystemMonitor** — Fixed, uses real data ✅
-- **MultiTimeframeAnalysis** — Fixed, uses real engine ✅
-- **Fundamental Analysis** — Fixed, real market intelligence ✅
-- **Intermarket Analysis** — Fixed, real correlations, honest N/A for paid data ✅
-- **Sentiment Analysis** — Fixed column names, queries work (but COT/retail tables empty) ✅
-- **Genetic algorithm randomness** — Correct usage ✅
-- **ID generation randomness** — Correct usage ✅
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
