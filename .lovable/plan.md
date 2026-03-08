@@ -1,57 +1,83 @@
 
 
-# System Diagnostic Report
+# End-to-End Verification Report
 
-## Database Status: HEALTHY
-- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
-- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
-- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
+## Pipeline Status: Working
 
-## Edge Functions: BLOCKED (402)
-The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
-- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
-- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
+| Table | Rows | Change | Status |
+|-------|------|--------|--------|
+| aggregated_candles | 2,943 | +21 | Real (TwelveData) |
+| modular_signals | 13 | +11 | Real — technical, sentiment, specialized |
+| module_performance | 6 | +6 | Seeded — all 6 modules present |
+| master_signals | 132 | — | Real |
+| news_events | 21 | — | Real (Alpha Vantage) |
+| economic_calendar | 32 | — | Real |
+| correlations | 20 | — | Real |
+| shadow_trades | 15 | — | Real |
 
-**This is the single blocker.** Everything else is correctly configured and ready.
+## Previously Fixed Items (Confirmed)
 
-## Trading Account: RESET and READY
-| Field | Value |
-|---|---|
-| Balance | $100,000 |
-| Equity | $100,000 |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Auto Trading | Enabled |
+- **AdvancedChart**: `generateMockChartData()` removed, queries `aggregated_candles` ✅
+- **marketData.ts**: `generateMarketData()` / `generateRealtimeData()` removed, queries DB ✅  
+- **newsAnalysis.ts**: Queries `news_events` + `economic_calendar` tables ✅
+- **quantitativeAnalysisAdapter.ts**: `impliedVol = historicalVol * 1.12`, `betaToMarket = 1.0` ✅
+- **intelligenceBacktester.ts**: `runBacktest()` delegates to real engine ✅
+- **MarketRegimeIndicator.tsx**: Null-safe with `?? 0` guards ✅
 
-## Module Health: 6 modules active, 0 errors
-All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
+## Frontend Components: No problematic `Math.random()`
 
-## Cron Jobs: 11 active schedules
-All cron jobs are active and correctly configured:
-- Market data fetch (every minute)
-- Signal generation (every 5 min)
-- Trade execution (every minute)
-- Exit monitoring (every 5 min)
-- Pattern detection (every 15 min)
-- News sentiment (every 30 min)
-- Learning orchestrator (hourly)
-- **Log cleanup (daily at 3 AM)** -- new
+| File | Usage | Verdict |
+|------|-------|---------|
+| IntelligenceBacktestingPanel.tsx | Progress bar animation | Acceptable ✅ |
+| sidebar.tsx | Skeleton width | Acceptable ✅ |
+| TradingTerminal.tsx | Session ID | Acceptable ✅ |
+| AutomationPanel.tsx | Rule ID | Acceptable ✅ |
 
-## Trading Configuration
-- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
+## Remaining Mock Data in Services (Lower Priority)
 
-## Is the System Profitable / "Next Level"?
+These services still use `Math.random()` to generate fake data. They are **not user-facing on the main 6 analysis pages** but affect secondary/advanced features:
 
-**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
-1. The 402 block clearing so data starts flowing
-2. Signals being generated from live market data
-3. Trades being executed and closed
+| File | Issue | Impact |
+|------|-------|--------|
+| `alternativeDataIntegration.ts` | Social sentiment, options flow, COT data all mocked | Medium — used on Intermarket page for alt data |
+| `portfolioConstructionEngine.ts` | Factor returns, regression mocked | Low — portfolio optimization module |
+| `portfolioIntelligenceManager.ts` | 30d returns, volatility, Sharpe mocked | Low — portfolio intelligence |
+| `multiTimeframeIntelligenceEngine.ts` | MTF confluence score randomized (lines 437-449) | Medium — MTF analysis fallback |
+| `intelligenceBacktester.ts` | `generateSyntheticMarketData()` still random (lines 198-220) | Low — labeled fallback when no DB data |
+| `unifiedMarketData.ts` | Fallback price uses random variation | Low — only when real feed unavailable |
+| `realMarketData.ts` | Synthetic candle generation | Low — fallback only |
 
-The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
+## `modular_signals` Gap
 
-## What You Need To Do
+The pipeline generates **technical**, **sentiment**, and **specialized** signals but still missing:
+- `quantitative_analysis`
+- `intermarket_analysis`  
+- `fundamental_analysis`
 
-**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+The edge function needs these 3 additional module generators added.
 
-You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
+## `module_performance` Gap
+
+All 6 rows are seeded but `total_signals = 0`, `win_rate = 0` for all. No logic currently updates these rows based on signal outcomes.
+
+---
+
+## Recommended Next Steps (4 items)
+
+### 1. Add 3 missing modular signal generators to edge function
+Update `generate-confluence-signals` to also produce `quantitative_analysis`, `intermarket_analysis`, and `fundamental_analysis` modular signals using the data already available (candle stats, correlations, economic calendar).
+
+### 2. Add module_performance update logic
+After each signal generation cycle, count signals per module and update `module_performance` rows with real counts and computed accuracy from `master_signals` outcomes.
+
+### 3. Replace alternativeDataIntegration.ts mock data
+The social sentiment, options flow, and intermarket indicators are fully random. Replace with honest "N/A — no data source" or derive from existing DB tables (correlations, news sentiment).
+
+### 4. Fix multiTimeframeIntelligenceEngine.ts fallback
+Lines 437-449 return random confluence/cascade scores. Should compute from actual multi-timeframe candle data in `aggregated_candles`.
+
+**Files to edit:**
+- `supabase/functions/generate-confluence-signals/index.ts`
+- `src/services/alternativeDataIntegration.ts`
+- `src/services/multiTimeframeIntelligenceEngine.ts`
 
