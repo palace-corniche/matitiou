@@ -157,7 +157,7 @@ export default function IntermarketAnalysisPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(cp?.factors || []).map((f) => (
+                  {(Array.isArray(cp?.factors) ? cp.factors : []).map((f) => (
                     <TableRow key={f.name}>
                       <TableCell className="font-medium text-xs">{f.name.replace(/_/g, ' ')}</TableCell>
                       <TableCell className={`text-right ${getScoreColor(f.value)}`}>{(f.value * 100).toFixed(1)}%</TableCell>
