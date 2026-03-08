@@ -2623,7 +2623,7 @@ function calculateBreakoutStrategy(candles: any[], currentPrice: number): any {
   return { strength: 0 };
 }
 
-function calculateKellyFraction(winProbability: number, expectedReturn: number, expectedLoss: number): number {
+function calculateKellyFractionLegacy(winProbability: number, expectedReturn: number, expectedLoss: number): number {
   const lossProbability = 1 - winProbability;
   const rewardRiskRatio = Math.abs(expectedReturn / expectedLoss);
   
