@@ -433,27 +433,75 @@ class MultiTimeframeIntelligenceEngine {
   async analyzeMultiTimeframe(symbol: string, timeframes: string[]): Promise<MultiTimeframeSignal> {
     const analysisId = `analysis_${Date.now()}`;
     
-    // Simulate multi-timeframe analysis
-    const confluenceScore = Math.random() * 50 + 50; // 50-100% confluence
-    const agreementCount = Math.floor((confluenceScore / 100) * timeframes.length);
-    
-    const signal: MultiTimeframeSignal = {
-      analysisId,
-      symbol,
-      timeframes,
-      primaryTimeframe: timeframes[Math.floor(timeframes.length / 2)],
-      confluenceScore,
-      timeframeAgreementCount: agreementCount,
-      cascadeStrength: Math.random() * 40 + 60,
-      divergenceDetected: Math.random() > 0.7,
-      signalType: Math.random() > 0.5 ? 'buy' : 'sell',
-      signalData: {} as any,
-      reasoning: [`Multi-timeframe analysis for ${symbol}`, `Confluence: ${confluenceScore.toFixed(1)}%`],
-      createdAt: new Date()
-    };
+    try {
+      // Query real aggregated candles for each timeframe
+      const { data: candles } = await (await import('@/integrations/supabase/client')).supabase
+        .from('aggregated_candles')
+        .select('timeframe, close_price, is_complete')
+        .eq('symbol', symbol)
+        .in('timeframe', timeframes)
+        .eq('is_complete', true)
+        .order('timestamp', { ascending: false })
+        .limit(timeframes.length * 5);
 
-    // Store signal (simplified)
-    return signal;
+      // Determine trend per timeframe from real candle data
+      const tfTrends: Record<string, 'buy' | 'sell' | 'neutral'> = {};
+      for (const tf of timeframes) {
+        const tfCandles = (candles || []).filter((c: any) => c.timeframe === tf);
+        if (tfCandles.length >= 2) {
+          const latest = tfCandles[0].close_price;
+          const prior = tfCandles[tfCandles.length - 1].close_price;
+          tfTrends[tf] = latest > prior ? 'buy' : latest < prior ? 'sell' : 'neutral';
+        } else {
+          tfTrends[tf] = 'neutral';
+        }
+      }
+
+      // Calculate real confluence
+      const buyCount = Object.values(tfTrends).filter(t => t === 'buy').length;
+      const sellCount = Object.values(tfTrends).filter(t => t === 'sell').length;
+      const totalTf = timeframes.length;
+      const agreementCount = Math.max(buyCount, sellCount);
+      const confluenceScore = totalTf > 0 ? (agreementCount / totalTf) * 100 : 50;
+      const cascadeStrength = confluenceScore * 0.8 + (agreementCount >= totalTf - 1 ? 20 : 0);
+      const divergenceDetected = buyCount > 0 && sellCount > 0;
+      const signalType: 'buy' | 'sell' = buyCount >= sellCount ? 'buy' : 'sell';
+
+      return {
+        analysisId,
+        symbol,
+        timeframes,
+        primaryTimeframe: timeframes[Math.floor(timeframes.length / 2)],
+        confluenceScore,
+        timeframeAgreementCount: agreementCount,
+        cascadeStrength,
+        divergenceDetected,
+        signalType,
+        signalData: {} as any,
+        reasoning: [
+          `Multi-timeframe analysis for ${symbol}`,
+          `Confluence: ${confluenceScore.toFixed(1)}%`,
+          `Trends: ${Object.entries(tfTrends).map(([k, v]) => `${k}=${v}`).join(', ')}`
+        ],
+        createdAt: new Date()
+      };
+    } catch (error) {
+      console.error('MTF analysis error, returning neutral:', error);
+      return {
+        analysisId,
+        symbol,
+        timeframes,
+        primaryTimeframe: timeframes[Math.floor(timeframes.length / 2)],
+        confluenceScore: 50,
+        timeframeAgreementCount: 0,
+        cascadeStrength: 50,
+        divergenceDetected: false,
+        signalType: 'buy',
+        signalData: {} as any,
+        reasoning: [`Multi-timeframe analysis for ${symbol}`, `No candle data available`],
+        createdAt: new Date()
+      };
+    }
   }
 }
 
