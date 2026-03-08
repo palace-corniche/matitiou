@@ -1,57 +1,46 @@
 
 
-# System Diagnostic Report
+# Re-Verification Results: Edge Function Still Running Old Code
 
-## Database Status: HEALTHY
-- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
-- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
-- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
+## Evidence Summary
 
-## Edge Functions: BLOCKED (402)
-The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
-- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
-- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
+### The deployed `generate-confluence-signals` is NOT the latest code
 
-**This is the single blocker.** Everything else is correctly configured and ready.
+| Check | Expected | Actual | Status |
+|-------|----------|--------|--------|
+| `contributing_modules` | `["technical_analysis", "sentiment_analysis"]` | `["buy", "hold", "buy", "buy", "sell"]` | BROKEN |
+| `modular_signals.analysis_id` | Master signal UUID | `NULL` (all rows) | BROKEN |
+| `module_performance` wins/losses | >0 after 10 closed trades | 0 successful, 0 failed (all modules) | BROKEN |
+| `learning_outcomes.signal_breakdown` | Per-module accuracy data | `{}` (empty for all 5 outcomes) | BROKEN |
+| `learning_outcomes.loss_analysis` | Present on losing trades | Present on 2 trades (backfill worked partially) | OK |
+| Bayesian dynamic weights query | Runs | Log shows "2 modules with performance data" | OK (but data is zeros) |
+| `process-trade-outcome` invocation | After trade close | Logs show 5 trades processed at 16:29 | OK |
 
-## Trading Account: RESET and READY
-| Field | Value |
-|---|---|
-| Balance | $100,000 |
-| Equity | $100,000 |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Auto Trading | Enabled |
+### Root Cause
+The local code file has all three fixes (module ID mapping, analysis_id linking, signal_type filtering), but the **deployed edge function is still running the old version**. Evidence:
+- Latest `generate-confluence-signals` log (16:30) does NOT show the `🧠 Contributing modules resolved:` log message that the fix code emits
+- Modular signals created at 16:00 still have `analysis_id: NULL`
+- Master signals still have direction strings in `contributing_modules`
 
-## Module Health: 6 modules active, 0 errors
-All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
+### What partially works
+- `process-trade-outcome` IS deployed and running (confirmed by logs)
+- Loss analysis IS being calculated (2 trades have `loss_analysis` with categories)
+- But it finds 0 modules to analyze because the data linkage is broken upstream
 
-## Cron Jobs: 11 active schedules
-All cron jobs are active and correctly configured:
-- Market data fetch (every minute)
-- Signal generation (every 5 min)
-- Trade execution (every minute)
-- Exit monitoring (every 5 min)
-- Pattern detection (every 15 min)
-- News sentiment (every 30 min)
-- Learning orchestrator (hourly)
-- **Log cleanup (daily at 3 AM)** -- new
+## Fix Plan
 
-## Trading Configuration
-- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
+### Step 1: Force redeploy `generate-confluence-signals`
+Deploy the edge function which already contains all three fixes in the local code. This is the ONLY action needed — the code is correct, it just hasn't been deployed.
 
-## Is the System Profitable / "Next Level"?
+### Step 2: Verify deployment
+After deploy, invoke the function and check logs for:
+- `🧠 Contributing modules resolved: [technical_analysis, sentiment_analysis, ...]`
+- `📋 Modular signals: X total, Y valid (buy/sell only)`
+- `✅ Stored N modular signals linked to master signal UUID`
 
-**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
-1. The 402 block clearing so data starts flowing
-2. Signals being generated from live market data
-3. Trades being executed and closed
+### Step 3: Backfill module performance
+After confirming new signals have correct data, re-run `process-trade-outcome` for the 10 closed trades. This time `contributing_modules` will contain real module IDs and `modular_signals` will be linked, so the per-module learning will actually update `module_performance`.
 
-The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
-
-## What You Need To Do
-
-**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
-
-You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
+### Files to change
+None — the code is already correct. Only deployment + backfill needed.
 
