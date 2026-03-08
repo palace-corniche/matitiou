@@ -309,7 +309,6 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
       .eq('module_id', 'fundamental_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
