@@ -9,14 +9,19 @@ export interface SentimentData {
     retailSentiment: number;
   };
   newsSentiment: {
-    score: number; // -1 to 1
+    score: number;
     sources: string[];
     keyWords: string[];
   };
   marketSentiment: {
-    fearGreedIndex: number; // 0 to 100
+    fearGreedIndex: number;
     volatilityIndex: number;
     putCallRatio: number;
+  };
+  dataAvailability: {
+    hasCotData: boolean;
+    hasNewsData: boolean;
+    hasVolatilityData: boolean;
   };
 }
 
@@ -40,11 +45,9 @@ export interface SentimentSignal {
 
 export class SentimentAnalysisAdapter {
   private moduleId = 'sentiment_analysis';
-  private moduleVersion = '1.0.0';
 
   async analyze(symbol: string = 'EUR/USD', timeframe: string = '15m'): Promise<SentimentSignal | null> {
     try {
-      // Get current market data for pricing
       const { data: marketData } = await supabase
         .from('market_data_enhanced')
         .select('*')
@@ -53,16 +56,11 @@ export class SentimentAnalysisAdapter {
         .order('timestamp', { ascending: false })
         .limit(1);
 
-      if (!marketData || marketData.length === 0) {
-        return null;
-      }
+      if (!marketData || marketData.length === 0) return null;
 
-      // Gather sentiment data
       const sentimentData = await this.gatherSentimentData(symbol);
-      
-      // Analyze sentiment
-      const analysis = this.analyzeSentiment(sentimentData, symbol);
-      
+      const analysis = this.analyzeSentiment(sentimentData);
+
       if (analysis.signalStrength > 0.4) {
         const signal = this.generateSignal(marketData[0], analysis, sentimentData, symbol, timeframe);
         if (signal) {
@@ -79,31 +77,100 @@ export class SentimentAnalysisAdapter {
   }
 
   private async gatherSentimentData(symbol: string): Promise<SentimentData> {
-    // In a real implementation, this would fetch from multiple sentiment APIs
-    // For now, we'll simulate the data with realistic values
-    
+    const [baseCurrency] = symbol.split('/');
+
+    // 1. Query real COT data from cot_reports table
+    const { data: cotData } = await supabase
+      .from('cot_reports')
+      .select('*')
+      .eq('pair', symbol)
+      .order('report_date', { ascending: false })
+      .limit(1);
+
+    // 2. Query real news sentiment from news_events table
+    const { data: newsData } = await supabase
+      .from('news_events')
+      .select('*')
+      .order('published_at', { ascending: false })
+      .limit(10);
+
+    // 3. Query real retail positions
+    const { data: retailData } = await supabase
+      .from('retail_positions')
+      .select('*')
+      .eq('symbol', symbol)
+      .order('timestamp', { ascending: false })
+      .limit(1);
+
+    // 4. Compute real volatility from aggregated_candles
+    const { data: candles } = await supabase
+      .from('aggregated_candles')
+      .select('high_price, low_price, close_price')
+      .eq('symbol', symbol)
+      .order('timestamp', { ascending: false })
+      .limit(20);
+
+    const hasCotData = cotData && cotData.length > 0;
+    const hasNewsData = newsData && newsData.length > 0;
+    const hasVolatilityData = candles && candles.length >= 5;
+
+    // Build COT report from real data or mark as unavailable
+    const cotReport = hasCotData ? {
+      commercialLong: cotData[0].long_positions || 0,
+      commercialShort: cotData[0].short_positions || 0,
+      nonCommercialLong: cotData[0].net_position > 0 ? cotData[0].net_position : 0,
+      nonCommercialShort: cotData[0].net_position < 0 ? Math.abs(cotData[0].net_position) : 0,
+      retailSentiment: retailData?.[0]?.long_percentage || 50,
+    } : {
+      commercialLong: 50, commercialShort: 50,
+      nonCommercialLong: 50, nonCommercialShort: 50,
+      retailSentiment: retailData?.[0]?.long_percentage || 50,
+    };
+
+    // Build news sentiment from real data
+    let newsScore = 0;
+    const newsSources: string[] = [];
+    const keyWords: string[] = [];
+    if (hasNewsData) {
+      const scores = newsData.map((n: any) => n.sentiment_score || n.sentiment || 0);
+      newsScore = scores.reduce((a: number, b: number) => a + b, 0) / scores.length;
+      newsData.forEach((n: any) => {
+        if (n.source && !newsSources.includes(n.source)) newsSources.push(n.source);
+      });
+    }
+
+    // Compute real volatility index from candle data (ATR-based)
+    let volatilityIndex = 20; // default
+    if (hasVolatilityData) {
+      const atrs = candles!.map((c: any) => c.high_price - c.low_price);
+      const avgATR = atrs.reduce((a: number, b: number) => a + b, 0) / atrs.length;
+      const avgPrice = candles![0].close_price;
+      // Convert ATR to annualized volatility percentage, scale to VIX-like range
+      volatilityIndex = (avgATR / avgPrice) * 100 * Math.sqrt(252) * 10;
+      volatilityIndex = Math.max(10, Math.min(50, volatilityIndex));
+    }
+
     return {
-      cotReport: {
-        commercialLong: Math.random() * 100,
-        commercialShort: Math.random() * 100,
-        nonCommercialLong: Math.random() * 100,
-        nonCommercialShort: Math.random() * 100,
-        retailSentiment: Math.random() * 100
-      },
+      cotReport,
       newsSentiment: {
-        score: (Math.random() - 0.5) * 2, // -1 to 1
-        sources: ['Reuters', 'Bloomberg', 'MarketWatch', 'FXStreet'],
-        keyWords: ['inflation', 'interest rates', 'central bank', 'employment']
+        score: newsScore,
+        sources: newsSources.length > 0 ? newsSources : ['No news data'],
+        keyWords: keyWords.length > 0 ? keyWords : ['awaiting data'],
       },
       marketSentiment: {
-        fearGreedIndex: Math.random() * 100,
-        volatilityIndex: 15 + (Math.random() * 25), // VIX-like
-        putCallRatio: 0.7 + (Math.random() * 0.6) // 0.7 to 1.3
-      }
+        fearGreedIndex: hasNewsData ? Math.max(0, Math.min(100, 50 + newsScore * 50)) : 50,
+        volatilityIndex,
+        putCallRatio: 1.0, // Not available for free
+      },
+      dataAvailability: {
+        hasCotData: !!hasCotData,
+        hasNewsData: !!hasNewsData,
+        hasVolatilityData: !!hasVolatilityData,
+      },
     };
   }
 
-  private analyzeSentiment(sentimentData: SentimentData, symbol: string): {
+  private analyzeSentiment(sentimentData: SentimentData): {
     signalType: 'buy' | 'sell' | null;
     signalStrength: number;
     overallSentiment: string;
@@ -113,82 +180,44 @@ export class SentimentAnalysisAdapter {
     let bullishScore = 0;
     let bearishScore = 0;
 
-    // Analyze COT Report (Commitment of Traders)
     const cotAnalysis = this.analyzeCOT(sentimentData.cotReport);
     bullishScore += cotAnalysis.bullishSignal;
     bearishScore += cotAnalysis.bearishSignal;
 
-    // Analyze News Sentiment
     const newsScore = sentimentData.newsSentiment.score;
-    if (newsScore > 0.3) {
-      bullishScore += newsScore * 0.6;
-    } else if (newsScore < -0.3) {
-      bearishScore += Math.abs(newsScore) * 0.6;
-    }
+    if (newsScore > 0.3) bullishScore += newsScore * 0.6;
+    else if (newsScore < -0.3) bearishScore += Math.abs(newsScore) * 0.6;
 
-    // Analyze Market Sentiment (contrarian approach)
     const fearGreed = sentimentData.marketSentiment.fearGreedIndex;
-    if (fearGreed < 25) { // Extreme fear = buying opportunity
-      bullishScore += 0.4;
-    } else if (fearGreed > 75) { // Extreme greed = selling opportunity
-      bearishScore += 0.4;
-    }
+    if (fearGreed < 25) bullishScore += 0.4;
+    else if (fearGreed > 75) bearishScore += 0.4;
 
-    // Volatility analysis
     const vix = sentimentData.marketSentiment.volatilityIndex;
-    if (vix > 30) { // High volatility often precedes reversals
-      bullishScore += 0.2;
-    }
-
-    // Put/Call ratio (contrarian)
-    const putCallRatio = sentimentData.marketSentiment.putCallRatio;
-    if (putCallRatio > 1.1) { // Too many puts = bullish contrarian signal
-      bullishScore += 0.3;
-    } else if (putCallRatio < 0.8) { // Too many calls = bearish contrarian signal
-      bearishScore += 0.3;
-    }
+    if (vix > 30) bullishScore += 0.2;
 
     const netScore = bullishScore - bearishScore;
-    const signalStrength = Math.abs(netScore);
-    const signalType = netScore > 0.2 ? 'buy' : netScore < -0.2 ? 'sell' : null;
-
     return {
-      signalType,
-      signalStrength,
+      signalType: netScore > 0.2 ? 'buy' : netScore < -0.2 ? 'sell' : null,
+      signalStrength: Math.abs(netScore),
       overallSentiment: this.determineSentiment(netScore),
       retailPositioning: this.determineRetailPositioning(sentimentData.cotReport.retailSentiment),
-      smartMoneySentiment: this.determineSmartMoney(cotAnalysis.commercialNet)
+      smartMoneySentiment: this.determineSmartMoney(cotAnalysis.commercialNet),
     };
   }
 
-  private analyzeCOT(cotData: any): { bullishSignal: number; bearishSignal: number; commercialNet: number } {
-    // Commercial traders (smart money) positioning
+  private analyzeCOT(cotData: any) {
     const commercialNet = cotData.commercialLong - cotData.commercialShort;
     const nonCommercialNet = cotData.nonCommercialLong - cotData.nonCommercialShort;
-    
-    let bullishSignal = 0;
-    let bearishSignal = 0;
+    let bullishSignal = 0, bearishSignal = 0;
 
-    // Follow commercial traders (they're usually right)
-    if (commercialNet > 20) {
-      bullishSignal += 0.4;
-    } else if (commercialNet < -20) {
-      bearishSignal += 0.4;
-    }
+    if (commercialNet > 20) bullishSignal += 0.4;
+    else if (commercialNet < -20) bearishSignal += 0.4;
 
-    // Fade non-commercial traders when extreme (contrarian)
-    if (nonCommercialNet > 60) {
-      bearishSignal += 0.3; // Too many specs long = fade
-    } else if (nonCommercialNet < -60) {
-      bullishSignal += 0.3; // Too many specs short = fade
-    }
+    if (nonCommercialNet > 60) bearishSignal += 0.3;
+    else if (nonCommercialNet < -60) bullishSignal += 0.3;
 
-    // Retail sentiment (contrarian)
-    if (cotData.retailSentiment > 80) {
-      bearishSignal += 0.2; // Everyone bullish = sell signal
-    } else if (cotData.retailSentiment < 20) {
-      bullishSignal += 0.2; // Everyone bearish = buy signal
-    }
+    if (cotData.retailSentiment > 80) bearishSignal += 0.2;
+    else if (cotData.retailSentiment < 20) bullishSignal += 0.2;
 
     return { bullishSignal, bearishSignal, commercialNet };
   }
@@ -217,60 +246,37 @@ export class SentimentAnalysisAdapter {
     return 'neutral';
   }
 
-  private generateSignal(
-    currentBar: any,
-    analysis: any,
-    sentimentData: SentimentData,
-    symbol: string,
-    timeframe: string
-  ): SentimentSignal | null {
+  private generateSignal(currentBar: any, analysis: any, sentimentData: SentimentData, symbol: string, timeframe: string): SentimentSignal | null {
     if (!analysis.signalType) return null;
-
-    const currentPrice = currentBar.close_price;
-    const volatility = (currentBar.high_price - currentBar.low_price) / currentPrice;
-    
-    // Sentiment-based position sizing (higher conviction = wider stops)
-    const sentimentStrength = analysis.signalStrength;
-    const priceBuffer = currentPrice * volatility * (0.5 + sentimentStrength);
-    
-    const suggestedEntry = analysis.signalType === 'buy'
-      ? currentPrice + (priceBuffer * 0.3)
-      : currentPrice - (priceBuffer * 0.3);
-      
-    const suggestedStopLoss = analysis.signalType === 'buy'
-      ? currentPrice - (priceBuffer * 1.8)
-      : currentPrice + (priceBuffer * 1.8);
-      
-    const suggestedTakeProfit = analysis.signalType === 'buy'
-      ? currentPrice + (priceBuffer * 2.5)
-      : currentPrice - (priceBuffer * 2.5);
+    const currentPrice = currentBar.close_price || currentBar.close;
+    const high = currentBar.high_price || currentBar.high;
+    const low = currentBar.low_price || currentBar.low;
+    const volatility = (high - low) / currentPrice;
+    const priceBuffer = currentPrice * volatility * (0.5 + analysis.signalStrength);
 
     return {
       moduleId: this.moduleId,
-      symbol,
-      timeframe,
+      symbol, timeframe,
       signalType: analysis.signalType,
       confidence: Math.min(analysis.signalStrength, 1.0),
       strength: Math.round(analysis.signalStrength * 10),
-      weight: 0.8, // Sentiment analysis gets lower weight due to contrarian nature
+      weight: 0.8,
       triggerPrice: currentPrice,
-      suggestedEntry,
-      suggestedStopLoss,
-      suggestedTakeProfit,
+      suggestedEntry: analysis.signalType === 'buy' ? currentPrice + priceBuffer * 0.3 : currentPrice - priceBuffer * 0.3,
+      suggestedStopLoss: analysis.signalType === 'buy' ? currentPrice - priceBuffer * 1.8 : currentPrice + priceBuffer * 1.8,
+      suggestedTakeProfit: analysis.signalType === 'buy' ? currentPrice + priceBuffer * 2.5 : currentPrice - priceBuffer * 2.5,
       sentimentData,
       overallSentiment: analysis.overallSentiment,
       retailPositioning: analysis.retailPositioning,
-      smartMoneySentiment: analysis.smartMoneySentiment
+      smartMoneySentiment: analysis.smartMoneySentiment,
     };
   }
 
   private async saveSignal(signal: SentimentSignal): Promise<void> {
-    const analysisId = crypto.randomUUID();
-    
     const { error } = await (supabase as any)
       .from('modular_signals')
       .insert({
-        analysis_id: analysisId,
+        analysis_id: crypto.randomUUID(),
         module_id: signal.moduleId,
         symbol: signal.symbol,
         timeframe: signal.timeframe,
@@ -287,26 +293,16 @@ export class SentimentAnalysisAdapter {
         market_data_snapshot: {
           timestamp: new Date().toISOString(),
           price: signal.triggerPrice,
-          sentiment_data: signal.sentimentData
+          data_availability: signal.sentimentData.dataAvailability,
         },
         calculation_parameters: {
-          cot_analysis: true,
-          news_sentiment: true,
-          market_fear_greed: true,
-          retail_positioning: signal.retailPositioning
+          cot_analysis: signal.sentimentData.dataAvailability.hasCotData,
+          news_sentiment: signal.sentimentData.dataAvailability.hasNewsData,
+          volatility_data: signal.sentimentData.dataAvailability.hasVolatilityData,
+          retail_positioning: signal.retailPositioning,
         },
-        intermediate_values: {
-          sentiment_data: signal.sentimentData,
-          analysis_result: {
-            overall_sentiment: signal.overallSentiment,
-            retail_positioning: signal.retailPositioning,
-            smart_money_sentiment: signal.smartMoneySentiment
-          }
-        }
       });
 
-    if (error) {
-      console.error('Error saving sentiment signal:', error);
-    }
+    if (error) console.error('Error saving sentiment signal:', error);
   }
 }

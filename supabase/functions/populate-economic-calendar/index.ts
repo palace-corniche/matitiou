@@ -18,76 +18,51 @@ serve(async (req) => {
 
     console.log('📅 Fetching real economic calendar data...');
 
-    // Fetch real economic events from ForexFactory
-    const events = await fetchRealEconomicEvents();
-    console.log(`📊 Fetched ${events.length} real economic events`);
+    // Fetch from ForexFactory (free public JSON)
+    const events = await fetchEconomicEvents();
+    console.log(`📊 Fetched ${events.length} economic events`);
 
-    // Clear old events (older than 24 hours)
-    const { error: deleteOldEventsError } = await supabase
-      .from('economic_events')
+    // Clear old events
+    await supabase
+      .from('economic_calendar')
       .delete()
-      .lt('event_time', new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+      .lt('event_time', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
 
-    if (deleteOldEventsError) {
-      console.error('Failed to clear old events:', deleteOldEventsError);
-    } else {
-      console.log('🗑️ Cleared old economic events');
-    }
-
-    // Insert new events (upsert to avoid duplicates)
+    // Insert into economic_calendar table
     if (events.length > 0) {
-      const { error: insertError } = await supabase
-        .from('economic_events')
+      const { error } = await supabase
+        .from('economic_calendar')
         .upsert(events, { ignoreDuplicates: true });
 
-      if (insertError) {
-        console.error('❌ Failed to insert events:', insertError);
-        throw insertError;
+      if (error) {
+        console.error('❌ Insert error:', error);
+        throw error;
       }
-
-      console.log(`✅ Inserted/updated ${events.length} economic events`);
+      console.log(`✅ Inserted ${events.length} events into economic_calendar`);
     }
 
-    // Fetch and insert real news events
-    const newsEvents = await fetchRealNewsEvents();
-    console.log(`📰 Fetched ${newsEvents.length} real news events`);
-
-    // Clear old news events (older than 48 hours)
-    const { error: deleteOldNewsError } = await supabase
-      .from('news_events')
-      .delete()
-      .lt('published_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
-    
-    if (deleteOldNewsError) {
-      console.error('Failed to clear old news:', deleteOldNewsError);
-    } else {
-      console.log('🗑️ Cleared old news events');
-    }
-    
-    if (newsEvents.length > 0) {
-      const { error: newsError } = await supabase
+    // Also fetch and insert news into news_events
+    const news = await fetchNewsEvents();
+    if (news.length > 0) {
+      await supabase
         .from('news_events')
-        .upsert(newsEvents, { ignoreDuplicates: true });
+        .delete()
+        .lt('published_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString());
 
-      if (newsError) {
-        console.error('❌ Failed to insert news:', newsError);
-      } else {
-        console.log(`✅ Inserted/updated ${newsEvents.length} news events`);
-      }
+      const { error: newsErr } = await supabase
+        .from('news_events')
+        .upsert(news, { ignoreDuplicates: true });
+
+      if (newsErr) console.error('News insert error:', newsErr);
+      else console.log(`✅ Inserted ${news.length} news events`);
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        eventsInserted: events.length,
-        newsInserted: newsEvents.length,
-        source: 'live_api'
-      }),
+      JSON.stringify({ success: true, eventsInserted: events.length, newsInserted: news.length }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
-
   } catch (error) {
-    console.error('Error populating economic calendar:', error);
+    console.error('Error:', error);
     return new Response(
       JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -95,298 +70,152 @@ serve(async (req) => {
   }
 });
 
-async function fetchRealEconomicEvents() {
+async function fetchEconomicEvents() {
   const now = new Date();
-  const events = [];
 
   try {
-    // Fetch from ForexFactory Calendar (public JSON endpoint)
-    const startDate = new Date(now);
-    const endDate = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days ahead
-    
-    // ForexFactory Calendar API endpoint
-    const url = `https://nfs.faireconomy.media/ff_calendar_thisweek.json`;
-    
-    console.log('🌐 Fetching from ForexFactory Calendar...');
+    const url = 'https://nfs.faireconomy.media/ff_calendar_thisweek.json';
+    console.log('🌐 Fetching from ForexFactory...');
     const response = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-      }
+      headers: { 'User-Agent': 'Mozilla/5.0' }
     });
 
-    if (!response.ok) {
-      console.error(`ForexFactory API error: ${response.status}`);
-      throw new Error(`ForexFactory API returned ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`ForexFactory returned ${response.status}`);
 
     const data = await response.json();
-    
-    if (!Array.isArray(data)) {
-      console.error('ForexFactory API returned invalid data format');
-      throw new Error('Invalid data format from ForexFactory');
-    }
+    if (!Array.isArray(data)) throw new Error('Invalid data format');
 
-    console.log(`📊 Received ${data.length} events from ForexFactory`);
+    const relevantCurrencies = ['USD', 'EUR', 'GBP', 'JPY', 'AUD', 'CAD', 'CHF', 'NZD'];
+    const events = [];
 
-    // Process and filter events
     for (const event of data) {
-      // Only include relevant currencies and high/medium impact events
-      const relevantCurrencies = ['USD', 'EUR', 'GBP', 'JPY'];
       if (!relevantCurrencies.includes(event.country)) continue;
-      
-      // Parse impact level
-      const impactMap: Record<string, string> = {
-        'High': 'high',
-        'Medium': 'medium',
-        'Low': 'low'
-      };
-      const impact = impactMap[event.impact] || 'low';
-      
-      // Only include high and medium impact events
+      const impact = event.impact === 'High' ? 'high' : event.impact === 'Medium' ? 'medium' : 'low';
       if (impact === 'low') continue;
 
-      // Parse event time
       const eventDate = new Date(event.date);
       if (isNaN(eventDate.getTime())) continue;
 
-      // Determine affected symbols
-      const affectedSymbols = determineAffectedSymbols(event.country);
+      // Parse numeric values
+      const parseNum = (v: any) => {
+        if (v == null || v === '') return null;
+        const n = parseFloat(String(v).replace(/[%K]/g, ''));
+        return isNaN(n) ? null : n;
+      };
 
       events.push({
         event_name: `${event.country} - ${event.title}`,
         event_time: eventDate.toISOString(),
         currency: event.country,
         country: getCountryName(event.country),
-        impact_level: impact,
-        symbol_impact: affectedSymbols,
-        forecast_value: event.forecast || null,
-        previous_value: event.previous || null,
-        actual_value: event.actual || null,
-        volatility_impact: impact === 'high' ? 0.8 : 0.5,
-        created_at: now.toISOString(),
-        updated_at: now.toISOString()
+        impact: impact,
+        actual: event.actual || null,
+        forecast: event.forecast || null,
+        previous: event.previous || null,
+        actual_value: parseNum(event.actual),
+        forecast_value: parseNum(event.forecast),
+        previous_value: parseNum(event.previous),
+        metadata: { source: 'forexfactory' },
       });
     }
 
-    console.log(`✅ Processed ${events.length} relevant events`);
-
+    return events;
   } catch (error) {
-    console.error('Error fetching real economic events:', error);
-    
-    // Fallback to minimal simulated data if API fails
-    console.log('⚠️ Falling back to essential economic indicators');
-    const fallbackEvents = generateEssentialEvents();
-    return fallbackEvents;
+    console.error('ForexFactory fetch failed, using fallback:', error);
+    return generateFallbackEvents();
   }
-
-  return events;
 }
 
-async function fetchRealNewsEvents() {
+async function fetchNewsEvents() {
   const now = new Date();
   const newsEvents = [];
 
   try {
-    // Fetch from RSS feeds or news APIs
-    const rssFeeds = [
-      'https://www.forexlive.com/feed/news',
-      'https://www.fxstreet.com/rss/news'
-    ];
-
-    for (const feedUrl of rssFeeds) {
+    const feeds = ['https://www.forexlive.com/feed/news'];
+    for (const feedUrl of feeds) {
       try {
-        console.log(`📰 Fetching from ${feedUrl}...`);
         const response = await fetch(feedUrl);
-        
         if (!response.ok) continue;
-
-        const xmlText = await response.text();
-        const newsItems = parseRSSFeed(xmlText);
-        
-        newsEvents.push(...newsItems);
-        console.log(`✅ Fetched ${newsItems.length} news items from ${feedUrl}`);
-        
-        // Limit to avoid overwhelming the system
-        if (newsEvents.length >= 20) break;
-        
-      } catch (feedError) {
-        console.error(`Error fetching from ${feedUrl}:`, feedError);
-        continue;
-      }
-    }
-
-  } catch (error) {
-    console.error('Error fetching real news events:', error);
-  }
-
-  return newsEvents.slice(0, 20); // Limit to 20 most recent
-}
-
-function parseRSSFeed(xmlText: string) {
-  const newsItems = [];
-  const now = new Date();
-
-  try {
-    // Simple XML parsing for RSS items
-    const itemMatches = xmlText.matchAll(/<item>(.*?)<\/item>/gs);
-    
-    for (const match of itemMatches) {
-      const itemXml = match[1];
-      
-      const title = itemXml.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] || 
-                   itemXml.match(/<title>(.*?)<\/title>/)?.[1];
-      const pubDate = itemXml.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
-      const description = itemXml.match(/<description><!\[CDATA\[(.*?)\]\]><\/description>/)?.[1] ||
-                         itemXml.match(/<description>(.*?)<\/description>/)?.[1];
-      
-      if (!title || !pubDate) continue;
-
-      const publishedAt = new Date(pubDate);
-      if (isNaN(publishedAt.getTime())) continue;
-
-      // Simple sentiment analysis based on keywords
-      const sentiment = analyzeSentiment(title + ' ' + (description || ''));
-      
-      newsItems.push({
-        title: title.substring(0, 200),
-        content: (description || title).substring(0, 500),
-        source: 'Forex News Feed',
-        symbol: 'EUR/USD',
-        category: categorizeNews(title),
-        sentiment_score: sentiment,
-        impact_score: Math.abs(sentiment) > 0.5 ? 0.7 : 0.5,
-        relevance_score: 0.8,
-        published_at: publishedAt.toISOString(),
-        created_at: now.toISOString(),
-        updated_at: now.toISOString()
-      });
+        const xml = await response.text();
+        const items = parseRSS(xml);
+        newsEvents.push(...items);
+        if (newsEvents.length >= 15) break;
+      } catch { continue; }
     }
   } catch (error) {
-    console.error('Error parsing RSS feed:', error);
+    console.error('News fetch error:', error);
   }
 
-  return newsItems;
+  return newsEvents.slice(0, 15);
 }
 
-function analyzeSentiment(text: string): number {
-  const lowerText = text.toLowerCase();
-  
-  const positiveWords = ['rise', 'gain', 'boost', 'strong', 'higher', 'rally', 'surge', 'jump', 'improvement'];
-  const negativeWords = ['fall', 'drop', 'weak', 'lower', 'decline', 'slump', 'concern', 'worry', 'risk'];
-  
-  let score = 0;
-  positiveWords.forEach(word => {
-    if (lowerText.includes(word)) score += 0.2;
-  });
-  negativeWords.forEach(word => {
-    if (lowerText.includes(word)) score -= 0.2;
-  });
-  
-  return Math.max(-1, Math.min(1, score));
-}
+function parseRSS(xml: string) {
+  const items: any[] = [];
+  const matches = xml.matchAll(/<item>(.*?)<\/item>/gs);
 
-function categorizeNews(title: string): string {
-  const lowerTitle = title.toLowerCase();
-  
-  if (lowerTitle.includes('central bank') || lowerTitle.includes('fed') || lowerTitle.includes('ecb')) {
-    return 'central_bank';
-  }
-  if (lowerTitle.includes('gdp') || lowerTitle.includes('employment') || lowerTitle.includes('inflation')) {
-    return 'economic_data';
-  }
-  if (lowerTitle.includes('technical') || lowerTitle.includes('chart')) {
-    return 'technical';
-  }
-  
-  return 'market_update';
-}
+  for (const match of matches) {
+    const x = match[1];
+    const title = x.match(/<title><!\[CDATA\[(.*?)\]\]><\/title>/)?.[1] ||
+                  x.match(/<title>(.*?)<\/title>/)?.[1];
+    const pubDate = x.match(/<pubDate>(.*?)<\/pubDate>/)?.[1];
+    if (!title || !pubDate) continue;
 
-function determineAffectedSymbols(currency: string): string[] {
-  const symbolMap: Record<string, string[]> = {
-    'USD': ['EUR/USD', 'GBP/USD', 'USD/JPY'],
-    'EUR': ['EUR/USD', 'EUR/GBP'],
-    'GBP': ['GBP/USD', 'EUR/GBP'],
-    'JPY': ['USD/JPY']
-  };
-  
-  return symbolMap[currency] || ['EUR/USD'];
-}
+    const publishedAt = new Date(pubDate);
+    if (isNaN(publishedAt.getTime())) continue;
 
-function getCountryName(currency: string): string {
-  const countryMap: Record<string, string> = {
-    'USD': 'United States',
-    'EUR': 'Eurozone',
-    'GBP': 'United Kingdom',
-    'JPY': 'Japan'
-  };
-  
-  return countryMap[currency] || currency;
-}
+    const lower = title.toLowerCase();
+    let sentiment = 0;
+    ['rise','gain','strong','higher','rally','surge'].forEach(w => { if (lower.includes(w)) sentiment += 0.2; });
+    ['fall','drop','weak','lower','decline','slump'].forEach(w => { if (lower.includes(w)) sentiment -= 0.2; });
+    sentiment = Math.max(-1, Math.min(1, sentiment));
 
-function generateEssentialEvents() {
-  // Fallback: Generate only the most essential upcoming economic events
-  const now = new Date();
-  const events = [];
-  
-  const essentialEvents = [
-    { 
-      name: 'USD - Non-Farm Payrolls', 
-      currency: 'USD', 
-      impact: 'high', 
-      affected: ['EUR/USD', 'GBP/USD', 'USD/JPY'],
-      daysAhead: 5,
-      hour: 13, // 1 PM UTC (8:30 AM EST)
-      minute: 30
-    },
-    { 
-      name: 'USD - CPI (Consumer Price Index)', 
-      currency: 'USD', 
-      impact: 'high', 
-      affected: ['EUR/USD', 'GBP/USD', 'USD/JPY'],
-      daysAhead: 3,
-      hour: 13,
-      minute: 30
-    },
-    { 
-      name: 'EUR - ECB Interest Rate Decision', 
-      currency: 'EUR', 
-      impact: 'high', 
-      affected: ['EUR/USD', 'EUR/GBP'],
-      daysAhead: 7,
-      hour: 12, // 12 PM UTC
-      minute: 45
-    },
-    { 
-      name: 'USD - FOMC Meeting Minutes', 
-      currency: 'USD', 
-      impact: 'high', 
-      affected: ['EUR/USD', 'GBP/USD'],
-      daysAhead: 4,
-      hour: 19, // 7 PM UTC (2 PM EST)
-      minute: 0
-    }
-  ];
-
-  for (const event of essentialEvents) {
-    const eventTime = new Date(now);
-    eventTime.setDate(eventTime.getDate() + event.daysAhead);
-    eventTime.setHours(event.hour, event.minute, 0, 0);
-    
-    events.push({
-      event_name: event.name,
-      event_time: eventTime.toISOString(),
-      currency: event.currency,
-      country: getCountryName(event.currency),
-      impact_level: event.impact,
-      symbol_impact: event.affected,
-      forecast_value: 'TBD',
-      previous_value: null,
-      actual_value: null,
-      volatility_impact: 0.8,
-      created_at: now.toISOString(),
-      updated_at: now.toISOString()
+    items.push({
+      headline: title.substring(0, 200),
+      source: 'ForexLive',
+      symbol: 'EUR/USD',
+      sentiment: sentiment,
+      sentiment_score: sentiment,
+      relevance_score: 0.8,
+      impact: Math.abs(sentiment) > 0.3 ? 'high' : 'medium',
+      published_at: publishedAt.toISOString(),
+      url: null,
+      metadata: { source: 'rss' },
     });
   }
 
-  return events;
+  return items;
+}
+
+function getCountryName(c: string) {
+  const m: Record<string, string> = {
+    USD: 'United States', EUR: 'Eurozone', GBP: 'United Kingdom',
+    JPY: 'Japan', AUD: 'Australia', CAD: 'Canada', CHF: 'Switzerland', NZD: 'New Zealand'
+  };
+  return m[c] || c;
+}
+
+function generateFallbackEvents() {
+  const now = new Date();
+  const events = [
+    { name: 'USD - Non-Farm Payrolls', currency: 'USD', impact: 'high', days: 5, h: 13, m: 30 },
+    { name: 'USD - CPI', currency: 'USD', impact: 'high', days: 3, h: 13, m: 30 },
+    { name: 'EUR - ECB Rate Decision', currency: 'EUR', impact: 'high', days: 7, h: 12, m: 45 },
+    { name: 'USD - FOMC Minutes', currency: 'USD', impact: 'high', days: 4, h: 19, m: 0 },
+  ];
+
+  return events.map(e => {
+    const t = new Date(now);
+    t.setDate(t.getDate() + e.days);
+    t.setHours(e.h, e.m, 0, 0);
+    return {
+      event_name: e.name,
+      event_time: t.toISOString(),
+      currency: e.currency,
+      country: getCountryName(e.currency),
+      impact: e.impact,
+      actual: null, forecast: null, previous: null,
+      actual_value: null, forecast_value: null, previous_value: null,
+      metadata: { source: 'fallback' },
+    };
+  });
 }
