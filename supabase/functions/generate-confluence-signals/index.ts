@@ -474,9 +474,9 @@ serve(async (req) => {
         confluenceSignal = null;
       }
       
-      // **FIX 1: Check master_signals instead of trading_signals for duplicates**
+      // **FIX 1: Check master_signals for duplicates (SAME direction)**
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-      const { data: recentSignals } = await supabase
+      const { data: recentSameDirection } = await supabase
         .from('master_signals')
         .select('signal_type, confluence_score')
         .eq('symbol', 'EUR/USD')
@@ -485,9 +485,66 @@ serve(async (req) => {
         .order('created_at', { ascending: false })
         .limit(1);
 
-      // Only create signal if conversion was successful and no similar recent signal exists
-      const shouldCreateSignal = confluenceSignal && (!recentSignals?.length || 
-        confluenceSignal.confluence_score > (recentSignals[0].confluence_score + 10));
+      // **FIX: Check for OPPOSITE direction signals within last 30 minutes**
+      const oppositeDirection = confluenceSignal.signal_type === 'buy' ? 'sell' : 'buy';
+      const { data: recentOppositeSignals } = await supabase
+        .from('master_signals')
+        .select('signal_type, confluence_score, status')
+        .eq('symbol', 'EUR/USD')
+        .eq('signal_type', oppositeDirection)
+        .in('status', ['pending', 'executing', 'executed'])
+        .gte('created_at', thirtyMinutesAgo)
+        .order('confluence_score', { ascending: false })
+        .limit(1);
+
+      // **FIX: Check for open trades in SAME or OPPOSITE direction**
+      const { data: openTrades } = await supabase
+        .from('shadow_trades')
+        .select('trade_type, symbol')
+        .eq('symbol', 'EUR/USD')
+        .eq('status', 'open');
+
+      const sameDirectionTradeOpen = openTrades?.some(t => t.trade_type === confluenceSignal.signal_type);
+      const oppositeTradeOpen = openTrades?.some(t => t.trade_type === oppositeDirection);
+
+      // Determine if signal should be created
+      let shouldCreateSignal = !!confluenceSignal;
+      let rejectionReason = '';
+
+      // Block if same-direction duplicate signal exists (unless significantly stronger)
+      if (recentSameDirection?.length && confluenceSignal.confluence_score <= (recentSameDirection[0].confluence_score + 10)) {
+        shouldCreateSignal = false;
+        rejectionReason = `Same-direction ${confluenceSignal.signal_type} signal already exists (score ${recentSameDirection[0].confluence_score})`;
+      }
+
+      // Block if same-direction trade already open
+      if (sameDirectionTradeOpen) {
+        shouldCreateSignal = false;
+        rejectionReason = `${confluenceSignal.signal_type.toUpperCase()} trade already open for EUR/USD`;
+      }
+
+      // Block if opposite signal exists with higher score (prevents flip-flopping)
+      if (recentOppositeSignals?.length && recentOppositeSignals[0].confluence_score >= confluenceSignal.confluence_score) {
+        shouldCreateSignal = false;
+        rejectionReason = `Opposite ${oppositeDirection} signal has higher score (${recentOppositeSignals[0].confluence_score} vs ${confluenceSignal.confluence_score})`;
+      }
+
+      // Allow opposite signal ONLY if significantly stronger (score +15 higher) and opposite trade is open
+      if (!shouldCreateSignal && oppositeTradeOpen && confluenceSignal.confluence_score > ((recentOppositeSignals?.[0]?.confluence_score || 0) + 15)) {
+        shouldCreateSignal = true;
+        rejectionReason = '';
+        console.log(`🔄 Allowing stronger opposite signal (score ${confluenceSignal.confluence_score} vs ${recentOppositeSignals?.[0]?.confluence_score || 0})`);
+      }
+
+      if (rejectionReason) {
+        console.log(`🚫 Signal rejected: ${rejectionReason}`);
+        await supabase.from('signal_rejection_logs').insert({
+          signal_type: confluenceSignal.signal_type,
+          reason: rejectionReason,
+          confluence_score: confluenceSignal.confluence_score,
+          details: { open_trades: openTrades?.length || 0, opposite_signal_score: recentOppositeSignals?.[0]?.confluence_score }
+        });
+      }
 
       if (shouldCreateSignal) {
         // **PHASE 1 FIX: Store directly into master_signals table**
