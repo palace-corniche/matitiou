@@ -1700,6 +1700,46 @@ export async function generateQuantitativeSignals(
 
   if (signalType === 'hold') {
     console.log(`📐 Quant Godmode: HOLD | H=${hurstExponent.toFixed(2)} Z=${zScore.toFixed(2)} OU=${ouDeviation.toFixed(2)} Entropy=${shannonEntropy.toFixed(2)}`);
+    
+    // Store diagnostic record so dashboard always has live model outputs
+    if (supabase) {
+      try {
+        await supabase.from('modular_signals').insert({
+          module_id: 'quantitative_analysis',
+          module_version: '3.0.0-godmode',
+          symbol: pair,
+          timeframe,
+          signal_type: 'hold',
+          confidence: 0,
+          strength: 0,
+          suggested_entry: currentPrice,
+          trigger_price: currentPrice,
+          volatility_regime: entropyRegime,
+          calculation_parameters: {
+            factors: [
+              { name: 'hurst_exponent', value: hurstExponent },
+              { name: 'ou_deviation', value: ouDeviation },
+              { name: 'kalman_deviation', value: kalmanDeviation },
+              { name: 'shannon_entropy', value: shannonEntropy },
+              { name: 'bayesian_p_profit', value: 0.5 },
+              { name: 'monte_carlo_p_tp', value: 0.5 },
+              { name: 'kelly_fraction', value: 0 },
+              { name: 'regime', value: regime === 'trending' ? 1 : regime === 'mean_reverting' ? -1 : 0 },
+              { name: 'composite_score', value: 0 },
+              { name: 'z_score', value: zScore },
+              { name: 'ou_half_life', value: ouParams.halfLife },
+              { name: 'ou_theta', value: ouParams.theta },
+              { name: 'ou_mu', value: ouParams.mu },
+              { name: 'ou_sigma', value: ouParams.sigma }
+            ]
+          }
+        });
+        console.log(`📐 Quant Godmode: HOLD diagnostic stored`);
+      } catch (e) {
+        console.error(`📐 Quant Godmode: Failed to store HOLD diagnostic:`, e);
+      }
+    }
+    
     return signals;
   }
 
