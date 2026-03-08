@@ -1365,37 +1365,50 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
   }
 
   try {
-    // Enhanced Bayesian fusion with machine learning weights
-    const { data: intelligencePerf } = await supabase
-      .from('intelligence_performance')
-      .select('*')
-      .eq('symbol', 'EUR/USD')
-      .gte('signal_timestamp', new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
-      .order('prediction_accuracy', { ascending: false })
-      .limit(10);
+    // ===== FIX #3: DYNAMIC WEIGHTS FROM MODULE PERFORMANCE =====
+    // Query actual module win rates to scale base weights
+    const { data: modulePerf } = await supabase
+      .from('module_performance')
+      .select('module_id, win_rate, average_return, signals_generated')
+      .gte('signals_generated', 5); // Only use modules with enough data
 
-    // Dynamic source weighting based on recent performance
-    // Fix #2: Regime-aware weight adjustment
+    const modulePerfMap: Record<string, { winRate: number; avgReturn: number }> = {};
+    if (modulePerf && modulePerf.length > 0) {
+      for (const mp of modulePerf) {
+        modulePerfMap[mp.module_id] = {
+          winRate: mp.win_rate || 50,
+          avgReturn: mp.average_return || 0,
+        };
+      }
+      console.log(`📊 Dynamic weights: ${modulePerf.length} modules with performance data`);
+    }
+
     const regime = ('regime' in (signals[0] || {}) ? (signals[0] as any).regime : null) || 'unknown';
     
-    // PHASE 2 FIX: Increased weights for Technical, Sentiment, and Intermarket signals
-    const sourceWeights: { [key: string]: number } = {
-      'quantitative': regime === 'ranging' ? 0.28 : 0.23,  // Boost quant in ranging
-      'intermarket': regime === 'ranging' ? 0.18 : 0.25,   // INCREASED from 0.15/0.22
-      'technical': regime === 'ranging' ? 0.25 : 0.22,     // INCREASED from 0.20/0.18
-      'fundamental': 0.14,                                  // Slightly reduced to compensate
-      'sentiment': regime === 'ranging' ? 0.18 : 0.15,     // INCREASED from 0.15/0.12
-      'pattern': 0.08,                                      // Slightly reduced
-      'multitimeframe': 0.07                                // Slightly reduced
+    // Base weights (regime-aware)
+    const baseWeights: { [key: string]: number } = {
+      'quantitative': regime === 'ranging' ? 0.28 : 0.23,
+      'intermarket': regime === 'ranging' ? 0.18 : 0.25,
+      'technical': regime === 'ranging' ? 0.25 : 0.22,
+      'fundamental': 0.14,
+      'sentiment': regime === 'ranging' ? 0.18 : 0.15,
+      'pattern': 0.08,
+      'multitimeframe': 0.07
     };
 
-    // Adjust weights based on recent performance
-    if (intelligencePerf && intelligencePerf.length > 0) {
-      for (const perf of intelligencePerf) {
-        const sourceKey = perf.signal_source?.toLowerCase() || 'unknown';
-        if (sourceWeights[sourceKey]) {
-          sourceWeights[sourceKey] *= (1 + (perf.prediction_accuracy || 0.6) * 0.3);
+    // Scale weights by actual module performance: effectiveWeight = base × (0.5 + winRate/100)
+    // A 60% win rate module gets 1.1x, a 30% win rate gets 0.8x, a 70% gets 1.2x
+    const sourceWeights: { [key: string]: number } = {};
+    for (const [key, baseWeight] of Object.entries(baseWeights)) {
+      const perf = modulePerfMap[key] || modulePerfMap[`${key}_analysis`];
+      if (perf && perf.winRate > 0) {
+        const scaleFactor = 0.5 + (perf.winRate / 100);
+        sourceWeights[key] = baseWeight * scaleFactor;
+        if (Math.abs(scaleFactor - 1.0) > 0.05) {
+          console.log(`📈 Weight adjusted: ${key} ${baseWeight.toFixed(3)} → ${sourceWeights[key].toFixed(3)} (win rate: ${perf.winRate.toFixed(1)}%)`);
         }
+      } else {
+        sourceWeights[key] = baseWeight;
       }
     }
 
