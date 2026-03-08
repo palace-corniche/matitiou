@@ -2031,29 +2031,74 @@ function detectChartPatterns(candles: any[]): any[] {
 }
 
 function detectHarmonicPatterns(candles: any[]): any[] {
-  // Simplified harmonic pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 50) {
-    const prices = candles.map(c => c.close);
-    const currentPrice = prices[prices.length - 1];
-    
-    // Simplified Gartley pattern detection
-    const fibAccuracy = Math.random() * 0.3 + 0.7; // 0.7 to 1.0
-    
-    if (fibAccuracy > 0.85) {
-      patterns.push({
-        type: 'gartley',
-        signal: Math.random() > 0.5 ? 'buy' : 'sell',
-        accuracy: fibAccuracy,
-        strength: fibAccuracy,
-        fibAccuracy,
-        stopLoss: currentPrice * (Math.random() > 0.5 ? 0.97 : 1.03),
-        takeProfit: currentPrice * (Math.random() > 0.5 ? 1.05 : 0.95)
-      });
+  const patterns: any[] = [];
+  if (candles.length < 50) return patterns;
+
+  // Find swing points for harmonic detection
+  const lookback = 5;
+  type SP = { index: number; price: number; type: 'high' | 'low' };
+  const swingPoints: SP[] = [];
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    let isHigh = true, isLow = true;
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= candles[i].high) isHigh = false;
+      if (candles[j].low <= candles[i].low) isLow = false;
+    }
+    if (isHigh) swingPoints.push({ index: i, price: candles[i].high, type: 'high' });
+    if (isLow) swingPoints.push({ index: i, price: candles[i].low, type: 'low' });
+  }
+  swingPoints.sort((a, b) => a.index - b.index);
+
+  const inRange = (v: number, min: number, max: number, tol = 0.1) =>
+    v >= min * (1 - tol) && v <= max * (1 + tol);
+
+  const currentPrice = candles[candles.length - 1].close;
+
+  // Pattern definitions: name, ratio test, ideal ratios for confidence
+  const patternDefs = [
+    { name: 'gartley', test: (r: any) => inRange(r.ab, 0.618, 0.618) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.272, 1.618) && inRange(r.ad, 0.786, 0.786) },
+    { name: 'butterfly', test: (r: any) => inRange(r.ab, 0.786, 0.786) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.618, 2.618) && inRange(r.ad, 1.272, 1.272) },
+    { name: 'bat', test: (r: any) => inRange(r.ab, 0.382, 0.5) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 1.618, 2.618) && inRange(r.ad, 0.886, 0.886) },
+    { name: 'crab', test: (r: any) => inRange(r.ab, 0.382, 0.618) && inRange(r.bc, 0.382, 0.886) && inRange(r.cd, 2.24, 3.618) && inRange(r.ad, 1.618, 1.618) },
+    { name: 'shark', test: (r: any) => inRange(r.ab, 1.13, 1.618) && inRange(r.bc, 1.618, 2.24) && inRange(r.ad, 0.886, 1.13) },
+    { name: 'cypher', test: (r: any) => inRange(r.ab, 0.382, 0.618) && inRange(r.bc, 1.272, 1.414) && inRange(r.ad, 0.786, 0.786) },
+  ];
+
+  for (let i = 0; i < swingPoints.length - 4; i++) {
+    const [X, A, B, C, D] = [swingPoints[i], swingPoints[i+1], swingPoints[i+2], swingPoints[i+3], swingPoints[i+4]];
+    const XA = Math.abs(A.price - X.price);
+    const AB = Math.abs(B.price - A.price);
+    const BC = Math.abs(C.price - B.price);
+    const CD = Math.abs(D.price - C.price);
+    const AD = Math.abs(D.price - A.price);
+    if (XA === 0 || AB === 0 || BC === 0) continue;
+
+    const r = { ab: AB / XA, bc: BC / AB, cd: CD / BC, ad: AD / XA };
+
+    for (const def of patternDefs) {
+      if (def.test(r)) {
+        const isBullish = X.price < A.price;
+        // Calculate confidence based on ratio accuracy
+        let confidence = 0.7;
+        // Tighter ratios = higher confidence
+        const avgDeviation = [Math.abs(r.ab - 0.618), Math.abs(r.ad - 0.786)].reduce((a, b) => a + b, 0) / 2;
+        confidence = Math.min(0.95, 0.7 + (1 - avgDeviation) * 0.25);
+
+        patterns.push({
+          type: def.name,
+          signal: isBullish ? 'buy' : 'sell',
+          accuracy: confidence,
+          strength: confidence,
+          fibAccuracy: confidence,
+          stopLoss: isBullish ? D.price - XA * 0.1 : D.price + XA * 0.1,
+          takeProfit: isBullish ? D.price + XA * 0.618 : D.price - XA * 0.618,
+        });
+        break; // One pattern per 5-point combo
+      }
     }
   }
-  
+
   return patterns;
 }
 

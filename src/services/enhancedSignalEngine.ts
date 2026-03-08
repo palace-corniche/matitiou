@@ -235,82 +235,57 @@ export class EnhancedSignalEngine {
     const strategies: StrategySignal[] = [];
     
     try {
-      // RSI strategy
-      const rsi = this.calculateRSI(candles, 14);
-      if (rsi.length > 0) {
-        const currentRSI = rsi[rsi.length - 1];
-        if (currentRSI < 30) {
-          strategies.push({
-            name: 'RSI Oversold Strategy',
-            type: 'day_trading',
-            signal: 'buy',
-            confidence: (30 - currentRSI) / 30,
-            strength: 8,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 0.99,
-            takeProfit: candles[candles.length - 1].close * 1.02,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['RSI < 30'],
-            description: 'RSI oversold reversal strategy'
-          } as StrategySignal);
-        } else if (currentRSI > 70) {
-          strategies.push({
-            name: 'RSI Overbought Strategy',
-            type: 'day_trading',
-            signal: 'sell',
-            confidence: (currentRSI - 70) / 30,
-            strength: 8,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 1.01,
-            takeProfit: candles[candles.length - 1].close * 0.98,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['RSI > 70'],
-            description: 'RSI overbought reversal strategy'
-          } as StrategySignal);
+      // Run all real strategy engines from tradingStrategies.ts
+      const scalpingSignals = [
+        ScalpingStrategies.rsiDivergenceScalp(candles, timeframe),
+        ScalpingStrategies.stochasticCrossover(candles, timeframe),
+        ScalpingStrategies.macdHistogramScalp(candles, timeframe),
+      ];
+
+      const dayTradingSignals = [
+        DayTradingStrategies.pivotPointBounce(candles, timeframe),
+        DayTradingStrategies.keltnerChannelBreakout(candles, timeframe),
+        DayTradingStrategies.tripleEmaCrossover(candles, timeframe),
+        DayTradingStrategies.macdHistogramReversal(candles, timeframe),
+      ];
+
+      const swingSignals = [
+        SwingTradingStrategies.superTrendFollowing(candles, timeframe),
+        SwingTradingStrategies.doubleTopBottomEntry(candles, timeframe),
+        SwingTradingStrategies.adxTrendStrength(candles, timeframe),
+      ];
+
+      // Collect all non-null, non-neutral signals
+      const allSignals = [
+        ...scalpingSignals,
+        ...dayTradingSignals,
+        ...swingSignals,
+      ];
+
+      for (const sig of allSignals) {
+        if (sig && sig.signal !== 'neutral') {
+          strategies.push(sig);
         }
       }
 
-      // MACD strategy
-      const macd = this.calculateMACD(candles);
-      if (macd.length > 1) {
-        const current = macd[macd.length - 1];
-        const previous = macd[macd.length - 2];
-        
-        if (current.macd > current.signal && previous.macd <= previous.signal) {
-          strategies.push({
-            name: 'MACD Crossover Strategy',
-            type: 'swing_trading',
-            signal: 'buy',
-            confidence: 0.7,
-            strength: 7,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 0.99,
-            takeProfit: candles[candles.length - 1].close * 1.02,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['MACD > Signal'],
-            description: 'MACD bullish crossover'
-          } as StrategySignal);
-        } else if (current.macd < current.signal && previous.macd >= previous.signal) {
-          strategies.push({
-            name: 'MACD Crossover Strategy',
-            type: 'swing_trading',
-            signal: 'sell',
-            confidence: 0.7,
-            strength: 7,
-            entry: candles[candles.length - 1].close,
-            stopLoss: candles[candles.length - 1].close * 1.01,
-            takeProfit: candles[candles.length - 1].close * 0.98,
-            riskReward: 2.0,
-            timeframe: timeframe,
-            conditions: ['MACD < Signal'],
-            description: 'MACD bearish crossover'
-          } as StrategySignal);
-        }
+      // Multi-timeframe trend alignment
+      const mtf = MultiTimeframeEngine.analyzeTrend(candles, timeframe);
+      if (mtf.overallBias !== 'neutral') {
+        strategies.push({
+          name: 'Multi-Timeframe Alignment',
+          type: 'swing_trading',
+          signal: mtf.overallBias === 'bullish' ? 'buy' : 'sell',
+          confidence: mtf.alignment / 100,
+          strength: mtf.alignment / 100 * 8,
+          entry: candles[candles.length - 1].close,
+          stopLoss: candles[candles.length - 1].close * (mtf.overallBias === 'bullish' ? 0.99 : 1.01),
+          takeProfit: candles[candles.length - 1].close * (mtf.overallBias === 'bullish' ? 1.02 : 0.98),
+          riskReward: 2.0,
+          timeframe,
+          conditions: [`MTF alignment: ${mtf.alignment.toFixed(0)}%`],
+          description: `Multi-timeframe ${mtf.overallBias} alignment`
+        });
       }
-
     } catch (error) {
       console.error('Error analyzing strategies:', error);
     }
