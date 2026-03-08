@@ -68,18 +68,20 @@ export const DashboardOverview: React.FC = () => {
     );
   }
 
+  const totalPnl = (account?.balance || 10000) - 10000; // derived from balance vs initial
+
   const stats = [
     {
       label: 'Balance',
       value: `$${(account?.balance || 10000).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
       icon: DollarSign,
-      change: account?.total_pnl || 0,
+      change: totalPnl,
     },
     {
       label: 'Total P&L',
-      value: `${(account?.total_pnl || 0) >= 0 ? '+' : ''}$${(account?.total_pnl || 0).toFixed(2)}`,
-      icon: (account?.total_pnl || 0) >= 0 ? TrendingUp : TrendingDown,
-      positive: (account?.total_pnl || 0) >= 0,
+      value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}`,
+      icon: totalPnl >= 0 ? TrendingUp : TrendingDown,
+      positive: totalPnl >= 0,
     },
     {
       label: 'Win Rate',
