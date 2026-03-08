@@ -9,6 +9,8 @@ interface MarketRegimeIndicatorProps {
 }
 
 export const MarketRegimeIndicator: React.FC<MarketRegimeIndicatorProps> = ({ regime }) => {
+  if (!regime?.indicators) return null;
+
   const getRegimeIcon = () => {
     switch (regime.regime) {
       case 'risk-on':
@@ -57,24 +59,24 @@ export const MarketRegimeIndicator: React.FC<MarketRegimeIndicatorProps> = ({ re
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">VIX:</span>
-              <span className={regime.indicators.vix > 25 ? 'text-bearish' : 'text-bullish'}>
-                {regime.indicators.vix.toFixed(1)}
+              <span className={(regime.indicators.vix ?? 0) > 25 ? 'text-bearish' : 'text-bullish'}>
+                {(regime.indicators.vix ?? 0).toFixed(1)}
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">USD Index:</span>
-              <span>{regime.indicators.usdIndex.toFixed(2)}</span>
+              <span>{(regime.indicators.usdIndex ?? 0).toFixed(2)}</span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Commodities:</span>
-              <span className={regime.indicators.commodities > 50 ? 'text-bullish' : 'text-bearish'}>
-                {regime.indicators.commodities.toFixed(0)}%
+              <span className={(regime.indicators.commodities ?? 0) > 50 ? 'text-bullish' : 'text-bearish'}>
+                {(regime.indicators.commodities ?? 0).toFixed(0)}%
               </span>
             </div>
             <div className="flex justify-between">
               <span className="text-muted-foreground">Equities:</span>
-              <span className={regime.indicators.equities > 50 ? 'text-bullish' : 'text-bearish'}>
-                {regime.indicators.equities.toFixed(0)}%
+              <span className={(regime.indicators.equities ?? 0) > 50 ? 'text-bullish' : 'text-bearish'}>
+                {(regime.indicators.equities ?? 0).toFixed(0)}%
               </span>
             </div>
           </div>
