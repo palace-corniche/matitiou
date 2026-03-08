@@ -1236,7 +1236,7 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
       .eq('module_id', 'intermarket_analysis')
       .eq('symbol', pair)
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
+      
       .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
       .order('confidence', { ascending: false })
       .limit(5);
