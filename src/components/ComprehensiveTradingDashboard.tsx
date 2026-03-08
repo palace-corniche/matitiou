@@ -103,8 +103,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
               <div className="text-xl font-semibold mb-2">Comprehensive Market Analysis</div>
               <div className="text-muted-foreground mb-4">{analysisProgress}</div>
               <div className="text-sm text-muted-foreground max-w-md mx-auto">
-                Analyzing 75+ indicators, 15+ patterns, harmonic analysis, Elliott waves, 
-                Fibonacci levels, Gann analysis, multi-strategy confluence, and multi-timeframe analysis...
+                Analyzing 120+ indicators, 40+ patterns, 8 harmonic patterns, Elliott waves (impulse + corrective), 
+                Fibonacci levels, Gann analysis, 22+ strategies, and multi-timeframe confluence...
               </div>
             </CardContent>
           </Card>
