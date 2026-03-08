@@ -35,7 +35,7 @@ export function AppSidebar() {
           </div>
           {!collapsed && (
             <div>
-              <h2 className="text-lg font-bold">ProTrade AI</h2>
+              <h2 className="text-sm font-bold leading-tight">JALLOUL A.K.A MATITOU</h2>
               <p className="text-xs text-muted-foreground">Trading System</p>
             </div>
           )}

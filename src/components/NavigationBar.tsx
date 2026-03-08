@@ -117,8 +117,8 @@ const NavigationBar: React.FC = () => {
                 <Activity className="h-6 w-6 text-primary" />
               </div>
               <div>
-                <h1 className="text-xl font-bold">ProTrade AI</h1>
-                <p className="text-xs text-muted-foreground">Professional Trading System</p>
+                <h1 className="text-lg font-bold leading-tight">JALLOUL A.K.A MATITOU</h1>
+                <p className="text-xs text-muted-foreground">Trading System</p>
               </div>
             </div>
           </div>
