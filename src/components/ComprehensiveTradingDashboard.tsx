@@ -34,8 +34,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
     setLoading(true);
     setAnalysisProgress('Initializing comprehensive analysis...');
     try {
-      // Phase 1: Generate comprehensive signal using all 75+ indicators
-      setAnalysisProgress('Calculating 75+ technical indicators...');
+      // Phase 1: Generate comprehensive signal using all 120+ indicators
+      setAnalysisProgress('Calculating 120+ technical indicators...');
       const confluenceSignal = await enhancedEngine.generateComprehensiveSignal(data, pair, '1h');
       if (confluenceSignal) {
         setConfluenceSignal(confluenceSignal);
