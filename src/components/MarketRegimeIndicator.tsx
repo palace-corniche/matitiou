@@ -9,6 +9,8 @@ interface MarketRegimeIndicatorProps {
 }
 
 export const MarketRegimeIndicator: React.FC<MarketRegimeIndicatorProps> = ({ regime }) => {
+  if (!regime?.indicators) return null;
+
   const getRegimeIcon = () => {
     switch (regime.regime) {
       case 'risk-on':
