@@ -542,11 +542,29 @@ serve(async (req) => {
               confluence_score: confluenceSignal.confluence_score,
               recommended_entry: confluenceSignal.entry_price,
               recommended_stop_loss: confluenceSignal.stop_loss,
-              recommended_take_profit: confluenceSignal.take_profit,
-              recommended_lot_size: 0.01,
-              risk_reward_ratio: confluenceSignal.risk_reward_ratio,
-              contributing_modules: confluenceSignal.factors?.map((f: any) => f.name) || [],
-              modular_signal_ids: [],
+            recommended_take_profit: confluenceSignal.take_profit,
+            recommended_lot_size: 0.01,
+            risk_reward_ratio: confluenceSignal.risk_reward_ratio,
+            // FIX #1: Extract unique module IDs from signal sources, not factor names
+            contributing_modules: (() => {
+              const moduleMapping: Record<string, string> = {
+                'technical': 'technical_analysis',
+                'fundamental': 'fundamental_analysis',
+                'sentiment': 'sentiment_analysis',
+                'pattern': 'specialized_analysis',
+                'strategy': 'specialized_analysis',
+                'timeframe': 'quantitative_analysis',
+                'intermarket': 'intermarket_analysis',
+              };
+              const allSignals = signalAnalysis?.modularResults?.allSignals || [];
+              const moduleIds = new Set<string>();
+              allSignals.forEach((s: any) => {
+                const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k));
+                if (sourceKey) moduleIds.add(moduleMapping[sourceKey]);
+              });
+              return Array.from(moduleIds);
+            })(),
+            modular_signal_ids: [],
               fusion_algorithm: 'bayesian_hierarchical',
               fusion_parameters: {
                 reasoning: confluenceSignal.description,
