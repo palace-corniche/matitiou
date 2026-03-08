@@ -68,7 +68,7 @@ export const DashboardOverview: React.FC = () => {
     );
   }
 
-  const totalPnl = (account?.balance || 10000) - 10000; // derived from balance vs initial
+  const totalPnl = account?.total_pnl || 0;
 
   const stats = [
     {
