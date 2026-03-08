@@ -73,8 +73,8 @@ class AlternativeDataIntegration {
       }
 
       return data.map((item: any) => ({
-        sentiment: item.sentiment_score ?? item.sentiment ?? 0,
-        relevance: item.relevance_score ?? 0.5,
+        sentiment: (item.sentiment_score ?? item.sentiment) ?? 0,
+        relevance: (item.relevance_score) ?? 0.5,
         impact: item.impact === 'high' ? 0.9 : item.impact === 'medium' ? 0.6 : 0.3,
         keywords: [item.symbol, item.source].filter(Boolean) as string[],
         headline: item.headline,
