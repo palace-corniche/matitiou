@@ -1,16 +1,17 @@
 
 
-# Fix Balance to $119
+# Strengthen Periodic Cleanup — Cover Missing High-Volume Tables
 
-The current balance in the database is `$100,019.24`. The user wants it set to `$119`.
+## What Changes
+Update `supabase/functions/periodic-data-cleanup/index.ts` to add cleanup for 4 uncovered tables:
 
-## Plan
-Run a single SQL migration to update the `global_trading_account` row:
-```sql
-UPDATE global_trading_account
-SET balance = 119, equity = 119
-WHERE id = '00000000-0000-0000-0000-000000000001';
-```
+| Table | Retention | Reason |
+|-------|-----------|--------|
+| `tick_data` | 6 hours | Highest volume — grows fastest |
+| `trade_execution_log` | 7 days | Accumulates with every trade open/close |
+| `system_health` | 3 days | Logs every function run |
+| `modular_signals` | 3 days | Generated every signal cycle |
 
-No code changes needed — the dashboard already reads `account.balance` directly.
+## Implementation
+Add 4 new delete blocks (steps 12-15) after the existing step 11 in the cleanup function, following the same pattern already used. No other files need changes.
 
