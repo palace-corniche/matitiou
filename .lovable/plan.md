@@ -1,57 +1,93 @@
 
 
-# System Diagnostic Report
+# End-to-End Re-Verification Report
 
-## Database Status: HEALTHY
-- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
-- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
-- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
+## Pipeline Status Summary
 
-## Edge Functions: BLOCKED (402)
-The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
-- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
-- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
+| Stage | Component | Status | Issue |
+|-------|-----------|--------|-------|
+| 1. Ingestion | `aggregated_candles` (2,967 rows) | Working | Real TwelveData data flowing |
+| 2. Signal Gen | `modular_signals` (17 rows) | Partial | Only 3 of 6 modules producing signals |
+| 3. Fusion | `master_signals` (134 rows) | Working | Bayesian fusion running every ~5-15 min |
+| 4. Execution | `shadow_trades` (15 rows, 0 open) | Paused | Market closed (Sunday), all 15 trades closed |
+| 5. Exits | `check-trade-exits` | Working | Correctly reports "no open trades" |
 
-**This is the single blocker.** Everything else is correctly configured and ready.
+---
 
-## Trading Account: RESET and READY
-| Field | Value |
-|---|---|
-| Balance | $100,000 |
-| Equity | $100,000 |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Auto Trading | Enabled |
+## Tables Created by Last Fix: VERIFIED
 
-## Module Health: 6 modules active, 0 errors
-All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
+| Table | Rows | Status |
+|-------|------|--------|
+| `learning_outcomes` | 0 | Created but empty — no trade closures since creation |
+| `intelligence_performance` | 6 | Seeded with all 6 sources, all at 0.5 accuracy |
+| `system_config` | 1 | Created with default config |
+| `adaptive_thresholds` | 1 | Seeded with defaults (entropy 0.80, buy_prob 0.56, etc.) |
 
-## Cron Jobs: 11 active schedules
-All cron jobs are active and correctly configured:
-- Market data fetch (every minute)
-- Signal generation (every 5 min)
-- Trade execution (every minute)
-- Exit monitoring (every 5 min)
-- Pattern detection (every 15 min)
-- News sentiment (every 30 min)
-- Learning orchestrator (hourly)
-- **Log cleanup (daily at 3 AM)** -- new
+---
 
-## Trading Configuration
-- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
+## BUGS STILL PRESENT
 
-## Is the System Profitable / "Next Level"?
+### Bug 1: `confidence: 1.1` still in `modular_signals` (HIGH)
+The code at line 916 has `Math.min(1, s.confidence || 0)` but the **deployed function** is still writing 1.1. The root cause is in `master-signal-modules.ts` line 271: `confidenceBoost = maAlignment.strength * 1.1` — when strength is 1.0, this produces 1.1. The cap at line 916 should catch it, but the deployed function appears to be an older version without the cap.
 
-**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
-1. The 402 block clearing so data starts flowing
-2. Signals being generated from live market data
-3. Trades being executed and closed
+**Fix:** Redeploy the `generate-confluence-signals` function. Also cap confidence at source in `master-signal-modules.ts` lines 271, 327, 512, 822, 1075 where `* 1.1` or `* 1.15` boosts can exceed 1.0.
 
-The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
+### Bug 2: Timestamp validation (line 920) uses `&&` instead of `||` (MEDIUM)
+`if (priceAge > 3600000 && priceAge < -3600000)` — impossible condition. A number cannot be simultaneously > 3.6M and < -3.6M. Should be `||`.
 
-## What You Need To Do
+**Fix:** Change `&&` to `||` on line 920 of `execute-shadow-trades/index.ts`.
 
-**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+### Bug 3: `calculate_trade_quality_score` fails every run (MEDIUM)
+Logs show: `"UPDATE is not allowed in a non-volatile function"`. The DB function is marked `STABLE` but contains an `UPDATE` statement. PostgreSQL blocks writes in stable/immutable functions.
 
-You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
+**Fix:** Alter the function to remove `STABLE` keyword (make it `VOLATILE`, the default).
+
+### Bug 4: Only 3 of 6 modules generating signals (MEDIUM)
+`modular_signals` has data for: `technical_analysis` (5), `sentiment_analysis` (8), `specialized_analysis` (4). Missing: `fundamental_analysis`, `quantitative_analysis`, `intermarket_analysis`.
+
+Logs confirm: "Insufficient multi-timeframe data - missing H1/H4/D1" blocks quantitative signals. Fundamental and intermarket generators likely find no matching DB data.
+
+**Fix:** Investigate why H1/H4/D1 candles aren't available (the `aggregate-candles` function produces them but the query window may be too narrow). For fundamental/intermarket, ensure the generator fallback produces at least a neutral signal when DB data exists.
+
+### Bug 5: `module_performance` tracking only counts sentiment + technical (LOW)
+Despite specialized signals existing in DB, `module_performance` shows 0 for specialized. The `updateModulePerformance` function runs per-batch, so if specialized signals came from a different run than the current deployment, they weren't counted.
+
+### Bug 6: 113 signals stuck in `pending` status (LOW)
+134 total master_signals: 113 pending, 15 executed, 6 executing. The 6 "executing" signals are likely orphaned from interrupted runs. The 113 "pending" were never picked up — most are from market-closed hours.
+
+**Fix:** Clean up stale `executing` signals (set back to `pending` or `expired`). Add expiry logic for old `pending` signals.
+
+---
+
+## What IS Working Correctly
+
+- Confluence score uses `calculateWeightedConfluenceScore()` (multi-factor, not just `confidence * 100`)
+- Confidence cap at line 916 (in code, needs redeploy)
+- Technical signal boost removed at line 92 (reads `Math.min(1, signal.confidence)`)
+- Module performance uses cumulative moving average (correct formula)
+- Adaptive thresholds seeded and loadable
+- Intelligence performance table seeded for Bayesian weight lookup
+- Trade execution: atomic locking, margin checks, SL/TP validation all correct
+- P&L calculation: `pips * lots * 10` correct for EUR/USD standard
+
+---
+
+## Fixes to Implement (4 items)
+
+### 1. Fix confidence boosts exceeding 1.0 in master-signal-modules.ts
+Add `Math.min(1, ...)` around all confidence boost calculations at lines 271, 279, 327, 512, 822, 1075.
+
+### 2. Fix timestamp validation operator in execute-shadow-trades
+Change `&&` to `||` on line 920.
+
+### 3. Fix `calculate_trade_quality_score` DB function
+Migration to alter it from `STABLE` to `VOLATILE` so it can perform the UPDATE.
+
+### 4. Redeploy both edge functions
+Redeploy `generate-confluence-signals` and `execute-shadow-trades` to ensure latest code is live.
+
+**Files to edit:**
+- `supabase/functions/generate-confluence-signals/master-signal-modules.ts` (confidence caps)
+- `supabase/functions/execute-shadow-trades/index.ts` (timestamp operator fix)
+- Database migration (alter `calculate_trade_quality_score` volatility)
 
