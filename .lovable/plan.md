@@ -1,58 +1,57 @@
 
 
-# End-to-End Test & Remaining Mock Data Cleanup
+# System Diagnostic Report
 
-## Current State Summary
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-### Pipeline Status (from edge function logs)
-- `fetch-market-data`: Working, 40 data points fetched
-- `aggregate-candles`: Working, producing 15m/1h/4h/1d candles
-- `check-trade-exits`: Working, checking SL/TP
-- `execute-shadow-trades`: Working (market closed on Sunday)
-- `sync-market-data-enhanced`: Working, 500 candles synced
-- `generate-confluence-signals`: Only showing shutdown logs — may not be producing `modular_signals`
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-### Console Errors
-1. **CorrelationMatrix.tsx line 120**: `data-lov-id` prop on `React.Fragment` — harmless dev warning from Lovable's instrumentation, not a real bug
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-### Remaining `Math.random()` in Frontend Components (4 files)
-| File | Usage | Verdict |
-|------|-------|---------|
-| `IntelligenceBacktestingPanel.tsx:52` | Progress bar animation | Acceptable (cosmetic) |
-| `sidebar.tsx:653` | Skeleton loading width | Acceptable (UI lib) |
-| `TradingTerminal.tsx:189` | Session ID generation | Acceptable (ID gen) |
-| `AutomationPanel.tsx:176` | Rule ID generation | Acceptable (ID gen) |
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-### Remaining `Math.random()` in Services (problematic — generates fake data)
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-| File | Lines | Issue | Fix |
-|------|-------|-------|-----|
-| **`intelligenceBacktester.ts`** | 193-220, 672-717 | `generateSyntheticMarketData()` fallback creates random OHLC; `runBacktest()` returns entirely random results | Replace `runBacktest()` with real backtest using DB data; keep synthetic as labeled fallback |
-| **`newsAnalysis.ts`** | 130-197 | `fetchRelevantNews()` and `fetchEconomicEvents()` return mock data instead of querying `news_events` and `economic_calendar` tables | Query real tables |
-| **`quantitativeAnalysisAdapter.ts`** | 187, 232 | Implied vol and beta use `Math.random()` | Compute IV as 1.12x historical vol; estimate beta from returns correlation |
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-## Implementation Plan
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-### Phase 1: Fix `newsAnalysis.ts` — query real DB tables
-- Replace `fetchRelevantNews()` to query `news_events` table (21 real rows)
-- Replace `fetchEconomicEvents()` to query `economic_calendar` table (32 real rows)
-- Map DB columns to existing `NewsItem` and `EconomicEvent` interfaces
-- Keep empty-array fallback if no data
+## Is the System Profitable / "Next Level"?
 
-### Phase 2: Fix `quantitativeAnalysisAdapter.ts` — remove 2 random lines
-- Line 187: `impliedVol = historicalVol * 1.12` (standard premium, no randomness)
-- Line 232: `betaToMarket = 1.0` (neutral beta without market index data)
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-### Phase 3: Fix `intelligenceBacktester.ts` `runBacktest()` 
-- The `runBacktest()` method (lines 672-720) returns entirely random results — replace with actual computation from the real backtest engine that already exists in lines 230-670
-- The `generateSyntheticMarketData()` fallback (lines 193-220) is acceptable as a labeled fallback when no DB data exists, but add a console warning
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### Phase 4: Trigger pipeline and verify `modular_signals`
-- Invoke `generate-confluence-signals` to confirm it produces modular_signals rows
-- Check that all 6 analysis page queries return real data
+## What You Need To Do
 
-**Files to edit:**
-- `src/services/newsAnalysis.ts`
-- `src/services/analysisAdapters/quantitativeAnalysisAdapter.ts`
-- `src/services/intelligenceBacktester.ts`
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 

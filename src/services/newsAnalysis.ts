@@ -137,11 +137,42 @@ class NewsAnalysisEngine {
       }
     }
 
-    // Generate realistic mock news data for demo
-    const mockNews = this.generateMockNewsData(currencies, hoursBack);
-    this.newsCache.set(cacheKey, mockNews);
-    
-    return mockNews;
+    try {
+      const { untypedSupabase } = await import('@/integrations/supabase/untypedClient');
+      const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+      const { data, error } = await untypedSupabase
+        .from('news_events')
+        .select('*')
+        .gte('published_at', since)
+        .order('published_at', { ascending: false })
+        .limit(20);
+
+      if (error || !data || data.length === 0) {
+        console.log('No news_events in DB, returning empty array');
+        return [];
+      }
+
+      const newsItems: NewsItem[] = data.map((row: any, i: number) => ({
+        id: row.id,
+        title: row.headline,
+        summary: row.headline,
+        source: row.source || 'Unknown',
+        publishedAt: row.published_at || row.created_at,
+        url: row.url || '',
+        sentiment: (row.sentiment_score ?? row.sentiment ?? 0) * 100,
+        impact: (row.impact === 'high' ? 'high' : row.impact === 'medium' ? 'medium' : 'low') as 'high' | 'medium' | 'low',
+        currencies: currencies,
+        relevanceScore: (row.relevance_score ?? 0.7) * 100,
+        credibilityScore: this.sourceCredibility[row.source as keyof typeof this.sourceCredibility] || 70,
+        tags: ['forex', 'news']
+      }));
+
+      this.newsCache.set(cacheKey, newsItems);
+      return newsItems;
+    } catch (err) {
+      console.error('Failed to fetch news from DB:', err);
+      return [];
+    }
   }
 
   private async fetchEconomicEvents(currencies: string[], hoursBack: number): Promise<EconomicEvent[]> {
@@ -152,91 +183,57 @@ class NewsAnalysisEngine {
       return cached;
     }
 
-    // Generate realistic mock economic events
-    const mockEvents = this.generateMockEconomicEvents(currencies, hoursBack);
-    this.economicCache.set(cacheKey, mockEvents);
-    
-    return mockEvents;
+    try {
+      const { untypedSupabase } = await import('@/integrations/supabase/untypedClient');
+      const since = new Date(Date.now() - hoursBack * 60 * 60 * 1000).toISOString();
+      const { data, error } = await untypedSupabase
+        .from('economic_calendar')
+        .select('*')
+        .gte('event_time', since)
+        .in('currency', currencies)
+        .order('event_time', { ascending: false })
+        .limit(20);
+
+      if (error || !data || data.length === 0) {
+        console.log('No economic_calendar events in DB, returning empty array');
+        return [];
+      }
+
+      const events: EconomicEvent[] = data.map((row: any) => {
+        const actual = row.actual_value;
+        const forecast = row.forecast_value;
+        const previous = row.previous_value;
+        const surprise = (actual != null && forecast != null && forecast !== 0)
+          ? ((actual - forecast) / Math.abs(forecast)) * 10
+          : undefined;
+        const impact = (actual != null && forecast != null)
+          ? (actual - forecast) * (row.impact === 'high' ? 2 : 1)
+          : 0;
+
+        return {
+          id: row.id,
+          name: row.event_name,
+          country: row.country || '',
+          currency: row.currency || '',
+          importance: (row.impact === 'high' ? 'high' : row.impact === 'medium' ? 'medium' : 'low') as 'high' | 'medium' | 'low',
+          actual: actual ?? undefined,
+          forecast: forecast ?? undefined,
+          previous: previous ?? undefined,
+          unit: '',
+          time: row.event_time,
+          impact,
+          surprise
+        };
+      });
+
+      this.economicCache.set(cacheKey, events);
+      return events;
+    } catch (err) {
+      console.error('Failed to fetch economic events from DB:', err);
+      return [];
+    }
   }
 
-  private generateMockNewsData(currencies: string[], hoursBack: number): NewsItem[] {
-    const mockNews: NewsItem[] = [];
-    const now = new Date();
-
-    const newsTemplates = [
-      { title: "Federal Reserve signals cautious approach to rate cuts", sentiment: 25, impact: 'high' as const },
-      { title: "ECB maintains dovish stance amid economic uncertainty", sentiment: -15, impact: 'high' as const },
-      { title: "US inflation shows signs of cooling in latest report", sentiment: -30, impact: 'medium' as const },
-      { title: "European economic growth exceeds expectations", sentiment: 40, impact: 'medium' as const },
-      { title: "Dollar strengthens on robust employment data", sentiment: 35, impact: 'high' as const },
-      { title: "Geopolitical tensions weigh on risk sentiment", sentiment: -45, impact: 'medium' as const },
-      { title: "Central bank intervention rumors circulate in FX markets", sentiment: 0, impact: 'low' as const },
-      { title: "Trade data shows improving global economic conditions", sentiment: 20, impact: 'low' as const }
-    ];
-
-    for (let i = 0; i < Math.min(8, hoursBack); i++) {
-      const template = newsTemplates[i % newsTemplates.length];
-      const publishedAt = new Date(now.getTime() - (i * 45 * 60 * 1000)); // Every 45 minutes
-
-      mockNews.push({
-        id: `news_${i}`,
-        title: template.title,
-        summary: `${template.title} - Market analysis and expert commentary on recent developments affecting ${currencies.join('/')} trading.`,
-        source: ['Reuters', 'Bloomberg', 'Financial Times', 'MarketWatch'][i % 4],
-        publishedAt: publishedAt.toISOString(),
-        url: `https://example.com/news/${i}`,
-        sentiment: template.sentiment + (Math.random() - 0.5) * 20, // Add some randomization
-        impact: template.impact,
-        currencies: currencies,
-        relevanceScore: Math.max(60, Math.random() * 40 + 60),
-        credibilityScore: this.sourceCredibility[['Reuters', 'Bloomberg', 'Financial Times', 'MarketWatch'][i % 4]] || 70,
-        tags: ['forex', 'central-bank', 'economic-data', 'market-analysis'].filter(() => Math.random() > 0.4)
-      });
-    }
-
-    return mockNews;
-  }
-
-  private generateMockEconomicEvents(currencies: string[], hoursBack: number): EconomicEvent[] {
-    const events: EconomicEvent[] = [];
-    const now = new Date();
-
-    if (currencies.includes('USD')) {
-      events.push({
-        id: 'nfp_001',
-        name: 'Non-Farm Payrolls',
-        country: 'United States',
-        currency: 'USD',
-        importance: 'high' as const,
-        actual: 180000,
-        forecast: 150000,
-        previous: 140000,
-        unit: 'jobs',
-        time: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(), // 2 hours ago
-        impact: 4.2, // Positive surprise
-        surprise: 2.0 // (actual - forecast) / forecast * 10
-      });
-    }
-
-    if (currencies.includes('EUR')) {
-      events.push({
-        id: 'ecb_001',
-        name: 'ECB Interest Rate Decision',
-        country: 'European Union',
-        currency: 'EUR',
-        importance: 'high' as const,
-        actual: 4.25,
-        forecast: 4.25,
-        previous: 4.00,
-        unit: '%',
-        time: new Date(now.getTime() - 4 * 60 * 60 * 1000).toISOString(), // 4 hours ago
-        impact: -1.5, // Slightly dovish
-        surprise: 0 // Met expectations
-      });
-    }
-
-    return events;
-  }
 
   private extractCurrencies(pair: string): string[] {
     const matches = pair.match(/([A-Z]{3})/g);

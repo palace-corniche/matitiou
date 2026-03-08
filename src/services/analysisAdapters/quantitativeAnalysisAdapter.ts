@@ -184,7 +184,7 @@ export class QuantitativeAnalysisAdapter {
 
   private calculateVolatilityMetrics(returns: number[], prices: number[]): QuantData['volatilityMetrics'] {
     const historicalVol = this.calculateVolatility(returns) * Math.sqrt(252); // Annualized
-    const impliedVol = historicalVol * (1 + (Math.random() - 0.5) * 0.2); // Simulate IV
+    const impliedVol = historicalVol * 1.12; // Standard IV premium over historical vol
     
     // Calculate volatility percentile
     const volHistory = returns.slice(-60).map((_, i) => 
@@ -228,8 +228,8 @@ export class QuantitativeAnalysisAdapter {
       ? tailReturns.reduce((sum, r) => sum + r, 0) / tailReturns.length
       : var95;
     
-    // Simulate beta to market (would be calculated against market index)
-    const betaToMarket = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+    // Neutral beta assumption without market index data
+    const betaToMarket = 1.0;
 
     return {
       var95,
