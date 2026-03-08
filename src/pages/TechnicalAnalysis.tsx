@@ -143,14 +143,8 @@ export default function TechnicalAnalysisPage() {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      // Fetch pattern signals for additional technical data
-      const { data: patternData, error: patternError } = await supabase
-        .from('pattern_signals')
-        .select('*')
-        .eq('symbol', 'EUR/USD')
-        .eq('timeframe', selectedTimeframe)
-        .order('detected_at', { ascending: false })
-        .limit(5);
+      // Pattern signals not available (table doesn't exist)
+      const patternData: any[] = [];
 
       if (modularError) throw modularError;
       

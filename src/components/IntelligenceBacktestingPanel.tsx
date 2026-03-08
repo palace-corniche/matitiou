@@ -25,17 +25,17 @@ export const IntelligenceBacktestingPanel = ({ symbol = 'EUR/USD' }: { symbol?: 
   });
   const { toast } = useToast();
 
-  // Mock performance data for charts
-  const equityCurve = Array.from({ length: 50 }, (_, i) => ({
-    date: `Day ${i + 1}`,
-    equity: 100000 + Math.random() * 20000 - 10000 + i * 200,
-    drawdown: Math.random() * -5000
-  }));
+  // Generate equity curve from actual backtest results (if available)
+  const equityCurve = results ? 
+    (results.trades || []).reduce((acc: any[], trade: any, i: number) => {
+      const prevEquity = acc.length > 0 ? acc[acc.length - 1].equity : results.initialCapital;
+      const equity = prevEquity + (trade.pnl || 0);
+      const peak = Math.max(...acc.map((a: any) => a.equity), equity);
+      acc.push({ date: `Trade ${i + 1}`, equity, drawdown: equity - peak });
+      return acc;
+    }, []) : [];
 
-  const monthlyReturns = Array.from({ length: 12 }, (_, i) => ({
-    month: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][i],
-    return: (Math.random() - 0.5) * 10
-  }));
+  const monthlyReturns = results?.monthlyReturns || [];
 
   const runBacktest = async () => {
     setIsRunning(true);

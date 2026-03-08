@@ -38,16 +38,23 @@ export const MultiTimeframeAnalysis = ({ symbol = 'EUR/USD' }: { symbol?: string
       
       setAnalysis(result);
       
-      // Simulate timeframe signals based on analysis
-      const simulatedSignals = timeframeSignals.map(tf => ({
-        ...tf,
-        signal: Math.random() > 0.5 ? 'bullish' : 'bearish' as 'bullish' | 'bearish',
-        strength: Math.random() * 10,
-        confidence: Math.random() * 100,
-        price: 1.17000 + (Math.random() - 0.5) * 0.002
-      }));
-      
-      setTimeframeSignals(simulatedSignals);
+      // Use real analysis results if available
+      if (result?.timeframeResults) {
+        const realSignals = timeframeSignals.map(tf => {
+          const tfResult = result.timeframeResults?.[tf.timeframe];
+          if (tfResult) {
+            return {
+              ...tf,
+              signal: (tfResult.signal || tfResult.direction || 'neutral') as 'bullish' | 'bearish' | 'neutral',
+              strength: tfResult.strength ?? 0,
+              confidence: (tfResult.confidence ?? 0) * 100,
+              price: tfResult.price ?? 0
+            };
+          }
+          return tf;
+        });
+        setTimeframeSignals(realSignals);
+      }
       
       toast({
         title: "Analysis Complete",

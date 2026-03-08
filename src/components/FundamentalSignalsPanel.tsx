@@ -31,7 +31,6 @@ export default function FundamentalSignalsPanel() {
       .from('modular_signals')
       .select('*')
       .eq('module_id', 'fundamental_analysis')
-      .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(15);
 

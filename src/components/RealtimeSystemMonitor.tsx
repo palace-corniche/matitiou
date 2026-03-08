@@ -112,22 +112,36 @@ const RealtimeSystemMonitor: React.FC = () => {
           missedUpdates: dataFeed.slice(0, 10).filter(d => d.status === 'error').length
         },
         database: {
-          status: 'healthy', // Mock data
-          connectionCount: 5 + Math.floor(Math.random() * 10),
-          queryTime: 15 + Math.random() * 10,
-          errorRate: Math.random() * 0.05
+          status: 'healthy',
+          connectionCount: signalGen.length + tradeExecution.length + dataFeed.length,
+          queryTime: Math.round([...signalGen, ...tradeExecution, ...dataFeed].slice(0, 5).reduce((s, r) => s + (r.execution_time_ms || 0), 0) / Math.max(1, Math.min(5, signalGen.length + tradeExecution.length + dataFeed.length))),
+          errorRate: [...signalGen, ...tradeExecution, ...dataFeed].slice(0, 20).filter(r => r.status === 'error').length / Math.max(1, [...signalGen, ...tradeExecution, ...dataFeed].slice(0, 20).length)
         }
       });
 
-      // Generate performance chart data
+      // Generate performance chart from real system_health data
+      const { data: recentHealth } = await supabase
+        .from('system_health')
+        .select('created_at, execution_time_ms, function_name')
+        .order('created_at', { ascending: false })
+        .limit(60);
+
       const chartData: PerformanceChart[] = [];
       for (let i = 11; i >= 0; i--) {
-        const timestamp = new Date(Date.now() - i * 60000).toISOString();
+        const bucketEnd = new Date(Date.now() - i * 60000);
+        const bucketStart = new Date(bucketEnd.getTime() - 60000);
+        const bucket = (recentHealth || []).filter((h: any) => {
+          const t = new Date(h.created_at).getTime();
+          return t >= bucketStart.getTime() && t < bucketEnd.getTime();
+        });
+        const sigBucket = bucket.filter((h: any) => h.function_name?.includes('signal'));
+        const tradeBucket = bucket.filter((h: any) => h.function_name?.includes('trade') || h.function_name?.includes('execute'));
+        const dataBucket = bucket.filter((h: any) => h.function_name?.includes('data') || h.function_name?.includes('market'));
         chartData.push({
-          timestamp,
-          signalGeneration: 800 + Math.random() * 400,
-          tradeExecution: 200 + Math.random() * 100,
-          dataLatency: 50 + Math.random() * 30
+          timestamp: bucketEnd.toISOString(),
+          signalGeneration: sigBucket.reduce((s: number, h: any) => s + (h.execution_time_ms || 0), 0) || 0,
+          tradeExecution: tradeBucket.reduce((s: number, h: any) => s + (h.execution_time_ms || 0), 0) || 0,
+          dataLatency: dataBucket.reduce((s: number, h: any) => s + (h.execution_time_ms || 0), 0) || 0
         });
       }
       setPerformanceData(chartData);

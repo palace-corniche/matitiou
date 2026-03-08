@@ -223,16 +223,13 @@ export default function SentimentAnalysisPage() {
               {signal.intermediate_values.retail_positioning.slice(0, 4).map((pos: any, index: number) => (
                 <div key={index} className="p-2 bg-muted rounded-lg">
                   <div className="flex justify-between items-center">
-                    <span className="font-medium text-sm">{pos.broker}</span>
-                    <Badge variant="outline">{new Date(pos.as_of).toLocaleTimeString()}</Badge>
+                    <span className="font-medium text-sm">{pos.source || 'Unknown'}</span>
+                    <Badge variant="outline">{new Date(pos.timestamp).toLocaleTimeString()}</Badge>
                   </div>
                   <div className="mt-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-green-600">Long: {pos.long_percentage?.toFixed(1)}%</span>
                       <span className="text-red-600">Short: {pos.short_percentage?.toFixed(1)}%</span>
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      Traders: {(pos.long_traders_count + pos.short_traders_count).toLocaleString()}
                     </div>
                   </div>
                 </div>

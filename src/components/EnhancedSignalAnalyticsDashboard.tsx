@@ -314,22 +314,31 @@ const EnhancedSignalAnalyticsDashboard: React.FC = () => {
   };
 
   const calculateRealModuleStats = (healthData: any[], acceptedSignals: number, rejectedSignals: number) => {
-    const baseStats = {
-      signals: Math.max(0, acceptedSignals + Math.floor(Math.random() * 10)),
-      avgProb: 0.5 + Math.random() * 0.3,
-      avgConf: 0.6 + Math.random() * 0.3,
-      contribution: Math.floor(Math.random() * 25) + 10,
-      status: (healthData?.length > 0 && healthData[0].status === 'success') ? 'active' as const : 'inactive' as const,
-      lastSignal: acceptedSignals > 0 ? `${Math.floor(Math.random() * 60)} minutes ago` : 'No signals'
-    };
+    const totalSignals = Math.max(1, acceptedSignals + rejectedSignals);
+    const avgProb = totalSignals > 0 ? acceptedSignals / totalSignals : 0;
+    const avgConf = healthData?.length > 0 ? (healthData[0]?.health_score || 0) / 100 : 0;
+    const lastHealthTime = healthData?.[0]?.created_at;
+    const lastSignalText = lastHealthTime 
+      ? `${Math.round((Date.now() - new Date(lastHealthTime).getTime()) / 60000)} min ago`
+      : 'No signals';
+    const isActive = healthData?.length > 0 && healthData[0].status === 'success';
+
+    const makeStats = (contrib: number, signalRatio: number) => ({
+      signals: Math.max(0, Math.floor(acceptedSignals * signalRatio)),
+      avgProb: +avgProb.toFixed(2),
+      avgConf: +avgConf.toFixed(2),
+      contribution: contrib,
+      status: isActive ? 'active' as const : 'inactive' as const,
+      lastSignal: lastSignalText
+    });
 
     return {
-      technical: { ...baseStats, signals: Math.max(0, acceptedSignals), contribution: 35 },
-      patterns: { ...baseStats, signals: Math.max(0, Math.floor(acceptedSignals * 0.8)), contribution: 25 },
-      strategies: { ...baseStats, signals: Math.max(0, Math.floor(acceptedSignals * 0.6)), contribution: 20 },
-      sentiment: { ...baseStats, signals: Math.max(0, Math.floor(acceptedSignals * 0.4)), contribution: 15 },
-      fundamental: { ...baseStats, signals: Math.max(0, Math.floor(acceptedSignals * 0.3)), contribution: 10 },
-      multiTimeframe: { ...baseStats, signals: Math.max(0, Math.floor(acceptedSignals * 0.2)), contribution: 8, status: (healthData?.length > 0 ? 'active' : 'inactive') as 'active' | 'inactive' }
+      technical: makeStats(35, 1),
+      patterns: makeStats(25, 0.8),
+      strategies: makeStats(20, 0.6),
+      sentiment: makeStats(15, 0.4),
+      fundamental: makeStats(10, 0.3),
+      multiTimeframe: makeStats(8, 0.2)
     };
   };
 
