@@ -214,7 +214,7 @@ serve(async (req) => {
           p_module_id: moduleId,
           p_signal_successful: moduleWasCorrect,
           p_confidence: signal.final_confidence || 0,
-          p_strength: signal.signal_strength || 0,
+          p_strength: signal.final_strength || 0,
           p_return: trade.pnl || 0,
         });
         
