@@ -1158,7 +1158,7 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     pair: analysis.pair,
     signal_type: masterSignal.signal,
-    confluence_score: Math.round((masterSignal.confidence || 0.5) * 100),
+    confluence_score: calculateWeightedConfluenceScore(masterSignal),
     strength: Math.min(100, Math.max(0, Math.round((masterSignal.strength || 0.5) * 10))),
     confidence: masterSignal.confidence || 0.5,
     entry_price: currentPrice,
