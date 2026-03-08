@@ -169,8 +169,8 @@ class AlternativeDataIntegration {
       let totalSurprise = 0;
       let count = 0;
       const recentEvents = events.map((e: any) => {
-        const actual = e.actual_value ?? parseFloat(e.actual) || 0;
-        const forecast = e.forecast_value ?? parseFloat(e.forecast) || 0;
+        const actual = (e.actual_value != null ? e.actual_value : parseFloat(e.actual)) || 0;
+        const forecast = (e.forecast_value != null ? e.forecast_value : parseFloat(e.forecast)) || 0;
         const impactWeight = e.impact === 'high' ? 1.0 : e.impact === 'medium' ? 0.6 : 0.3;
         
         if (forecast !== 0) {
