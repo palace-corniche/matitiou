@@ -672,6 +672,35 @@ serve(async (req) => {
 
     console.log(`🎯 Successfully locked ${signals.length} signals atomically (no conflicts!)`);
 
+    // **FIX: Filter conflicting signals in same batch — keep only best per symbol**
+    const bestSignalPerSymbol = new Map<string, typeof signals[0]>();
+    for (const sig of signals) {
+      const key = sig.pair;
+      const existing = bestSignalPerSymbol.get(key);
+      if (!existing || sig.confluence_score > existing.confluence_score) {
+        bestSignalPerSymbol.set(key, sig);
+      }
+    }
+    
+    // Mark rejected duplicate/conflicting signals
+    const keptSignalIds = new Set([...bestSignalPerSymbol.values()].map(s => s.signal_id));
+    const rejectedSignals = signals.filter(s => !keptSignalIds.has(s.signal_id));
+    
+    if (rejectedSignals.length > 0) {
+      console.log(`🚫 Filtering ${rejectedSignals.length} conflicting/duplicate signals from batch`);
+      for (const rejected of rejectedSignals) {
+        console.log(`   ❌ Rejecting ${rejected.signal_type.toUpperCase()} signal ${rejected.signal_id.slice(0,8)} (score: ${rejected.confluence_score})`);
+        await supabase.from('master_signals').update({ 
+          status: 'rejected', 
+          rejection_reason: 'batch_conflict_dedup',
+          updated_at: new Date().toISOString()
+        }).eq('id', rejected.signal_id);
+      }
+    }
+    
+    const filteredSignals = [...bestSignalPerSymbol.values()];
+    console.log(`📊 Proceeding with ${filteredSignals.length} filtered signals (from ${signals.length} locked)`);
+
     // Fetch account defaults to get quality threshold
     console.log('⚙️ Fetching account defaults for quality threshold...');
     const { data: accountDefaults } = await supabase
@@ -686,9 +715,28 @@ serve(async (req) => {
 
   const executedTrades = [];
 
-    // Execute trades for each locked signal
-    for (const signal of signals) {
+    // Execute trades for each filtered signal
+    for (const signal of filteredSignals) {
       console.log(`\n🔒 Processing locked signal ${signal.signal_id.slice(0,8)} (${signal.signal_type.toUpperCase()})...`);
+
+      // **FIX: Check if same-direction trade already open — skip if so**
+      const { data: existingOpenTrades } = await supabase
+        .from('shadow_trades')
+        .select('id, trade_type')
+        .eq('symbol', signal.pair)
+        .eq('trade_type', signal.signal_type)
+        .eq('status', 'open')
+        .limit(1);
+
+      if (existingOpenTrades?.length) {
+        console.log(`⚠️ Skipping ${signal.signal_type.toUpperCase()} — same-direction trade already open (${existingOpenTrades[0].id.slice(0,8)})`);
+        await supabase.from('master_signals').update({ 
+          status: 'executed', 
+          rejection_reason: 'same_direction_trade_open',
+          updated_at: new Date().toISOString()
+        }).eq('id', signal.signal_id);
+        continue;
+      }
       
       // **PHASE 5: PRE-EXECUTION VALIDATION WITH SL/TP CHECKS**
       console.log(`🔍 Validating signal for ${signal.pair}...`);
