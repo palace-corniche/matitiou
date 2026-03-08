@@ -219,7 +219,7 @@ export default function IntermarketAnalysisPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {signalHistory.map((s) => {
+                {(Array.isArray(signalHistory) ? signalHistory : []).map((s) => {
                   const sp = s.calculation_parameters;
                   return (
                     <TableRow key={s.id}>
