@@ -1,52 +1,57 @@
 
 
-# Re-Verification Results: 3 Active Bugs Blocking the Learning System
+# System Diagnostic Report
 
-## Evidence from Live Data
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-### Bug 1: Edge function NOT running latest code
-The latest master signal (`d3ebe414`, created 16:17 UTC) has:
-```
-contributing_modules: ["buy", "hold", "buy", "buy", "sell"]
-```
-These are signal **directions**, not module IDs. The fix code (lines 548-566) maps sources to IDs like `technical_analysis`, `sentiment_analysis` — but the deployed function is still running the OLD code (`factors.map(f => f.name)`).
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-**Impact:** `process-trade-outcome` calls `update_module_performance_from_trade(p_module_id='buy')` which matches NO rows in `module_performance`. Result: zero learning feedback.
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-**Evidence:** `module_performance` table shows `successful_signals=0, failed_signals=0` for all modules despite 10+ closed trades.
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-### Bug 2: `modular_signals` check constraint rejects `'hold'`
-Edge function logs at 16:17 and 16:20 both show:
-```
-⚠️ Failed to store modular signals: new row for relation "modular_signals" violates check constraint "modular_signals_signal_type_check"
-```
-The DB constraint is: `signal_type IN ('buy', 'sell')` — it does NOT allow `'hold'`. The sanitization code at line 679 maps unknown values to `'hold'`, which the constraint rejects. This causes the ENTIRE batch insert to fail — zero modular signals are stored with `analysis_id` linking.
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-**Impact:** `process-trade-outcome` step 4 queries `modular_signals WHERE analysis_id = signal.id` and always gets 0 rows. The `signal_breakdown` in `learned_features` is always `{}` (confirmed in live data).
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-### Bug 3: `learning_outcomes.contributing_modules` is always empty
-Live data shows all 5 learning outcomes have `contributing_modules: []` because the master signals they reference have wrong values (`['buy','hold']` instead of module IDs).
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-**Impact:** No way to trace which modules contributed to winning vs losing trades.
+## Is the System Profitable / "Next Level"?
 
-## Fix Plan
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-### Step 1: Redeploy `generate-confluence-signals` with correct fixes
-The code changes from the last session ARE in the file but the function needs redeployment. Additionally fix:
-- **Line 679:** Change `'hold'` fallback to filter out non-buy/sell signals entirely (skip them instead of inserting with invalid type)
-- Verify the contributing_modules IIFE works by adding a console.log
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### Step 2: Redeploy `process-trade-outcome`
-Also needs redeployment to ensure latest learning logic is active.
+## What You Need To Do
 
-### Step 3: Backfill existing trades
-After both functions are redeployed, re-run `process-trade-outcome` for the 5 most recent closed trades so `module_performance` starts accumulating real data.
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
 
-## Files to Edit
-
-| File | Change |
-|------|--------|
-| `supabase/functions/generate-confluence-signals/index.ts` | Line 679: filter out `'hold'` signals instead of inserting them, to avoid check constraint failure |
-| Deploy | Redeploy `generate-confluence-signals` and `process-trade-outcome` |
-| Backfill | Invoke `process-trade-outcome` for recent closed trades |
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 

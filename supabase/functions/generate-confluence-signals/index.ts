@@ -562,7 +562,9 @@ serve(async (req) => {
                 const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k));
                 if (sourceKey) moduleIds.add(moduleMapping[sourceKey]);
               });
-              return Array.from(moduleIds);
+              const result = Array.from(moduleIds);
+              console.log(`🧠 Contributing modules resolved: [${result.join(', ')}] from ${allSignals.length} signals`);
+              return result;
             })(),
             modular_signal_ids: [],
               fusion_algorithm: 'bayesian_hierarchical',
@@ -672,18 +674,22 @@ serve(async (req) => {
             };
             
             const allModularSignals = signalAnalysis?.modularResults?.allSignals || [];
-            const modularInserts = allModularSignals.slice(0, 20).map((s: any) => {
+            // FIX #3: Filter out non-buy/sell signals to avoid check constraint violation
+            const validModularSignals = allModularSignals.slice(0, 20).filter((s: any) => {
+              const rawSignal = (s.signal || '').toLowerCase();
+              return rawSignal === 'buy' || rawSignal === 'sell';
+            });
+            console.log(`📋 Modular signals: ${allModularSignals.length} total, ${validModularSignals.length} valid (buy/sell only)`);
+            
+            const modularInserts = validModularSignals.map((s: any) => {
               const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k)) || 'technical';
-              // FIX #3: Sanitize signal_type to valid values only
-              const rawSignal = s.signal || 'hold';
-              const sanitizedSignal = ['buy', 'sell', 'hold'].includes(rawSignal) ? rawSignal : 'hold';
               
               return {
                 analysis_id: masterSignalData.id, // CRITICAL FIX: Link to master signal
                 module_id: moduleMapping[sourceKey] || 'technical_analysis',
                 symbol: pair,
                 timeframe,
-                signal_type: sanitizedSignal,
+                signal_type: s.signal.toLowerCase(),
                 confidence: Math.min(1, s.confidence || 0),
                 strength: Math.round((s.strength || 0) * (s.strength > 1 ? 1 : 10)),
                 suggested_entry: s.entryPrice || null,
