@@ -262,8 +262,8 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
                   <p className="text-sm text-muted-foreground">All Fibonacci levels, extensions, fans, arcs, and time zones</p>
                 </div>
                 <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">50+ Trading Strategies</h3>
-                  <p className="text-sm text-muted-foreground">From scalping to position trading with multi-timeframe analysis</p>
+                  <h3 className="font-medium mb-2">22+ Trading Strategies</h3>
+                  <p className="text-sm text-muted-foreground">Scalping, day trading, swing, and position strategies with real calculations</p>
                 </div>
               </div>
             </CardContent>

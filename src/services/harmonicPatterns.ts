@@ -16,10 +16,7 @@ export interface HarmonicPattern {
     CD_BC: number;
     AD_XA: number;
   };
-  prz: { // Potential Reversal Zone
-    upper: number;
-    lower: number;
-  };
+  prz: { upper: number; lower: number };
   confidence: number;
   projectedTarget: number;
   stopLoss: number;
@@ -28,6 +25,7 @@ export interface HarmonicPattern {
 export interface ElliottWave {
   degree: 'minute' | 'minor' | 'intermediate' | 'primary' | 'cycle';
   type: 'impulse' | 'corrective';
+  subtype?: 'zigzag' | 'flat' | 'triangle';
   waves: Array<{
     number: number;
     startIndex: number;
@@ -43,565 +41,377 @@ export interface ElliottWave {
   };
 }
 
+// ─── Shared helpers ───────────────────────────────────────────────────
+type SwingPoint = { index: number; price: number; type: 'high' | 'low' };
+
+function findSwingPoints(candles: CandleData[], lookback = 5): SwingPoint[] {
+  const pts: SwingPoint[] = [];
+  for (let i = lookback; i < candles.length - lookback; i++) {
+    let isHigh = true, isLow = true;
+    for (let j = i - lookback; j <= i + lookback; j++) {
+      if (j === i) continue;
+      if (candles[j].high >= candles[i].high) isHigh = false;
+      if (candles[j].low <= candles[i].low) isLow = false;
+    }
+    if (isHigh) pts.push({ index: i, price: candles[i].high, type: 'high' });
+    if (isLow) pts.push({ index: i, price: candles[i].low, type: 'low' });
+  }
+  return pts.sort((a, b) => a.index - b.index);
+}
+
+function inRange(value: number, min: number, max: number, tol = 0.1): boolean {
+  return value >= min * (1 - tol) && value <= max * (1 + tol);
+}
+
+function makePRZ(X: SwingPoint, A: SwingPoint, D: SwingPoint): { upper: number; lower: number } {
+  const range = Math.abs(A.price - X.price) * 0.02;
+  return { upper: D.price + range, lower: D.price - range };
+}
+
+// ─── Harmonic Pattern Recognition ─────────────────────────────────────
 export class HarmonicPatternRecognition {
-  
-  // ABCD Pattern Recognition
+
+  // ---------- Generic 5-point detector used by every pattern ----------
+  private static detect5Point(
+    candles: CandleData[],
+    name: string,
+    ratioTest: (r: { AB_XA: number; BC_AB: number; CD_BC: number; AD_XA: number }) => boolean,
+    confidenceFn: (r: { AB_XA: number; BC_AB: number; CD_BC: number; AD_XA: number }) => number,
+    structureValidator?: (X: SwingPoint, A: SwingPoint, B: SwingPoint, C: SwingPoint, D: SwingPoint) => boolean,
+  ): HarmonicPattern[] {
+    const patterns: HarmonicPattern[] = [];
+    const swingPoints = findSwingPoints(candles);
+
+    for (let i = 0; i < swingPoints.length - 4; i++) {
+      const [X, A, B, C, D] = [swingPoints[i], swingPoints[i+1], swingPoints[i+2], swingPoints[i+3], swingPoints[i+4]];
+      if (structureValidator && !structureValidator(X, A, B, C, D)) continue;
+
+      const XA = Math.abs(A.price - X.price);
+      const AB = Math.abs(B.price - A.price);
+      const BC = Math.abs(C.price - B.price);
+      const CD = Math.abs(D.price - C.price);
+      const AD = Math.abs(D.price - A.price);
+      if (XA === 0 || AB === 0 || BC === 0) continue;
+
+      const r = { AB_XA: AB / XA, BC_AB: BC / AB, CD_BC: CD / BC, AD_XA: AD / XA };
+      if (!ratioTest(r)) continue;
+
+      patterns.push({
+        name,
+        type: X.price < A.price ? 'bullish' : 'bearish',
+        points: { X, A, B, C, D },
+        ratios: r,
+        prz: makePRZ(X, A, D),
+        confidence: confidenceFn(r),
+        projectedTarget: D.type === 'high' ? D.price - XA * 0.618 : D.price + XA * 0.618,
+        stopLoss: D.type === 'high' ? D.price + XA * 0.1 : D.price - XA * 0.1,
+      });
+    }
+    return patterns;
+  }
+
+  // ---------- ABCD (4-point, X=A) ----------
   static detectABCDPattern(candles: CandleData[]): HarmonicPattern[] {
     const patterns: HarmonicPattern[] = [];
-    const swingPoints = this.findSwingPoints(candles);
-    
-    for (let i = 0; i < swingPoints.length - 3; i++) {
-      const A = swingPoints[i];
-      const B = swingPoints[i + 1];
-      const C = swingPoints[i + 2];
-      const D = swingPoints[i + 3];
-      
-      // Validate ABCD structure
-      if (!this.isValidABCDStructure(A, B, C, D)) continue;
-      
+    const sp = findSwingPoints(candles);
+    for (let i = 0; i < sp.length - 3; i++) {
+      const [A, B, C, D] = [sp[i], sp[i+1], sp[i+2], sp[i+3]];
       const AB = Math.abs(B.price - A.price);
       const BC = Math.abs(C.price - B.price);
       const CD = Math.abs(D.price - C.price);
-      
-      const BC_AB = BC / AB;
-      const CD_BC = CD / BC;
-      
-      // ABCD Pattern ratios
-      if (this.isInRange(BC_AB, 0.618, 0.786) && 
-          this.isInRange(CD_BC, 1.272, 1.618)) {
-        
-        const pattern: HarmonicPattern = {
-          name: 'ABCD',
-          type: A.price < B.price ? 'bullish' : 'bearish',
-          points: {
-            X: A, // For ABCD, X point is same as A
-            A: A,
-            B: B,
-            C: C,
-            D: D
-          },
-          ratios: {
-            AB_XA: 1,
-            BC_AB: BC_AB,
-            CD_BC: CD_BC,
-            AD_XA: Math.abs(D.price - A.price) / AB
-          },
-          prz: {
-            upper: Math.max(D.price * 1.01, D.price + (AB * 0.02)),
-            lower: Math.min(D.price * 0.99, D.price - (AB * 0.02))
-          },
-          confidence: this.calculateABCDConfidence(BC_AB, CD_BC),
-          projectedTarget: this.calculateABCDTarget(A, B, C, D),
-          stopLoss: this.calculateABCDStopLoss(A, B, C, D)
-        };
-        
-        patterns.push(pattern);
+      if (AB === 0 || BC === 0) continue;
+      const BC_AB = BC / AB, CD_BC = CD / BC;
+      if (inRange(BC_AB, 0.618, 0.786) && inRange(CD_BC, 1.272, 1.618)) {
+        let conf = 50;
+        if (inRange(BC_AB, 0.618, 0.618, 0.05)) conf += 20;
+        if (inRange(CD_BC, 1.272, 1.272, 0.05)) conf += 20;
+        patterns.push({
+          name: 'ABCD', type: A.price < B.price ? 'bullish' : 'bearish',
+          points: { X: A, A, B, C, D },
+          ratios: { AB_XA: 1, BC_AB, CD_BC, AD_XA: Math.abs(D.price - A.price) / AB },
+          prz: { upper: D.price + AB * 0.02, lower: D.price - AB * 0.02 },
+          confidence: Math.min(conf, 100),
+          projectedTarget: D.type === 'high' ? D.price - CD * 0.618 : D.price + CD * 0.618,
+          stopLoss: D.type === 'high' ? D.price + AB * 0.1 : D.price - AB * 0.1,
+        });
       }
     }
-    
     return patterns;
   }
-  
-  // Gartley Pattern Recognition
+
+  // ---------- Gartley ----------
   static detectGartleyPattern(candles: CandleData[]): HarmonicPattern[] {
-    const patterns: HarmonicPattern[] = [];
-    const swingPoints = this.findSwingPoints(candles);
-    
-    for (let i = 0; i < swingPoints.length - 4; i++) {
-      const X = swingPoints[i];
-      const A = swingPoints[i + 1];
-      const B = swingPoints[i + 2];
-      const C = swingPoints[i + 3];
-      const D = swingPoints[i + 4];
-      
-      if (!this.isValidGartleyStructure(X, A, B, C, D)) continue;
-      
-      const XA = Math.abs(A.price - X.price);
-      const AB = Math.abs(B.price - A.price);
-      const BC = Math.abs(C.price - B.price);
-      const CD = Math.abs(D.price - C.price);
-      const AD = Math.abs(D.price - A.price);
-      
-      const AB_XA = AB / XA;
-      const BC_AB = BC / AB;
-      const CD_BC = CD / BC;
-      const AD_XA = AD / XA;
-      
-      // Gartley Pattern ratios
-      if (this.isInRange(AB_XA, 0.618, 0.618) &&
-          this.isInRange(BC_AB, 0.382, 0.886) &&
-          this.isInRange(CD_BC, 1.272, 1.618) &&
-          this.isInRange(AD_XA, 0.786, 0.786)) {
-        
-        const pattern: HarmonicPattern = {
-          name: 'Gartley',
-          type: X.price < A.price ? 'bullish' : 'bearish',
-          points: { X, A, B, C, D },
-          ratios: { AB_XA, BC_AB, CD_BC, AD_XA },
-          prz: this.calculatePRZ(X, A, D),
-          confidence: this.calculateGartleyConfidence(AB_XA, BC_AB, CD_BC, AD_XA),
-          projectedTarget: this.calculateGartleyTarget(X, A, B, C, D),
-          stopLoss: this.calculateGartleyStopLoss(X, A, B, C, D)
-        };
-        
-        patterns.push(pattern);
-      }
-    }
-    
-    return patterns;
+    return this.detect5Point(candles, 'Gartley',
+      r => inRange(r.AB_XA, 0.618, 0.618) && inRange(r.BC_AB, 0.382, 0.886) && inRange(r.CD_BC, 1.272, 1.618) && inRange(r.AD_XA, 0.786, 0.786),
+      r => { let c = 60; if (inRange(r.AB_XA, 0.618, 0.618, 0.02)) c += 15; if (inRange(r.AD_XA, 0.786, 0.786, 0.02)) c += 15; return Math.min(c + 10, 100); });
   }
-  
-  // Butterfly Pattern Recognition
+
+  // ---------- Butterfly ----------
   static detectButterflyPattern(candles: CandleData[]): HarmonicPattern[] {
-    const patterns: HarmonicPattern[] = [];
-    const swingPoints = this.findSwingPoints(candles);
-    
-    for (let i = 0; i < swingPoints.length - 4; i++) {
-      const X = swingPoints[i];
-      const A = swingPoints[i + 1];
-      const B = swingPoints[i + 2];
-      const C = swingPoints[i + 3];
-      const D = swingPoints[i + 4];
-      
-      if (!this.isValidButterflyStructure(X, A, B, C, D)) continue;
-      
-      const XA = Math.abs(A.price - X.price);
-      const AB = Math.abs(B.price - A.price);
-      const BC = Math.abs(C.price - B.price);
-      const CD = Math.abs(D.price - C.price);
-      const AD = Math.abs(D.price - A.price);
-      
-      const AB_XA = AB / XA;
-      const BC_AB = BC / AB;
-      const CD_BC = CD / BC;
-      const AD_XA = AD / XA;
-      
-      // Butterfly Pattern ratios
-      if (this.isInRange(AB_XA, 0.786, 0.786) &&
-          this.isInRange(BC_AB, 0.382, 0.886) &&
-          this.isInRange(CD_BC, 1.618, 2.618) &&
-          this.isInRange(AD_XA, 1.272, 1.272)) {
-        
-        const pattern: HarmonicPattern = {
-          name: 'Butterfly',
-          type: X.price < A.price ? 'bullish' : 'bearish',
-          points: { X, A, B, C, D },
-          ratios: { AB_XA, BC_AB, CD_BC, AD_XA },
-          prz: this.calculatePRZ(X, A, D),
-          confidence: this.calculateButterflyConfidence(AB_XA, BC_AB, CD_BC, AD_XA),
-          projectedTarget: this.calculateButterflyTarget(X, A, B, C, D),
-          stopLoss: this.calculateButterflyStopLoss(X, A, B, C, D)
-        };
-        
-        patterns.push(pattern);
-      }
-    }
-    
-    return patterns;
+    return this.detect5Point(candles, 'Butterfly',
+      r => inRange(r.AB_XA, 0.786, 0.786) && inRange(r.BC_AB, 0.382, 0.886) && inRange(r.CD_BC, 1.618, 2.618) && inRange(r.AD_XA, 1.272, 1.272),
+      r => { let c = 65; if (inRange(r.AB_XA, 0.786, 0.786, 0.02)) c += 15; if (inRange(r.AD_XA, 1.272, 1.272, 0.02)) c += 10; return Math.min(c + 10, 100); });
   }
-  
-  // Bat Pattern Recognition
+
+  // ---------- Bat ----------
   static detectBatPattern(candles: CandleData[]): HarmonicPattern[] {
-    const patterns: HarmonicPattern[] = [];
-    const swingPoints = this.findSwingPoints(candles);
-    
-    for (let i = 0; i < swingPoints.length - 4; i++) {
-      const X = swingPoints[i];
-      const A = swingPoints[i + 1];
-      const B = swingPoints[i + 2];
-      const C = swingPoints[i + 3];
-      const D = swingPoints[i + 4];
-      
-      const XA = Math.abs(A.price - X.price);
-      const AB = Math.abs(B.price - A.price);
-      const BC = Math.abs(C.price - B.price);
-      const CD = Math.abs(D.price - C.price);
-      const AD = Math.abs(D.price - A.price);
-      
-      const AB_XA = AB / XA;
-      const BC_AB = BC / AB;
-      const CD_BC = CD / BC;
-      const AD_XA = AD / XA;
-      
-      // Bat Pattern ratios
-      if (this.isInRange(AB_XA, 0.382, 0.5) &&
-          this.isInRange(BC_AB, 0.382, 0.886) &&
-          this.isInRange(CD_BC, 1.618, 2.618) &&
-          this.isInRange(AD_XA, 0.886, 0.886)) {
-        
-        const pattern: HarmonicPattern = {
-          name: 'Bat',
-          type: X.price < A.price ? 'bullish' : 'bearish',
-          points: { X, A, B, C, D },
-          ratios: { AB_XA, BC_AB, CD_BC, AD_XA },
-          prz: this.calculatePRZ(X, A, D),
-          confidence: this.calculateBatConfidence(AB_XA, BC_AB, CD_BC, AD_XA),
-          projectedTarget: this.calculateBatTarget(X, A, B, C, D),
-          stopLoss: this.calculateBatStopLoss(X, A, B, C, D)
-        };
-        
-        patterns.push(pattern);
-      }
-    }
-    
-    return patterns;
+    return this.detect5Point(candles, 'Bat',
+      r => inRange(r.AB_XA, 0.382, 0.5) && inRange(r.BC_AB, 0.382, 0.886) && inRange(r.CD_BC, 1.618, 2.618) && inRange(r.AD_XA, 0.886, 0.886),
+      r => { let c = 70; if (inRange(r.AD_XA, 0.886, 0.886, 0.02)) c += 10; return Math.min(c + 10, 100); });
   }
-  
-  // Crab Pattern Recognition
+
+  // ---------- Crab ----------
   static detectCrabPattern(candles: CandleData[]): HarmonicPattern[] {
+    return this.detect5Point(candles, 'Crab',
+      r => inRange(r.AB_XA, 0.382, 0.618) && inRange(r.BC_AB, 0.382, 0.886) && inRange(r.CD_BC, 2.24, 3.618) && inRange(r.AD_XA, 1.618, 1.618),
+      r => { let c = 75; if (inRange(r.AD_XA, 1.618, 1.618, 0.02)) c += 10; return Math.min(c + 10, 100); });
+  }
+
+  // ---------- Shark (NEW) ----------
+  static detectSharkPattern(candles: CandleData[]): HarmonicPattern[] {
+    return this.detect5Point(candles, 'Shark',
+      r => inRange(r.AB_XA, 1.13, 1.618) && inRange(r.BC_AB, 1.618, 2.24) && inRange(r.AD_XA, 0.886, 1.13),
+      r => {
+        let c = 65;
+        if (inRange(r.AB_XA, 1.13, 1.13, 0.03)) c += 15;
+        if (inRange(r.BC_AB, 1.618, 1.618, 0.05)) c += 10;
+        if (inRange(r.AD_XA, 0.886, 0.886, 0.03)) c += 10;
+        return Math.min(c, 100);
+      });
+  }
+
+  // ---------- Cypher (NEW) ----------
+  static detectCypherPattern(candles: CandleData[]): HarmonicPattern[] {
+    return this.detect5Point(candles, 'Cypher',
+      r => inRange(r.AB_XA, 0.382, 0.618) && inRange(r.BC_AB, 1.272, 1.414) && inRange(r.AD_XA, 0.786, 0.786),
+      r => {
+        let c = 65;
+        if (inRange(r.AB_XA, 0.382, 0.618, 0.03)) c += 10;
+        if (inRange(r.BC_AB, 1.272, 1.414, 0.05)) c += 10;
+        if (inRange(r.AD_XA, 0.786, 0.786, 0.02)) c += 15;
+        return Math.min(c, 100);
+      });
+  }
+
+  // ---------- Three Drives (NEW) ----------
+  static detectThreeDrivesPattern(candles: CandleData[]): HarmonicPattern[] {
+    // Three Drives needs 6 swing points (Drive1-peak-Drive2-peak-Drive3)
     const patterns: HarmonicPattern[] = [];
-    const swingPoints = this.findSwingPoints(candles);
-    
-    for (let i = 0; i < swingPoints.length - 4; i++) {
-      const X = swingPoints[i];
-      const A = swingPoints[i + 1];
-      const B = swingPoints[i + 2];
-      const C = swingPoints[i + 3];
-      const D = swingPoints[i + 4];
-      
-      const XA = Math.abs(A.price - X.price);
-      const AB = Math.abs(B.price - A.price);
-      const BC = Math.abs(C.price - B.price);
-      const CD = Math.abs(D.price - C.price);
-      const AD = Math.abs(D.price - A.price);
-      
-      const AB_XA = AB / XA;
-      const BC_AB = BC / AB;
-      const CD_BC = CD / BC;
-      const AD_XA = AD / XA;
-      
-      // Crab Pattern ratios
-      if (this.isInRange(AB_XA, 0.382, 0.618) &&
-          this.isInRange(BC_AB, 0.382, 0.886) &&
-          this.isInRange(CD_BC, 2.24, 3.618) &&
-          this.isInRange(AD_XA, 1.618, 1.618)) {
-        
-        const pattern: HarmonicPattern = {
-          name: 'Crab',
-          type: X.price < A.price ? 'bullish' : 'bearish',
-          points: { X, A, B, C, D },
-          ratios: { AB_XA, BC_AB, CD_BC, AD_XA },
-          prz: this.calculatePRZ(X, A, D),
-          confidence: this.calculateCrabConfidence(AB_XA, BC_AB, CD_BC, AD_XA),
-          projectedTarget: this.calculateCrabTarget(X, A, B, C, D),
-          stopLoss: this.calculateCrabStopLoss(X, A, B, C, D)
-        };
-        
-        patterns.push(pattern);
+    const sp = findSwingPoints(candles);
+    for (let i = 0; i < sp.length - 5; i++) {
+      const [p1, p2, p3, p4, p5, p6] = sp.slice(i, i + 6);
+      const drive1 = Math.abs(p2.price - p1.price);
+      const ret1 = Math.abs(p3.price - p2.price);
+      const drive2 = Math.abs(p4.price - p3.price);
+      const ret2 = Math.abs(p5.price - p4.price);
+      const drive3 = Math.abs(p6.price - p5.price);
+      if (drive1 === 0 || drive2 === 0) continue;
+
+      const ret1_d1 = ret1 / drive1;
+      const ret2_d2 = ret2 / drive2;
+      const d2_d1 = drive2 / drive1;
+      const d3_d2 = drive3 / drive2;
+
+      // Retracements ~0.618, drives extend ~1.272-1.618 of each other
+      if (inRange(ret1_d1, 0.618, 0.786) && inRange(ret2_d2, 0.618, 0.786) &&
+          inRange(d2_d1, 1.272, 1.618) && inRange(d3_d2, 0.9, 1.1, 0.15)) {
+        let conf = 60;
+        if (inRange(ret1_d1, 0.618, 0.618, 0.03)) conf += 10;
+        if (inRange(d2_d1, 1.272, 1.272, 0.05)) conf += 10;
+        const bullish = p1.price < p2.price;
+        const XA = Math.abs(p2.price - p1.price);
+        patterns.push({
+          name: 'Three Drives',
+          type: bullish ? 'bearish' : 'bullish', // reversal at completion
+          points: { X: p1, A: p2, B: p3, C: p4, D: p6 },
+          ratios: { AB_XA: d2_d1, BC_AB: ret1_d1, CD_BC: d3_d2, AD_XA: Math.abs(p6.price - p2.price) / XA },
+          prz: { upper: p6.price + XA * 0.02, lower: p6.price - XA * 0.02 },
+          confidence: Math.min(conf, 100),
+          projectedTarget: bullish ? p6.price - drive3 * 0.618 : p6.price + drive3 * 0.618,
+          stopLoss: bullish ? p6.price + XA * 0.05 : p6.price - XA * 0.05,
+        });
       }
     }
-    
     return patterns;
   }
-  
-  // Helper Methods
-  private static findSwingPoints(candles: CandleData[]): Array<{index: number, price: number, type: 'high' | 'low'}> {
-    const swingPoints: Array<{index: number, price: number, type: 'high' | 'low'}> = [];
-    const lookback = 5;
-    
-    for (let i = lookback; i < candles.length - lookback; i++) {
-      let isSwingHigh = true;
-      let isSwingLow = true;
-      
-      for (let j = i - lookback; j <= i + lookback; j++) {
-        if (j !== i) {
-          if (candles[j].high >= candles[i].high) isSwingHigh = false;
-          if (candles[j].low <= candles[i].low) isSwingLow = false;
-        }
-      }
-      
-      if (isSwingHigh) {
-        swingPoints.push({index: i, price: candles[i].high, type: 'high'});
-      }
-      if (isSwingLow) {
-        swingPoints.push({index: i, price: candles[i].low, type: 'low'});
-      }
-    }
-    
-    return swingPoints.sort((a, b) => a.index - b.index);
-  }
-  
-  private static isInRange(value: number, min: number, max: number, tolerance = 0.1): boolean {
-    const adjustedMin = min * (1 - tolerance);
-    const adjustedMax = max * (1 + tolerance);
-    return value >= adjustedMin && value <= adjustedMax;
-  }
-  
-  private static isValidABCDStructure(A: any, B: any, C: any, D: any): boolean {
-    return A.index < B.index && B.index < C.index && C.index < D.index;
-  }
-  
-  private static isValidGartleyStructure(X: any, A: any, B: any, C: any, D: any): boolean {
-    return X.index < A.index && A.index < B.index && B.index < C.index && C.index < D.index;
-  }
-  
-  private static isValidButterflyStructure(X: any, A: any, B: any, C: any, D: any): boolean {
-    return X.index < A.index && A.index < B.index && B.index < C.index && C.index < D.index;
-  }
-  
-  private static calculatePRZ(X: any, A: any, D: any): {upper: number, lower: number} {
-    const range = Math.abs(A.price - X.price) * 0.02;
-    return {
-      upper: D.price + range,
-      lower: D.price - range
-    };
-  }
-  
-  private static calculateABCDConfidence(BC_AB: number, CD_BC: number): number {
-    let confidence = 50;
-    
-    if (this.isInRange(BC_AB, 0.618, 0.618, 0.05)) confidence += 20;
-    if (this.isInRange(BC_AB, 0.786, 0.786, 0.05)) confidence += 15;
-    if (this.isInRange(CD_BC, 1.272, 1.272, 0.05)) confidence += 20;
-    if (this.isInRange(CD_BC, 1.618, 1.618, 0.05)) confidence += 15;
-    
-    return Math.min(confidence, 100);
-  }
-  
-  private static calculateGartleyConfidence(AB_XA: number, BC_AB: number, CD_BC: number, AD_XA: number): number {
-    let confidence = 60;
-    
-    if (this.isInRange(AB_XA, 0.618, 0.618, 0.02)) confidence += 15;
-    if (this.isInRange(BC_AB, 0.382, 0.886, 0.05)) confidence += 10;
-    if (this.isInRange(CD_BC, 1.272, 1.618, 0.05)) confidence += 10;
-    if (this.isInRange(AD_XA, 0.786, 0.786, 0.02)) confidence += 15;
-    
-    return Math.min(confidence, 100);
-  }
-  
-  private static calculateButterflyConfidence(AB_XA: number, BC_AB: number, CD_BC: number, AD_XA: number): number {
-    let confidence = 65;
-    
-    if (this.isInRange(AB_XA, 0.786, 0.786, 0.02)) confidence += 15;
-    if (this.isInRange(BC_AB, 0.382, 0.886, 0.05)) confidence += 10;
-    if (this.isInRange(CD_BC, 1.618, 2.618, 0.1)) confidence += 10;
-    if (this.isInRange(AD_XA, 1.272, 1.272, 0.02)) confidence += 10;
-    
-    return Math.min(confidence, 100);
-  }
-  
-  private static calculateBatConfidence(AB_XA: number, BC_AB: number, CD_BC: number, AD_XA: number): number {
-    let confidence = 70;
-    
-    if (this.isInRange(AB_XA, 0.382, 0.5, 0.02)) confidence += 10;
-    if (this.isInRange(BC_AB, 0.382, 0.886, 0.05)) confidence += 10;
-    if (this.isInRange(CD_BC, 1.618, 2.618, 0.1)) confidence += 10;
-    if (this.isInRange(AD_XA, 0.886, 0.886, 0.02)) confidence += 10;
-    
-    return Math.min(confidence, 100);
-  }
-  
-  private static calculateCrabConfidence(AB_XA: number, BC_AB: number, CD_BC: number, AD_XA: number): number {
-    let confidence = 75;
-    
-    if (this.isInRange(AB_XA, 0.382, 0.618, 0.02)) confidence += 10;
-    if (this.isInRange(BC_AB, 0.382, 0.886, 0.05)) confidence += 5;
-    if (this.isInRange(CD_BC, 2.24, 3.618, 0.1)) confidence += 10;
-    if (this.isInRange(AD_XA, 1.618, 1.618, 0.02)) confidence += 10;
-    
-    return Math.min(confidence, 100);
-  }
-  
-  // Target and Stop Loss Calculations
-  private static calculateABCDTarget(A: any, B: any, C: any, D: any): number {
-    const CD = Math.abs(D.price - C.price);
-    return D.type === 'high' ? D.price - CD * 0.618 : D.price + CD * 0.618;
-  }
-  
-  private static calculateABCDStopLoss(A: any, B: any, C: any, D: any): number {
-    const range = Math.abs(D.price - C.price) * 0.1;
-    return D.type === 'high' ? D.price + range : D.price - range;
-  }
-  
-  private static calculateGartleyTarget(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price - XA * 0.618 : D.price + XA * 0.618;
-  }
-  
-  private static calculateGartleyStopLoss(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price + XA * 0.1 : D.price - XA * 0.1;
-  }
-  
-  private static calculateButterflyTarget(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price - XA * 0.618 : D.price + XA * 0.618;
-  }
-  
-  private static calculateButterflyStopLoss(X: any, A: any, B: any, C: any, D: any): number {
-    const AD = Math.abs(D.price - A.price);
-    return D.type === 'high' ? D.price + AD * 0.1 : D.price - AD * 0.1;
-  }
-  
-  private static calculateBatTarget(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price - XA * 0.382 : D.price + XA * 0.382;
-  }
-  
-  private static calculateBatStopLoss(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price + XA * 0.1 : D.price - XA * 0.1;
-  }
-  
-  private static calculateCrabTarget(X: any, A: any, B: any, C: any, D: any): number {
-    const XA = Math.abs(A.price - X.price);
-    return D.type === 'high' ? D.price - XA * 0.618 : D.price + XA * 0.618;
-  }
-  
-  private static calculateCrabStopLoss(X: any, A: any, B: any, C: any, D: any): number {
-    const XD = Math.abs(D.price - X.price);
-    return D.type === 'high' ? D.price + XD * 0.05 : D.price - XD * 0.05;
+
+  // ---------- Detect All ----------
+  static detectAllPatterns(candles: CandleData[]): HarmonicPattern[] {
+    return [
+      ...this.detectABCDPattern(candles),
+      ...this.detectGartleyPattern(candles),
+      ...this.detectButterflyPattern(candles),
+      ...this.detectBatPattern(candles),
+      ...this.detectCrabPattern(candles),
+      ...this.detectSharkPattern(candles),
+      ...this.detectCypherPattern(candles),
+      ...this.detectThreeDrivesPattern(candles),
+    ];
   }
 }
 
-// Elliott Wave Analysis
+// ─── Elliott Wave Analysis ────────────────────────────────────────────
 export class ElliottWaveAnalysis {
-  
+
   static analyzeWaves(candles: CandleData[]): ElliottWave[] {
     const waves: ElliottWave[] = [];
-    const swingPoints = this.findSignificantSwingPoints(candles);
-    
-    // Identify potential 5-wave impulse patterns
-    for (let i = 0; i < swingPoints.length - 4; i++) {
-      const wave1Start = swingPoints[i];
-      const wave1End = swingPoints[i + 1];
-      const wave2End = swingPoints[i + 2];
-      const wave3End = swingPoints[i + 3];
-      const wave4End = swingPoints[i + 4];
-      const wave5End = swingPoints[i + 5];
-      
-      if (this.isValidImpulseStructure(wave1Start, wave1End, wave2End, wave3End, wave4End, wave5End)) {
-        const elliotWave: ElliottWave = {
-          degree: 'minor',
+    const sp = findSwingPoints(candles, 10);
+
+    // Impulse patterns (5-wave)
+    for (let i = 0; i < sp.length - 5; i++) {
+      const [w1s, w1e, w2e, w3e, w4e, w5e] = sp.slice(i, i + 6);
+      if (this.isValidImpulse(w1s, w1e, w2e, w3e, w4e, w5e)) {
+        waves.push({
+          degree: this.classifyDegree(candles, w1s.index, w5e.index),
           type: 'impulse',
           waves: [
-            {
-              number: 1,
-              startIndex: wave1Start.index,
-              endIndex: wave1End.index,
-              startPrice: wave1Start.price,
-              endPrice: wave1End.price,
-              type: 'impulse'
-            },
-            {
-              number: 2,
-              startIndex: wave1End.index,
-              endIndex: wave2End.index,
-              startPrice: wave1End.price,
-              endPrice: wave2End.price,
-              type: 'corrective'
-            },
-            {
-              number: 3,
-              startIndex: wave2End.index,
-              endIndex: wave3End.index,
-              startPrice: wave2End.price,
-              endPrice: wave3End.price,
-              type: 'impulse'
-            },
-            {
-              number: 4,
-              startIndex: wave3End.index,
-              endIndex: wave4End.index,
-              startPrice: wave3End.price,
-              endPrice: wave4End.price,
-              type: 'corrective'
-            },
-            {
-              number: 5,
-              startIndex: wave4End.index,
-              endIndex: wave5End.index,
-              startPrice: wave4End.price,
-              endPrice: wave5End.price,
-              type: 'impulse'
-            }
+            { number: 1, startIndex: w1s.index, endIndex: w1e.index, startPrice: w1s.price, endPrice: w1e.price, type: 'impulse' },
+            { number: 2, startIndex: w1e.index, endIndex: w2e.index, startPrice: w1e.price, endPrice: w2e.price, type: 'corrective' },
+            { number: 3, startIndex: w2e.index, endIndex: w3e.index, startPrice: w2e.price, endPrice: w3e.price, type: 'impulse' },
+            { number: 4, startIndex: w3e.index, endIndex: w4e.index, startPrice: w3e.price, endPrice: w4e.price, type: 'corrective' },
+            { number: 5, startIndex: w4e.index, endIndex: w5e.index, startPrice: w4e.price, endPrice: w5e.price, type: 'impulse' },
           ],
-          projection: this.calculateWaveProjections(wave1Start, wave1End, wave2End, wave3End, wave4End)
-        };
-        
-        waves.push(elliotWave);
+          projection: this.calcProjections(w1s, w1e, w2e, w3e, w4e),
+        });
       }
     }
-    
+
+    // Corrective patterns
+    waves.push(...this.detectZigzag(sp, candles));
+    waves.push(...this.detectFlat(sp, candles));
+    waves.push(...this.detectTriangle(sp, candles));
+
     return waves;
   }
-  
-  private static findSignificantSwingPoints(candles: CandleData[]): Array<{index: number, price: number, type: 'high' | 'low'}> {
-    const swingPoints: Array<{index: number, price: number, type: 'high' | 'low'}> = [];
-    const lookback = 10;
-    
-    for (let i = lookback; i < candles.length - lookback; i++) {
-      let isSwingHigh = true;
-      let isSwingLow = true;
-      
-      for (let j = i - lookback; j <= i + lookback; j++) {
-        if (j !== i) {
-          if (candles[j].high >= candles[i].high) isSwingHigh = false;
-          if (candles[j].low <= candles[i].low) isSwingLow = false;
-        }
-      }
-      
-      if (isSwingHigh) {
-        swingPoints.push({index: i, price: candles[i].high, type: 'high'});
-      }
-      if (isSwingLow) {
-        swingPoints.push({index: i, price: candles[i].low, type: 'low'});
+
+  // ── Zigzag (5-3-5): Sharp correction ──
+  private static detectZigzag(sp: SwingPoint[], candles: CandleData[]): ElliottWave[] {
+    const waves: ElliottWave[] = [];
+    for (let i = 0; i < sp.length - 2; i++) {
+      const [A, B, C] = [sp[i], sp[i + 1], sp[i + 2]];
+      const wA = Math.abs(B.price - A.price);
+      const wB = Math.abs(C.price - B.price);
+      if (wA === 0) continue;
+      const bRet = wB / wA;
+      // Wave B retraces 50-78.6% of A, Wave C extends beyond A
+      if (inRange(bRet, 0.5, 0.786, 0.05)) {
+        const wC_end_idx = Math.min(C.index + Math.abs(B.index - A.index), candles.length - 1);
+        waves.push({
+          degree: this.classifyDegree(candles, A.index, wC_end_idx),
+          type: 'corrective',
+          subtype: 'zigzag',
+          waves: [
+            { number: 1, startIndex: A.index, endIndex: B.index, startPrice: A.price, endPrice: B.price, type: 'impulse' },
+            { number: 2, startIndex: B.index, endIndex: C.index, startPrice: B.price, endPrice: C.price, type: 'corrective' },
+            { number: 3, startIndex: C.index, endIndex: wC_end_idx, startPrice: C.price, endPrice: candles[wC_end_idx]?.close ?? C.price, type: 'impulse' },
+          ],
+          projection: { wave3Target: C.price + (B.price - A.price), wave5Target: 0, confidence: 55 + (inRange(bRet, 0.618, 0.618, 0.03) ? 15 : 0) },
+        });
       }
     }
-    
-    return swingPoints.sort((a, b) => a.index - b.index);
+    return waves;
   }
-  
-  private static isValidImpulseStructure(w1Start: any, w1End: any, w2End: any, w3End: any, w4End: any, w5End: any): boolean {
-    if (!w5End) return false;
-    
-    const wave1 = Math.abs(w1End.price - w1Start.price);
-    const wave2 = Math.abs(w2End.price - w1End.price);
-    const wave3 = Math.abs(w3End.price - w2End.price);
-    const wave4 = Math.abs(w4End.price - w3End.price);
-    const wave5 = Math.abs(w5End.price - w4End.price);
-    
-    // Elliott Wave rules
-    // 1. Wave 2 cannot retrace more than 100% of Wave 1
+
+  // ── Flat (3-3-5): Sideways correction ──
+  private static detectFlat(sp: SwingPoint[], candles: CandleData[]): ElliottWave[] {
+    const waves: ElliottWave[] = [];
+    for (let i = 0; i < sp.length - 2; i++) {
+      const [A, B, C] = [sp[i], sp[i + 1], sp[i + 2]];
+      const wA = Math.abs(B.price - A.price);
+      const wB = Math.abs(C.price - B.price);
+      if (wA === 0) continue;
+      const bRet = wB / wA;
+      // Wave B retraces ~90-110% of A (flat characteristic)
+      if (inRange(bRet, 0.9, 1.1, 0.05)) {
+        const wC_end_idx = Math.min(C.index + Math.abs(B.index - A.index), candles.length - 1);
+        waves.push({
+          degree: this.classifyDegree(candles, A.index, wC_end_idx),
+          type: 'corrective',
+          subtype: 'flat',
+          waves: [
+            { number: 1, startIndex: A.index, endIndex: B.index, startPrice: A.price, endPrice: B.price, type: 'corrective' },
+            { number: 2, startIndex: B.index, endIndex: C.index, startPrice: B.price, endPrice: C.price, type: 'corrective' },
+            { number: 3, startIndex: C.index, endIndex: wC_end_idx, startPrice: C.price, endPrice: candles[wC_end_idx]?.close ?? C.price, type: 'impulse' },
+          ],
+          projection: { wave3Target: A.price, wave5Target: 0, confidence: 50 + (inRange(bRet, 1.0, 1.0, 0.03) ? 15 : 0) },
+        });
+      }
+    }
+    return waves;
+  }
+
+  // ── Triangle (3-3-3-3-3): Converging ──
+  private static detectTriangle(sp: SwingPoint[], candles: CandleData[]): ElliottWave[] {
+    const waves: ElliottWave[] = [];
+    for (let i = 0; i < sp.length - 4; i++) {
+      const pts = sp.slice(i, i + 5);
+      // Check converging: each successive swing is smaller
+      const swings = [];
+      for (let j = 0; j < pts.length - 1; j++) {
+        swings.push(Math.abs(pts[j + 1].price - pts[j].price));
+      }
+      const isConverging = swings.every((s, idx) => idx === 0 || s < swings[idx - 1] * 1.1);
+      if (isConverging && swings.length === 4) {
+        const endIdx = pts[4].index;
+        waves.push({
+          degree: this.classifyDegree(candles, pts[0].index, endIdx),
+          type: 'corrective',
+          subtype: 'triangle',
+          waves: pts.slice(0, 4).map((p, idx) => ({
+            number: idx + 1,
+            startIndex: p.index,
+            endIndex: pts[idx + 1].index,
+            startPrice: p.price,
+            endPrice: pts[idx + 1].price,
+            type: 'corrective' as const,
+          })),
+          projection: {
+            wave3Target: pts[4].price + (pts[0].price - pts[4].price) * 0.618,
+            wave5Target: 0,
+            confidence: 55,
+          },
+        });
+      }
+    }
+    return waves;
+  }
+
+  // ── Wave degree classification ──
+  private static classifyDegree(candles: CandleData[], startIdx: number, endIdx: number): ElliottWave['degree'] {
+    const bars = endIdx - startIdx;
+    if (bars < 20) return 'minute';
+    if (bars < 60) return 'minor';
+    if (bars < 200) return 'intermediate';
+    if (bars < 600) return 'primary';
+    return 'cycle';
+  }
+
+  // ── Impulse validation ──
+  private static isValidImpulse(w1s: SwingPoint, w1e: SwingPoint, w2e: SwingPoint, w3e: SwingPoint, w4e: SwingPoint, w5e: SwingPoint): boolean {
+    if (!w5e) return false;
+    const wave1 = Math.abs(w1e.price - w1s.price);
+    const wave2 = Math.abs(w2e.price - w1e.price);
+    const wave3 = Math.abs(w3e.price - w2e.price);
+    const wave5 = Math.abs(w5e.price - w4e.price);
     if (wave2 > wave1) return false;
-    
-    // 2. Wave 3 cannot be the shortest wave
     if (wave3 < wave1 && wave3 < wave5) return false;
-    
-    // 3. Wave 4 cannot overlap with Wave 1 price territory
-    const w1High = Math.max(w1Start.price, w1End.price);
-    const w1Low = Math.min(w1Start.price, w1End.price);
-    const w4High = Math.max(w3End.price, w4End.price);
-    const w4Low = Math.min(w3End.price, w4End.price);
-    
-    if (w4Low < w1High && w4High > w1Low) return false;
-    
+    const w1H = Math.max(w1s.price, w1e.price), w1L = Math.min(w1s.price, w1e.price);
+    const w4H = Math.max(w3e.price, w4e.price), w4L = Math.min(w3e.price, w4e.price);
+    if (w4L < w1H && w4H > w1L) return false;
     return true;
   }
-  
-  private static calculateWaveProjections(w1Start: any, w1End: any, w2End: any, w3End: any, w4End: any): {wave3Target: number, wave5Target: number, confidence: number} {
-    const wave1 = Math.abs(w1End.price - w1Start.price);
-    const wave3 = Math.abs(w3End.price - w2End.price);
-    
-    // Common Wave 3 extensions: 1.618, 2.618 of Wave 1
-    const wave3Target = w2End.price + (wave1 * 1.618);
-    
-    // Common Wave 5 projections: Equal to Wave 1, or 0.618 of Wave 1-3
-    const wave1to3 = Math.abs(w3End.price - w1Start.price);
-    const wave5Target = w4End.price + (wave1to3 * 0.618);
-    
-    // Calculate confidence based on Fibonacci relationships
+
+  // ── Wave projections ──
+  private static calcProjections(w1s: SwingPoint, w1e: SwingPoint, w2e: SwingPoint, w3e: SwingPoint, w4e: SwingPoint) {
+    const wave1 = Math.abs(w1e.price - w1s.price);
+    const wave3 = Math.abs(w3e.price - w2e.price);
+    const wave3Target = w2e.price + wave1 * 1.618;
+    const wave1to3 = Math.abs(w3e.price - w1s.price);
+    const wave5Target = w4e.price + wave1to3 * 0.618;
     let confidence = 50;
-    
-    // Check if Wave 3 follows Fibonacci ratios
-    const wave3Ratio = wave3 / wave1;
-    if (wave3Ratio >= 1.6 && wave3Ratio <= 1.65) confidence += 20;
-    if (wave3Ratio >= 2.6 && wave3Ratio <= 2.65) confidence += 15;
-    
-    return {
-      wave3Target,
-      wave5Target,
-      confidence: Math.min(confidence, 100)
-    };
+    const r = wave3 / wave1;
+    if (r >= 1.6 && r <= 1.65) confidence += 20;
+    if (r >= 2.6 && r <= 2.65) confidence += 15;
+    return { wave3Target, wave5Target, confidence: Math.min(confidence, 100) };
   }
 }

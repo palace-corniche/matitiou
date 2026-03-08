@@ -489,7 +489,7 @@ export default function TechnicalAnalysisPage() {
             Advanced Technical Analysis
           </h1>
           <p className="text-muted-foreground">
-            Real-time analysis with 75+ technical indicators and live market data
+            Real-time analysis with 120+ technical indicators and live market data
           </p>
         </div>
 

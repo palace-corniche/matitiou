@@ -1,5 +1,5 @@
 // Professional Confluence Engine for Multi-Source Trading Signal Analysis
-// Integrates 75+ technical indicators, patterns, strategies, and news analysis
+// Integrates 120+ technical indicators, 40+ patterns, 22+ strategies, and news analysis
 // Phase 3: Regime-Adaptive Weight System
 // Phase 4: Enhanced Market Sentiment with COT + Alternative Data
 
