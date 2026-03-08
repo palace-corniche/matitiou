@@ -1342,9 +1342,276 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
 
   return signals;
 }
-// ===================== QUANTITATIVE ANALYSIS SIGNALS =====================
-// Real statistical analysis: mean reversion z-score, momentum ROC, volatility regime
-export function generateQuantitativeSignals(candles: any[], pair: string, timeframe: string): StandardSignal[] {
+// ===================== GODMODE QUANTITATIVE ANALYSIS ENGINE =====================
+// Advanced statistical & probabilistic engine with 7 mathematical models
+
+// --- Helper: Calculate Simple Moving Average ---
+function calcSMA(arr: number[], period: number): number {
+  if (arr.length < period) return arr.length > 0 ? arr.reduce((a, b) => a + b, 0) / arr.length : 0;
+  const slice = arr.slice(-period);
+  return slice.reduce((a, b) => a + b, 0) / period;
+}
+
+// --- Helper: Calculate Standard Deviation ---
+function calcStdDev(arr: number[], mean: number): number {
+  if (arr.length === 0) return 0;
+  return Math.sqrt(arr.reduce((s, v) => s + (v - mean) ** 2, 0) / arr.length);
+}
+
+// --- Model 1: Hurst Exponent (Rescaled Range Analysis) ---
+function calculateHurstExponent(prices: number[]): number {
+  if (prices.length < 20) return 0.5;
+  
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push(Math.log(prices[i] / prices[i - 1]));
+  }
+  
+  const n = returns.length;
+  const mean = returns.reduce((a, b) => a + b, 0) / n;
+  
+  // Calculate cumulative deviations
+  const cumDev: number[] = [];
+  let sum = 0;
+  for (const r of returns) {
+    sum += (r - mean);
+    cumDev.push(sum);
+  }
+  
+  // Range (max - min of cumulative deviations)
+  const R = Math.max(...cumDev) - Math.min(...cumDev);
+  
+  // Standard deviation
+  const S = calcStdDev(returns, mean);
+  
+  // Rescaled range
+  const RS = S > 0 ? R / S : 0;
+  
+  // Hurst exponent approximation: H ≈ log(R/S) / log(n)
+  const H = RS > 0 ? Math.log(RS) / Math.log(n) : 0.5;
+  
+  // Clamp to valid range [0, 1]
+  return Math.max(0, Math.min(1, H));
+}
+
+// --- Model 2: Ornstein-Uhlenbeck Mean Reversion Parameters ---
+function calculateOUParams(prices: number[]): { theta: number; mu: number; sigma: number; halfLife: number } {
+  if (prices.length < 20) return { theta: 0, mu: prices[prices.length - 1] || 0, sigma: 0, halfLife: Infinity };
+  
+  const n = prices.length;
+  
+  // Long-term mean (equilibrium price)
+  const mu = prices.reduce((a, b) => a + b, 0) / n;
+  
+  // Estimate theta using autocorrelation
+  let sumXY = 0, sumX2 = 0;
+  for (let i = 1; i < n; i++) {
+    const x = prices[i - 1] - mu;
+    const y = prices[i] - mu;
+    sumXY += x * y;
+    sumX2 += x * x;
+  }
+  
+  const rho = sumX2 > 0 ? sumXY / sumX2 : 0;
+  const theta = rho > 0 && rho < 1 ? -Math.log(rho) : 0.1;
+  
+  // Calculate sigma (volatility of deviations)
+  const deviations = prices.map(p => p - mu);
+  const sigma = calcStdDev(deviations, 0);
+  
+  // Half-life = ln(2) / theta (bars until 50% reversion)
+  const halfLife = theta > 0 ? Math.log(2) / theta : Infinity;
+  
+  return { theta, mu, sigma, halfLife };
+}
+
+// --- Model 3: Kalman Filter Price Estimation ---
+function applyKalmanFilter(prices: number[]): { estimate: number; deviation: number } {
+  if (prices.length < 5) return { estimate: prices[prices.length - 1] || 0, deviation: 0 };
+  
+  // Kalman filter parameters
+  const Q = 0.0001; // Process noise covariance
+  const R = 0.001;  // Measurement noise covariance
+  
+  let x = prices[0];  // Initial state estimate
+  let P = 1;          // Initial error covariance
+  
+  for (let i = 1; i < prices.length; i++) {
+    // Prediction step
+    const xPred = x;
+    const PPred = P + Q;
+    
+    // Update step
+    const K = PPred / (PPred + R); // Kalman gain
+    x = xPred + K * (prices[i] - xPred);
+    P = (1 - K) * PPred;
+  }
+  
+  const currentPrice = prices[prices.length - 1];
+  const deviation = currentPrice - x;
+  
+  return { estimate: x, deviation };
+}
+
+// --- Model 4: Shannon Entropy of Returns ---
+function calculateShannonEntropy(prices: number[]): number {
+  if (prices.length < 10) return 0.5;
+  
+  // Calculate returns
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push((prices[i] - prices[i - 1]) / prices[i - 1] * 100);
+  }
+  
+  // Discretize returns into bins
+  const bins = 10;
+  const min = Math.min(...returns);
+  const max = Math.max(...returns);
+  const range = max - min || 0.0001;
+  const binWidth = range / bins;
+  
+  const counts = new Array(bins).fill(0);
+  for (const r of returns) {
+    const binIdx = Math.min(bins - 1, Math.floor((r - min) / binWidth));
+    counts[binIdx]++;
+  }
+  
+  // Calculate probabilities and entropy
+  const n = returns.length;
+  let entropy = 0;
+  for (const count of counts) {
+    if (count > 0) {
+      const p = count / n;
+      entropy -= p * Math.log2(p);
+    }
+  }
+  
+  // Normalize to [0, 1] (max entropy = log2(bins))
+  const maxEntropy = Math.log2(bins);
+  return maxEntropy > 0 ? entropy / maxEntropy : 0.5;
+}
+
+// --- Model 5: Bayesian Probability of Profit ---
+async function calculateBayesianPProfit(
+  zScore: number, 
+  momentum: number, 
+  hurst: number, 
+  regime: string,
+  signalType: 'buy' | 'sell',
+  supabase: any
+): Promise<number> {
+  try {
+    // Get historical trade outcomes for feature-based probability
+    const { data: trades } = await supabase
+      .from('shadow_trades')
+      .select('trade_type, pnl, profit_pips')
+      .eq('status', 'closed')
+      .limit(100);
+    
+    if (!trades || trades.length < 10) {
+      // Prior probability (uninformed)
+      return 0.5;
+    }
+    
+    // Filter trades matching current direction
+    const relevantTrades = trades.filter((t: any) => t.trade_type === signalType);
+    
+    if (relevantTrades.length < 5) return 0.5;
+    
+    const wins = relevantTrades.filter((t: any) => t.pnl > 0).length;
+    const baseWinRate = wins / relevantTrades.length;
+    
+    // Bayesian adjustments based on current features
+    let adjustment = 0;
+    
+    // Z-score adjustment (oversold/overbought alignment)
+    if (signalType === 'buy' && zScore < -1) adjustment += 0.05;
+    if (signalType === 'sell' && zScore > 1) adjustment += 0.05;
+    
+    // Momentum alignment
+    if (signalType === 'buy' && momentum > 0) adjustment += 0.03;
+    if (signalType === 'sell' && momentum < 0) adjustment += 0.03;
+    
+    // Hurst regime alignment
+    if (hurst > 0.5 && Math.abs(momentum) > 0.002) adjustment += 0.04; // Trending + momentum
+    if (hurst < 0.5 && Math.abs(zScore) > 1.5) adjustment += 0.04; // Mean-reverting + oversold/overbought
+    
+    // Regime bonus
+    if (regime === 'trending' && hurst > 0.5) adjustment += 0.02;
+    if (regime === 'ranging' && hurst < 0.5) adjustment += 0.02;
+    
+    return Math.min(0.95, Math.max(0.05, baseWinRate + adjustment));
+  } catch {
+    return 0.5;
+  }
+}
+
+// --- Model 6: Kelly Criterion ---
+function calculateKellyFraction(pWin: number, avgWin: number, avgLoss: number): number {
+  if (avgLoss === 0 || pWin <= 0 || pWin >= 1) return 0;
+  
+  // Kelly formula: f* = (bp - q) / b
+  // where b = avgWin/avgLoss, p = pWin, q = 1 - pWin
+  const b = Math.abs(avgWin / avgLoss);
+  const q = 1 - pWin;
+  
+  const kelly = (b * pWin - q) / b;
+  
+  // Use fractional Kelly (25%) for risk management
+  const fractionalKelly = kelly * 0.25;
+  
+  return Math.max(0, Math.min(0.25, fractionalKelly));
+}
+
+// --- Model 7: Monte Carlo P(TP hit before SL) ---
+function runMonteCarloSimulation(
+  prices: number[],
+  entryPrice: number,
+  stopLoss: number,
+  takeProfit: number,
+  isBuy: boolean,
+  iterations: number = 1000
+): number {
+  if (prices.length < 20) return 0.5;
+  
+  // Calculate returns for bootstrap
+  const returns: number[] = [];
+  for (let i = 1; i < prices.length; i++) {
+    returns.push((prices[i] - prices[i - 1]) / prices[i - 1]);
+  }
+  
+  let tpHits = 0;
+  const maxBars = 100; // Max simulation length
+  
+  for (let sim = 0; sim < iterations; sim++) {
+    let price = entryPrice;
+    
+    for (let bar = 0; bar < maxBars; bar++) {
+      // Random bootstrap sample of returns
+      const randomReturn = returns[Math.floor(Math.random() * returns.length)];
+      price *= (1 + randomReturn);
+      
+      // Check TP/SL
+      if (isBuy) {
+        if (price >= takeProfit) { tpHits++; break; }
+        if (price <= stopLoss) { break; }
+      } else {
+        if (price <= takeProfit) { tpHits++; break; }
+        if (price >= stopLoss) { break; }
+      }
+    }
+  }
+  
+  return tpHits / iterations;
+}
+
+// --- Main Godmode Quantitative Signals Function ---
+export async function generateQuantitativeSignals(
+  candles: any[], 
+  pair: string, 
+  timeframe: string,
+  supabase?: any
+): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
   if (!candles || candles.length < 20) return signals;
 
@@ -1353,21 +1620,39 @@ export function generateQuantitativeSignals(candles: any[], pair: string, timefr
   const lows = candles.map(c => c.low);
   const currentPrice = closes[closes.length - 1];
 
-  // --- 1. Mean Reversion: Z-score of price vs 20-SMA ---
-  const sma20Arr = calculateSMA(closes, 20);
-  const sma20 = sma20Arr[sma20Arr.length - 1];
-  // Rolling std dev over last 20 closes
+  // ========== COMPUTE ALL 7 MODELS ==========
+
+  // Model 1: Hurst Exponent
+  const hurstExponent = calculateHurstExponent(closes);
+  const regime = hurstExponent > 0.55 ? 'trending' : hurstExponent < 0.45 ? 'mean_reverting' : 'random_walk';
+
+  // Model 2: Ornstein-Uhlenbeck Parameters
+  const ouParams = calculateOUParams(closes);
+  const ouDeviation = (currentPrice - ouParams.mu) / (ouParams.sigma || 0.0001);
+  const ouSignalStrength = Math.abs(ouDeviation) > 2 && ouParams.halfLife < 20 ? 1 : 0;
+
+  // Model 3: Kalman Filter
+  const kalman = applyKalmanFilter(closes);
+  const kalmanDeviation = kalman.deviation;
+  const kalmanSignalStrength = Math.abs(kalmanDeviation) / (currentPrice * 0.001);
+
+  // Model 4: Shannon Entropy
+  const shannonEntropy = calculateShannonEntropy(closes);
+  const entropyRegime = shannonEntropy < 0.4 ? 'predictable' : shannonEntropy > 0.7 ? 'chaotic' : 'moderate';
+
+  // Classic indicators for signal direction
+  const sma20 = calcSMA(closes, 20);
   const last20 = closes.slice(-20);
   const mean20 = last20.reduce((a, b) => a + b, 0) / last20.length;
-  const stdDev20 = Math.sqrt(last20.reduce((s, v) => s + (v - mean20) ** 2, 0) / last20.length);
+  const stdDev20 = calcStdDev(last20, mean20);
   const zScore = stdDev20 > 0 ? (currentPrice - sma20) / stdDev20 : 0;
 
-  // --- 2. Momentum: ROC over 10 and 20 periods ---
+  // ROC momentum
   const roc10 = closes.length >= 11 ? (currentPrice - closes[closes.length - 11]) / closes[closes.length - 11] : 0;
   const roc20 = closes.length >= 21 ? (currentPrice - closes[closes.length - 21]) / closes[closes.length - 21] : 0;
-  const momentumScore = (roc10 * 0.6 + roc20 * 0.4); // weighted composite
+  const momentumScore = (roc10 * 0.6 + roc20 * 0.4);
 
-  // --- 3. Volatility Regime: ATR percentile ---
+  // ATR for SL/TP calculation
   const atrValues: number[] = [];
   for (let i = 1; i < candles.length; i++) {
     const tr = Math.max(
@@ -1379,80 +1664,144 @@ export function generateQuantitativeSignals(candles: any[], pair: string, timefr
   }
   const currentATR = atrValues.length >= 14
     ? atrValues.slice(-14).reduce((a, b) => a + b, 0) / 14
-    : atrValues.length > 0 ? atrValues.reduce((a, b) => a + b, 0) / atrValues.length : 0;
-  
-  const sortedATR = [...atrValues].sort((a, b) => a - b);
-  const atrPercentile = sortedATR.length > 0
-    ? sortedATR.filter(v => v <= currentATR).length / sortedATR.length
-    : 0.5;
+    : atrValues.length > 0 ? atrValues.reduce((a, b) => a + b, 0) / atrValues.length : currentPrice * 0.002;
 
-  const volRegime = atrPercentile > 0.8 ? 'high' : atrPercentile < 0.2 ? 'low' : 'normal';
-
-  // --- Combine into signal ---
-  // Mean reversion signal: buy when Z < -1.5, sell when Z > 1.5
-  // Momentum confirms: buy if roc > 0 (price recovering), sell if roc < 0
+  // ========== DETERMINE SIGNAL DIRECTION ==========
   let signalType: 'buy' | 'sell' | 'hold' = 'hold';
-  let confidence = 0;
-  let strength = 0;
+  let directionScore = 0;
 
-  const absZ = Math.abs(zScore);
-  const meanRevThreshold = 1.5;
-
-  if (zScore < -meanRevThreshold && momentumScore > -0.005) {
-    // Oversold + momentum not deeply negative (recovery forming)
-    signalType = 'buy';
-    confidence = Math.min(1, 0.5 + absZ * 0.15);
-    strength = Math.min(1, absZ / 3);
-  } else if (zScore > meanRevThreshold && momentumScore < 0.005) {
-    // Overbought + momentum not deeply positive (reversal forming)
-    signalType = 'sell';
-    confidence = Math.min(1, 0.5 + absZ * 0.15);
-    strength = Math.min(1, absZ / 3);
-  } else if (Math.abs(momentumScore) > 0.003) {
-    // Pure momentum signal when no mean reversion
-    signalType = momentumScore > 0 ? 'buy' : 'sell';
-    confidence = Math.min(1, 0.4 + Math.abs(momentumScore) * 30);
-    strength = Math.min(1, Math.abs(momentumScore) * 50);
+  // Mean reversion strategy (when Hurst < 0.5)
+  if (regime === 'mean_reverting') {
+    if (zScore < -1.5 && ouDeviation < -2) {
+      signalType = 'buy';
+      directionScore = Math.min(1, (Math.abs(zScore) + Math.abs(ouDeviation)) / 5);
+    } else if (zScore > 1.5 && ouDeviation > 2) {
+      signalType = 'sell';
+      directionScore = Math.min(1, (Math.abs(zScore) + Math.abs(ouDeviation)) / 5);
+    }
+  }
+  
+  // Momentum strategy (when Hurst > 0.5)
+  if (regime === 'trending') {
+    if (momentumScore > 0.003 && kalmanDeviation > 0) {
+      signalType = 'buy';
+      directionScore = Math.min(1, Math.abs(momentumScore) * 100 + kalmanSignalStrength * 0.3);
+    } else if (momentumScore < -0.003 && kalmanDeviation < 0) {
+      signalType = 'sell';
+      directionScore = Math.min(1, Math.abs(momentumScore) * 100 + kalmanSignalStrength * 0.3);
+    }
   }
 
-  // Adjust confidence by volatility regime
-  if (volRegime === 'high') {
-    confidence *= 0.85; // reduce in high vol
-  } else if (volRegime === 'low') {
-    confidence *= 1.1; // boost in low vol (better for mean reversion)
-    confidence = Math.min(1, confidence);
+  // Hybrid strategy (random walk regime)
+  if (regime === 'random_walk' && Math.abs(zScore) > 2) {
+    signalType = zScore < 0 ? 'buy' : 'sell';
+    directionScore = Math.min(1, Math.abs(zScore) / 3);
   }
 
-  if (signalType !== 'hold' && confidence > 0.35) {
-    const atrMultiplier = currentATR > 0 ? currentATR : currentPrice * 0.003;
-    
+  if (signalType === 'hold') {
+    console.log(`📐 Quant Godmode: HOLD | H=${hurstExponent.toFixed(2)} Z=${zScore.toFixed(2)} OU=${ouDeviation.toFixed(2)} Entropy=${shannonEntropy.toFixed(2)}`);
+    return signals;
+  }
+
+  // ========== CALCULATE REMAINING MODELS (require signal direction) ==========
+  const isBuy = signalType === 'buy';
+  const atrMultiplier = currentATR > 0 ? currentATR : currentPrice * 0.002;
+  const stopLoss = isBuy ? currentPrice - atrMultiplier * 2 : currentPrice + atrMultiplier * 2;
+  const takeProfit = isBuy ? currentPrice + atrMultiplier * 3 : currentPrice - atrMultiplier * 3;
+
+  // Model 5: Bayesian P(Profit)
+  let bayesianPProfit = 0.5;
+  if (supabase) {
+    bayesianPProfit = await calculateBayesianPProfit(zScore, momentumScore, hurstExponent, regime, signalType, supabase);
+  } else {
+    // Fallback: use historical approximation
+    bayesianPProfit = 0.45 + directionScore * 0.2;
+  }
+
+  // Model 6: Kelly Criterion (using estimated win/loss amounts)
+  const estAvgWin = Math.abs(takeProfit - currentPrice) * 10000; // pips
+  const estAvgLoss = Math.abs(currentPrice - stopLoss) * 10000;
+  const kellyFraction = calculateKellyFraction(bayesianPProfit, estAvgWin, estAvgLoss);
+
+  // Model 7: Monte Carlo Simulation
+  const monteCarloPTP = runMonteCarloSimulation(closes, currentPrice, stopLoss, takeProfit, isBuy, 500);
+
+  // ========== COMPOSITE SCORING ==========
+  const weights = {
+    hurst: 0.15,
+    ou: 0.20,
+    kalman: 0.15,
+    entropy: 0.10,
+    bayesian: 0.25,
+    monteCarlo: 0.15,
+  };
+
+  // Calculate individual model scores [0, 1]
+  const hurstScore = regime === 'mean_reverting' && Math.abs(zScore) > 1.5 ? 0.8 :
+                     regime === 'trending' && Math.abs(momentumScore) > 0.003 ? 0.8 :
+                     regime === 'random_walk' ? 0.4 : 0.3;
+  
+  const ouScore = ouSignalStrength > 0 ? 0.9 : Math.min(1, Math.abs(ouDeviation) / 3);
+  
+  const kalmanScore = Math.min(1, kalmanSignalStrength * 0.5);
+  
+  const entropyScore = entropyRegime === 'predictable' ? 0.9 :
+                       entropyRegime === 'chaotic' ? 0.3 : 0.6;
+  
+  const bayesianScore = bayesianPProfit;
+  
+  const monteCarloScore = monteCarloPTP;
+
+  const compositeScore = 
+    weights.hurst * hurstScore +
+    weights.ou * ouScore +
+    weights.kalman * kalmanScore +
+    weights.entropy * entropyScore +
+    weights.bayesian * bayesianScore +
+    weights.monteCarlo * monteCarloScore;
+
+  // ========== SIGNAL GENERATION THRESHOLD ==========
+  // Only generate signal when composite > 0.55 AND Monte Carlo P(TP) > 0.50
+  if (compositeScore > 0.55 && monteCarloPTP > 0.50) {
+    const confidence = Math.min(1, compositeScore);
+    const strength = Math.min(1, (compositeScore - 0.5) * 2);
+
+    // Entropy-based confidence adjustment
+    const finalConfidence = entropyRegime === 'predictable' ? Math.min(1, confidence * 1.15) :
+                            entropyRegime === 'chaotic' ? confidence * 0.85 : confidence;
+
     signals.push({
-      source: 'quantitative_statistical',
+      source: 'quantitative_godmode',
       timestamp: new Date(),
       pair,
       timeframe,
       signal: signalType,
-      confidence,
+      confidence: finalConfidence,
       strength,
       entryPrice: currentPrice,
-      stopLoss: signalType === 'buy'
-        ? currentPrice - atrMultiplier * 2
-        : currentPrice + atrMultiplier * 2,
-      takeProfit: signalType === 'buy'
-        ? currentPrice + atrMultiplier * 3
-        : currentPrice - atrMultiplier * 3,
+      stopLoss,
+      takeProfit,
       factors: [
-        { name: 'z_score', value: zScore, weight: 0.35, contribution: Math.min(1, absZ / 3) * 0.35 },
-        { name: 'momentum_roc10', value: roc10, weight: 0.25, contribution: Math.min(1, Math.abs(roc10) * 50) * 0.25 },
-        { name: 'momentum_roc20', value: roc20, weight: 0.15, contribution: Math.min(1, Math.abs(roc20) * 30) * 0.15 },
-        { name: 'atr_percentile', value: atrPercentile, weight: 0.15, contribution: (1 - Math.abs(atrPercentile - 0.5) * 2) * 0.15 },
-        { name: 'vol_regime', value: volRegime === 'low' ? 1 : volRegime === 'high' ? -1 : 0, weight: 0.1, contribution: (volRegime === 'low' ? 0.1 : volRegime === 'high' ? -0.05 : 0) }
+        { name: 'hurst_exponent', value: hurstExponent, weight: weights.hurst, contribution: hurstScore * weights.hurst },
+        { name: 'ou_deviation', value: ouDeviation, weight: weights.ou, contribution: ouScore * weights.ou },
+        { name: 'kalman_deviation', value: kalmanDeviation, weight: weights.kalman, contribution: kalmanScore * weights.kalman },
+        { name: 'shannon_entropy', value: shannonEntropy, weight: weights.entropy, contribution: entropyScore * weights.entropy },
+        { name: 'bayesian_p_profit', value: bayesianPProfit, weight: weights.bayesian, contribution: bayesianScore * weights.bayesian },
+        { name: 'monte_carlo_p_tp', value: monteCarloPTP, weight: weights.monteCarlo, contribution: monteCarloScore * weights.monteCarlo },
+        { name: 'kelly_fraction', value: kellyFraction, weight: 0, contribution: 0 },
+        { name: 'regime', value: regime === 'trending' ? 1 : regime === 'mean_reverting' ? -1 : 0, weight: 0, contribution: 0 },
+        { name: 'composite_score', value: compositeScore, weight: 1, contribution: compositeScore },
+        { name: 'z_score', value: zScore, weight: 0, contribution: 0 },
+        { name: 'ou_half_life', value: ouParams.halfLife, weight: 0, contribution: 0 },
+        { name: 'ou_theta', value: ouParams.theta, weight: 0, contribution: 0 },
+        { name: 'ou_mu', value: ouParams.mu, weight: 0, contribution: 0 },
+        { name: 'ou_sigma', value: ouParams.sigma, weight: 0, contribution: 0 }
       ]
     });
 
-    console.log(`📐 Quantitative signal: ${signalType.toUpperCase()} | Z=${zScore.toFixed(2)} ROC10=${(roc10*100).toFixed(3)}% ATR%=${(atrPercentile*100).toFixed(0)} Vol=${volRegime} Conf=${confidence.toFixed(2)}`);
+    console.log(`📐 Quant GODMODE: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} H=${hurstExponent.toFixed(2)} OU=${ouDeviation.toFixed(2)} Kalman=${kalmanDeviation.toFixed(5)} Entropy=${shannonEntropy.toFixed(2)} Bayes=${bayesianPProfit.toFixed(2)} MC=${monteCarloPTP.toFixed(2)} Kelly=${kellyFraction.toFixed(3)}`);
   } else {
-    console.log(`📐 Quantitative: no signal (Z=${zScore.toFixed(2)}, ROC=${(momentumScore*100).toFixed(3)}%, conf=${confidence.toFixed(2)})`);
+    console.log(`📐 Quant Godmode: NO SIGNAL (composite=${compositeScore.toFixed(3)} < 0.55 OR MC=${monteCarloPTP.toFixed(2)} < 0.50) | H=${hurstExponent.toFixed(2)} Z=${zScore.toFixed(2)} regime=${regime}`);
   }
 
   return signals;
