@@ -1,55 +1,57 @@
 
 
-# Learning System Re-Verification: 3 Critical Bugs Found
+# System Diagnostic Report
 
-## Verification Results
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-### What works
-- `check-trade-exits` correctly has the `process-trade-outcome` invocation (line 125)
-- `process-trade-outcome` is deployed and runs successfully (tested live, returned `success: true`)
-- `learning_outcomes` row was created for the test trade
-- Bayesian fusion correctly queries `module_performance` and applies dynamic weight scaling (lines 1368-1413 in master-signal-modules.ts)
-- Loss analysis logic is comprehensive (lines 89-134 in process-trade-outcome)
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-### Bug 1: `contributing_modules` stores signal directions, not module IDs
-**Location:** `generate-confluence-signals/index.ts` line 548
-```
-contributing_modules: confluenceSignal.factors?.map((f: any) => f.name) || []
-```
-The `factors[].name` contains values like `"buy"`, `"sell"`, `"hold"` — these are signal directions, NOT module IDs like `"technical_analysis"`. This means `process-trade-outcome` step 10 iterates over `['buy', 'sell']` instead of `['technical_analysis', 'sentiment_analysis']`, so `update_module_performance_from_trade` is called with `p_module_id = 'buy'` which matches no rows.
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-**Fix:** Map factors to their source module IDs using the same `moduleMapping` used elsewhere, or store the source module names from the signal's `source` field.
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-### Bug 2: `modular_signals.analysis_id` is always NULL
-**Location:** `generate-confluence-signals/index.ts` lines 909-926
-The modular signal inserts don't set `analysis_id`. The master signal's `analysis_id` is a random UUID (line 530), but modular signals are never linked to it. So `process-trade-outcome` step 4 queries `modular_signals WHERE analysis_id = signal.id` and always gets 0 rows — no "WHY" breakdown is ever built.
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-**Fix:** Set `analysis_id` on the modular signal inserts to match the master signal's ID (or its `analysis_id`). This must happen after the master signal is created, so either: (a) insert modular signals after master signal insert using its returned ID, or (b) pre-generate the analysis_id and use it for both.
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-### Bug 3: `modular_signals` check constraint rejects some signal types
-From edge function logs: `"new row for relation "modular_signals" violates check constraint "modular_signals_signal_type_check""`
-Some signals have `signal_type` values that don't match the allowed enum. This silently drops signals from storage, reducing learning data.
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-**Fix:** Sanitize `signal_type` to only `'buy' | 'sell' | 'hold'` before insert.
+## Is the System Profitable / "Next Level"?
 
-## Plan
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-### Step 1: Fix `contributing_modules` in signal generation
-In `index.ts`, change line 548 to store actual module source IDs from the signals' `source` field, deduplicated, instead of factor names.
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### Step 2: Link modular_signals to master signal via analysis_id
-Move the modular signal insert to AFTER the master signal insert. Set `analysis_id` to the master signal's returned `id` so `process-trade-outcome` can look up per-module signals.
+## What You Need To Do
 
-### Step 3: Sanitize signal_type before modular insert
-Clamp `signal_type` to valid values (`buy`, `sell`, `hold`) to prevent check constraint failures.
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
 
-### Step 4: Backfill learning for existing closed trades
-Invoke `process-trade-outcome` for all 5 existing closed trades so the learning data starts populating immediately.
-
-## Files to Edit
-
-| File | Changes |
-|------|---------|
-| `supabase/functions/generate-confluence-signals/index.ts` | Fix contributing_modules mapping, link modular_signals analysis_id, sanitize signal_type |
-| SQL (backfill) | Run process-trade-outcome for existing 5 closed trades |
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
