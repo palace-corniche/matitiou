@@ -64,7 +64,6 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
       .eq('module_id', 'technical_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
@@ -310,7 +309,6 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
       .eq('module_id', 'fundamental_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
@@ -486,7 +484,6 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
       .eq('module_id', 'sentiment_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
@@ -810,7 +807,6 @@ export async function generatePatternSignals(candles: any[], pair: string, timef
       .eq('module_id', 'specialized_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(2);
@@ -1026,7 +1022,6 @@ export async function generateStrategySignals(candles: any[], pair: string, time
       .eq('module_id', 'quantitative_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
@@ -1063,7 +1058,6 @@ export async function generateStrategySignals(candles: any[], pair: string, time
       .eq('module_id', 'intermarket_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(2);
@@ -1242,7 +1236,7 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
       .eq('module_id', 'intermarket_analysis')
       .eq('symbol', pair)
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
+      
       .gte('created_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
       .order('confidence', { ascending: false })
       .limit(5);

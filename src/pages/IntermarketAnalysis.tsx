@@ -49,7 +49,7 @@ export default function IntermarketAnalysisPage() {
       setLoading(true);
       
       // Fetch real data from existing database tables
-      const [signalsResult, marketSnapshotResult, volatilityResult] = await Promise.all([
+      const [signalsResult, correlationsResult] = await Promise.all([
         supabase
           .from('modular_signals')
           .select('*')
@@ -57,24 +57,20 @@ export default function IntermarketAnalysisPage() {
           .order('created_at', { ascending: false })
           .limit(10),
         supabase
-          .from('market_snapshot')
+          .from('correlations')
           .select('*')
-          .in('symbol', ['DXY', 'XAUUSD', 'WTI', 'SPX'])
-          .order('snapshot_time', { ascending: false })
-          .limit(20),
-        supabase
-          .from('volatility_metrics')
-          .select('*')
-          .eq('symbol', 'EUR/USD')
-          .order('calculation_date', { ascending: false })
-          .limit(5)
+          .order('calculated_at', { ascending: false })
+          .limit(20)
       ]);
 
       if (signalsResult.error) throw signalsResult.error;
       
-      // Process real market data
-      const marketData = marketSnapshotResult.data || [];
-      const vixData = volatilityResult.data || [];
+      // Build correlations map from real DB data
+      const corrData = correlationsResult.data || [];
+      const getCorr = (pair: string) => {
+        const found = corrData.find((c: any) => c.symbol_pair?.includes(pair));
+        return found?.correlation_coefficient ?? null;
+      };
       
       const enrichedSignals = (signalsResult.data || []).map(signal => ({
         ...signal,
@@ -82,57 +78,57 @@ export default function IntermarketAnalysisPage() {
           ...(typeof signal.intermediate_values === 'object' && signal.intermediate_values !== null ? signal.intermediate_values : {}),
           intermarket_data: {
             forexCorrelations: {
-              'GBPUSD': 0.72,
-              'USDJPY': -0.68,
-              'AUDUSD': 0.81
+              'GBP/USD': getCorr('GBP/USD') ?? 'N/A',
+              'USD/JPY': getCorr('USD/JPY') ?? 'N/A',
+              'AUD/USD': getCorr('AUD/USD') ?? 'N/A'
             },
             commodityRelations: {
               gold: {
-                currentPrice: marketData.find(m => m.symbol === 'XAUUSD')?.last_price || 0,
-                correlation: -0.42,
-                change24h: marketData.find(m => m.symbol === 'XAUUSD')?.change_percentage_24h || 0
+                currentPrice: null,
+                correlation: getCorr('GOLD') ?? 'N/A',
+                change24h: null
               },
               oil: {
-                currentPrice: marketData.find(m => m.symbol === 'WTI')?.last_price || 0,
-                correlation: 0.28,
-                change24h: marketData.find(m => m.symbol === 'WTI')?.change_percentage_24h || 0
+                currentPrice: null,
+                correlation: getCorr('OIL') ?? 'N/A',
+                change24h: null
               },
               copper: {
-                currentPrice: 4.25,
-                correlation: 0.31,
-                change24h: 0.8
+                currentPrice: null,
+                correlation: getCorr('COPPER') ?? 'N/A',
+                change24h: null
               }
             },
             equityIndices: {
               spy: {
-                performance: marketData.find(m => m.symbol === 'SPX')?.change_percentage_24h || 0,
-                correlation: -0.18,
-                currentPrice: marketData.find(m => m.symbol === 'SPX')?.last_price || 0
+                performance: null,
+                correlation: getCorr('SPX') ?? 'N/A',
+                currentPrice: null
               },
               vix: {
-                level: vixData[0]?.implied_volatility || 18.5,
-                correlation: -0.52
+                level: null,
+                correlation: getCorr('VIX') ?? 'N/A'
               },
               dxy: {
-                level: marketData.find(m => m.symbol === 'DXY')?.last_price || 0,
-                correlation: -0.89,
-                change24h: marketData.find(m => m.symbol === 'DXY')?.change_percentage_24h || 0
+                level: null,
+                correlation: getCorr('DXY') ?? 'N/A',
+                change24h: null
               }
             },
             bondMarkets: {
               us10y: {
-                yield: 4.32,
-                correlation: -0.38
+                yield: null,
+                correlation: getCorr('US10Y') ?? 'N/A'
               },
               ger10y: {
-                yield: 2.18,
-                correlation: 0.24
+                yield: null,
+                correlation: getCorr('GER10Y') ?? 'N/A'
               },
-              yieldSpread: 214
+              yieldSpread: null
             },
             riskSentiment: {
-              riskOn: (vixData[0]?.implied_volatility || 20) < 20,
-              confidence: Math.max(0.1, Math.min(0.9, (30 - (vixData[0]?.implied_volatility || 20)) / 20))
+              riskOn: null,
+              confidence: null
             }
           }
         }

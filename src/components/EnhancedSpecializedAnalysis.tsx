@@ -39,20 +39,14 @@ export default function EnhancedSpecializedAnalysis() {
   }, []);
 
   const fetchData = async () => {
-    // Fetch Elliott Waves
-    const { data: waves } = await supabase
-      .from('elliott_waves')
-      .select('*')
-      .eq('symbol', 'EURUSD')
-      .order('created_at', { ascending: false })
-      .limit(10);
+    // Elliott Waves table doesn't exist - show empty state
+    const waves: any[] = [];
 
     // Fetch specialized signals
     const { data: signals } = await supabase
       .from('modular_signals')
       .select('*')
       .eq('module_id', 'specialized_analysis')
-      .eq('is_active', true)
       .order('created_at', { ascending: false })
       .limit(10);
 
