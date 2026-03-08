@@ -113,9 +113,9 @@ const RealtimeSystemMonitor: React.FC = () => {
         },
         database: {
           status: 'healthy',
-          connectionCount: signalGen.length + tradeExecution.length + dataFeed.length,
-          queryTime: Math.round([...signalGen, ...tradeExecution, ...dataFeed].slice(0, 5).reduce((s, r) => s + (r.execution_time_ms || 0), 0) / Math.max(1, Math.min(5, signalGen.length + tradeExecution.length + dataFeed.length))),
-          errorRate: [...signalGen, ...tradeExecution, ...dataFeed].slice(0, 20).filter(r => r.status === 'error').length / Math.max(1, [...signalGen, ...tradeExecution, ...dataFeed].slice(0, 20).length)
+          connectionCount: signalGeneration.length + tradeExecution.length + dataFeed.length,
+          queryTime: Math.round([...signalGeneration, ...tradeExecution, ...dataFeed].slice(0, 5).reduce((s, r) => s + (r.execution_time_ms || 0), 0) / Math.max(1, Math.min(5, signalGeneration.length + tradeExecution.length + dataFeed.length))),
+          errorRate: [...signalGeneration, ...tradeExecution, ...dataFeed].slice(0, 20).filter(r => r.status === 'error').length / Math.max(1, [...signalGeneration, ...tradeExecution, ...dataFeed].slice(0, 20).length)
         }
       });
 

@@ -39,9 +39,10 @@ export const MultiTimeframeAnalysis = ({ symbol = 'EUR/USD' }: { symbol?: string
       setAnalysis(result);
       
       // Use real analysis results if available
-      if (result?.timeframeResults) {
+      if (result && typeof result === 'object' && 'timeframeResults' in result) {
+        const tfResults = (result as any).timeframeResults;
         const realSignals = timeframeSignals.map(tf => {
-          const tfResult = result.timeframeResults?.[tf.timeframe];
+          const tfResult = tfResults?.[tf.timeframe];
           if (tfResult) {
             return {
               ...tf,
