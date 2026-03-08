@@ -143,6 +143,35 @@ serve(async (req) => {
     }
     results.duplicate_trades_closed = duplicatesRemoved;
 
+    // 12. Delete old tick_data (keep last 6 hours)
+    const sixHoursAgo = new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString();
+    const { count: oldTicks } = await supabase
+      .from('tick_data')
+      .delete({ count: 'exact' })
+      .lt('timestamp', sixHoursAgo);
+    results.tick_data_deleted = oldTicks || 0;
+
+    // 13. Delete old trade_execution_log (keep last 7 days)
+    const { count: oldExecLogs } = await supabase
+      .from('trade_execution_log')
+      .delete({ count: 'exact' })
+      .lt('created_at', sevenDaysAgo);
+    results.trade_execution_log_deleted = oldExecLogs || 0;
+
+    // 14. Delete old system_health (keep last 3 days)
+    const { count: oldHealth } = await supabase
+      .from('system_health')
+      .delete({ count: 'exact' })
+      .lt('created_at', threeDaysAgo);
+    results.system_health_deleted = oldHealth || 0;
+
+    // 15. Delete old modular_signals (keep last 3 days)
+    const { count: oldModular } = await supabase
+      .from('modular_signals')
+      .delete({ count: 'exact' })
+      .lt('created_at', threeDaysAgo);
+    results.modular_signals_deleted = oldModular || 0;
+
     const totalCleaned = Object.values(results).reduce((a, b) => a + b, 0);
     console.log(`✅ Cleanup complete. Total records cleaned: ${totalCleaned}`);
     console.log('📊 Details:', results);
