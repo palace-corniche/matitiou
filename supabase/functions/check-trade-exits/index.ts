@@ -65,15 +65,26 @@ serve(async (req) => {
         .update({ exit_check_count: (trade.exit_check_count || 0) + 1 })
         .eq('id', trade.id)
 
-      // Time-based exit: Force close after 3 hours
+      // Dynamic time-based exit
       const entryTime = new Date(trade.entry_time).getTime()
       const currentTime = Date.now()
       const holdingHours = (currentTime - entryTime) / (1000 * 60 * 60)
       
-      if (holdingHours >= 3) {
+      // Calculate unrealized pips to decide hold time
+      let unrealizedPips = 0
+      if (trade.trade_type === 'buy') {
+        unrealizedPips = (currentPrice - trade.entry_price) * 10000
+      } else {
+        unrealizedPips = (trade.entry_price - currentPrice) * 10000
+      }
+      
+      // Dynamic hold time: 4h default, 8h if profitable (>5 pips)
+      const maxHoldHours = unrealizedPips > 5 ? 8 : 4
+      
+      if (holdingHours >= maxHoldHours) {
         shouldClose = true
         closeReason = 'max_hold_time_reached'
-        console.log(`⏰ Trade ${trade.id} held for ${holdingHours.toFixed(1)}h - forcing exit`)
+        console.log(`⏰ Trade ${trade.id} held for ${holdingHours.toFixed(1)}h (limit: ${maxHoldHours}h, unrealized: ${unrealizedPips.toFixed(1)} pips) - forcing exit`)
       }
 
       // Check stop loss
