@@ -192,26 +192,20 @@ export default function SentimentAnalysisPage() {
                   <div className="flex justify-between items-center mb-2">
                     <span className="font-medium">Report Date: {new Date(cot.report_date).toLocaleDateString()}</span>
                     <Badge variant="outline">
-                      Net: {cot.net_long > 0 ? '+' : ''}{(cot.net_long / 1000).toFixed(0)}K
+                      Net: {(cot.net_position || 0) > 0 ? '+' : ''}{((cot.net_position || 0) / 1000).toFixed(0)}K
                     </Badge>
                   </div>
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                     <div>
-                      <div className="text-muted-foreground">Commercial</div>
+                      <div className="text-muted-foreground">Long Positions</div>
                       <div className="font-mono">
-                        L: {(cot.commercial_long / 1000).toFixed(0)}K | S: {(cot.commercial_short / 1000).toFixed(0)}K
+                        {((cot.long_positions || 0) / 1000).toFixed(0)}K
                       </div>
                     </div>
                     <div>
-                      <div className="text-muted-foreground">Large Traders</div>
+                      <div className="text-muted-foreground">Short Positions</div>
                       <div className="font-mono">
-                        L: {(cot.large_traders_long / 1000).toFixed(0)}K | S: {(cot.large_traders_short / 1000).toFixed(0)}K
-                      </div>
-                    </div>
-                    <div>
-                      <div className="text-muted-foreground">Retail</div>
-                      <div className="font-mono">
-                        L: {(cot.retail_long / 1000).toFixed(0)}K | S: {(cot.retail_short / 1000).toFixed(0)}K
+                        {((cot.short_positions || 0) / 1000).toFixed(0)}K
                       </div>
                     </div>
                   </div>
