@@ -1042,6 +1042,66 @@ function calculateDataFreshness(signals: any[]): number {
   return Math.max(0, Math.exp(-hoursOld));
 }
 
+// Update module_performance rows with real signal counts
+async function updateModulePerformance(supabase: any, modularInserts: any[]) {
+  try {
+    // Count signals per module
+    const moduleCounts: Record<string, { total: number; avgConfidence: number; avgStrength: number }> = {};
+    for (const sig of modularInserts) {
+      const moduleId = sig.module_id;
+      if (!moduleCounts[moduleId]) {
+        moduleCounts[moduleId] = { total: 0, avgConfidence: 0, avgStrength: 0 };
+      }
+      moduleCounts[moduleId].total++;
+      moduleCounts[moduleId].avgConfidence += (sig.confidence || 0);
+      moduleCounts[moduleId].avgStrength += (sig.strength || 0);
+    }
+
+    for (const [moduleId, counts] of Object.entries(moduleCounts)) {
+      const avgConf = counts.avgConfidence / counts.total;
+      const avgStr = counts.avgStrength / counts.total;
+
+      // Get existing record
+      const { data: existing } = await supabase
+        .from('module_performance')
+        .select('signals_generated, total_signals, average_confidence, average_strength')
+        .eq('module_id', moduleId)
+        .maybeSingle();
+
+      if (existing) {
+        const newTotal = (existing.signals_generated || 0) + counts.total;
+        await supabase
+          .from('module_performance')
+          .update({
+            signals_generated: newTotal,
+            total_signals: newTotal,
+            average_confidence: ((existing.average_confidence || 0) + avgConf) / 2,
+            average_strength: ((existing.average_strength || 0) + avgStr) / 2,
+            last_updated: new Date().toISOString(),
+            status: 'active'
+          })
+          .eq('module_id', moduleId);
+      } else {
+        await supabase
+          .from('module_performance')
+          .insert({
+            module_id: moduleId,
+            module_name: moduleId,
+            signals_generated: counts.total,
+            total_signals: counts.total,
+            average_confidence: avgConf,
+            average_strength: avgStr,
+            reliability: 0.7,
+            status: 'active'
+          });
+      }
+    }
+    console.log(`✅ Updated module_performance for ${Object.keys(moduleCounts).length} modules`);
+  } catch (error) {
+    console.warn('⚠️ Failed to update module_performance:', error);
+  }
+}
+
 // Legacy function removed - using enhanced version at line 540 with real database integration
 
 // Convert master signal to database format - PHASE 1: FIX NULL HANDLING & VALIDATION
