@@ -538,6 +538,42 @@ export type Database = {
         }
         Relationships: []
       }
+      intelligence_performance: {
+        Row: {
+          accuracy: number | null
+          avg_confidence: number | null
+          avg_return: number | null
+          correct_predictions: number | null
+          created_at: string
+          id: string
+          last_updated: string | null
+          source: string
+          total_predictions: number | null
+        }
+        Insert: {
+          accuracy?: number | null
+          avg_confidence?: number | null
+          avg_return?: number | null
+          correct_predictions?: number | null
+          created_at?: string
+          id?: string
+          last_updated?: string | null
+          source: string
+          total_predictions?: number | null
+        }
+        Update: {
+          accuracy?: number | null
+          avg_confidence?: number | null
+          avg_return?: number | null
+          correct_predictions?: number | null
+          created_at?: string
+          id?: string
+          last_updated?: string | null
+          source?: string
+          total_predictions?: number | null
+        }
+        Relationships: []
+      }
       intelligent_targets: {
         Row: {
           actual_sl: number | null
@@ -639,6 +675,71 @@ export type Database = {
           trigger_reason?: string | null
         }
         Relationships: []
+      }
+      learning_outcomes: {
+        Row: {
+          confluence_score: number | null
+          contributing_modules: string[] | null
+          created_at: string
+          entry_accuracy: number | null
+          exit_timing_score: number | null
+          holding_time_minutes: number | null
+          id: string
+          learned_features: Json | null
+          market_regime: string | null
+          outcome_type: string
+          pnl: number | null
+          processed: boolean | null
+          profit_pips: number | null
+          signal_id: string | null
+          signal_quality: number | null
+          trade_id: string | null
+        }
+        Insert: {
+          confluence_score?: number | null
+          contributing_modules?: string[] | null
+          created_at?: string
+          entry_accuracy?: number | null
+          exit_timing_score?: number | null
+          holding_time_minutes?: number | null
+          id?: string
+          learned_features?: Json | null
+          market_regime?: string | null
+          outcome_type?: string
+          pnl?: number | null
+          processed?: boolean | null
+          profit_pips?: number | null
+          signal_id?: string | null
+          signal_quality?: number | null
+          trade_id?: string | null
+        }
+        Update: {
+          confluence_score?: number | null
+          contributing_modules?: string[] | null
+          created_at?: string
+          entry_accuracy?: number | null
+          exit_timing_score?: number | null
+          holding_time_minutes?: number | null
+          id?: string
+          learned_features?: Json | null
+          market_regime?: string | null
+          outcome_type?: string
+          pnl?: number | null
+          processed?: boolean | null
+          profit_pips?: number | null
+          signal_id?: string | null
+          signal_quality?: number | null
+          trade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "learning_outcomes_trade_id_fkey"
+            columns: ["trade_id"]
+            isOneToOne: false
+            referencedRelation: "shadow_trades"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       market_data_enhanced: {
         Row: {
@@ -1379,6 +1480,33 @@ export type Database = {
         }
         Relationships: []
       }
+      system_config: {
+        Row: {
+          config_key: string
+          config_value: Json | null
+          created_at: string
+          description: string | null
+          id: string
+          updated_at: string | null
+        }
+        Insert: {
+          config_key: string
+          config_value?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Update: {
+          config_key?: string
+          config_value?: Json | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       system_health: {
         Row: {
           created_at: string
@@ -1877,6 +2005,17 @@ export type Database = {
       }
       get_ml_performance_analytics: { Args: never; Returns: Json }
       run_trading_diagnostics: { Args: never; Returns: Json }
+      update_module_performance_from_trade: {
+        Args: {
+          p_confidence: number
+          p_module_id: string
+          p_return: number
+          p_signal_successful: boolean
+          p_strength: number
+        }
+        Returns: undefined
+      }
+      update_system_learning_stats: { Args: never; Returns: undefined }
     }
     Enums: {
       [_ in never]: never

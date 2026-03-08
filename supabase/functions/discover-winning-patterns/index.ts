@@ -19,209 +19,182 @@ serve(async (req) => {
 
     console.log('🎯 Pattern Discovery System Starting...');
 
-    // Get winning trades with full context
-    const { data: winningOutcomes } = await supabaseClient
-      .from('learning_outcomes')
-      .select('*')
-      .eq('outcome_type', 'win')
-      .gte('pnl', 3) // Only significant wins
-      .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
+    // Query closed trades directly (learning_outcomes may not be populated yet)
+    const { data: closedTrades } = await supabaseClient
+      .from('shadow_trades')
+      .select('*, master_signal_id')
+      .eq('status', 'closed')
+      .gte('exit_time', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('pnl', { ascending: false })
-      .limit(100);
+      .limit(200);
 
-    if (!winningOutcomes || winningOutcomes.length < 10) {
-      console.log('⚠️ Not enough winning trades for pattern discovery');
+    if (!closedTrades || closedTrades.length < 10) {
+      console.log(`⚠️ Not enough closed trades for pattern discovery (${closedTrades?.length || 0})`);
       return new Response(
-        JSON.stringify({ success: false, message: 'Insufficient winning trades' }),
+        JSON.stringify({ success: false, message: 'Insufficient closed trades', count: closedTrades?.length || 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Analyzing ${winningOutcomes.length} winning trades for patterns`);
+    const winningTrades = closedTrades.filter(t => (t.pnl || 0) > 0);
+    const losingTrades = closedTrades.filter(t => (t.pnl || 0) <= 0);
+    const overallWinRate = closedTrades.length > 0 ? (winningTrades.length / closedTrades.length) * 100 : 0;
 
-    const patterns = [];
+    console.log(`📊 Analyzing ${closedTrades.length} trades (${winningTrades.length} wins, ${losingTrades.length} losses)`);
 
-    // PATTERN 1: High signal quality pattern
-    const highQualityWins = winningOutcomes.filter(o => (o.signal_quality || 0) >= 70);
-    if (highQualityWins.length >= 5) {
-      const totalHighQuality = highQualityWins.length;
-      const avgPips = highQualityWins.reduce((sum, o) => sum + (o.profit_pips || 0), 0) / totalHighQuality;
-      const avgReturn = highQualityWins.reduce((sum, o) => sum + (o.pnl || 0), 0) / totalHighQuality;
-      
-      patterns.push({
-        pattern_name: 'High Signal Quality Entry',
-        pattern_type: 'entry',
-        pattern_rules: {
-          signal_quality_min: 70,
-          description: 'Trades with signal quality >= 70 show significantly higher win rates',
-        },
-        confidence: 85,
-        win_rate: 100, // All analyzed were wins
-        sample_size: totalHighQuality,
-        avg_pips: avgPips,
-        avg_return_percent: (avgReturn / 100) * 100,
-        deployed: true,
-      });
+    const patterns: any[] = [];
 
-      console.log(`✅ Pattern: High Quality Signals (${totalHighQuality} trades, ${avgPips.toFixed(1)} avg pips)`);
-    }
+    // PATTERN 1: Direction bias
+    const buyTrades = closedTrades.filter(t => t.trade_type === 'buy');
+    const sellTrades = closedTrades.filter(t => t.trade_type === 'sell');
 
-    // PATTERN 2: High confluence pattern
-    const highConfluenceWins = winningOutcomes.filter(o => (o.confluence_score || 0) >= 15);
-    if (highConfluenceWins.length >= 5) {
-      const totalConfluence = highConfluenceWins.length;
-      const avgPips = highConfluenceWins.reduce((sum, o) => sum + (o.profit_pips || 0), 0) / totalConfluence;
-      
-      patterns.push({
-        pattern_name: 'High Confluence Entry',
-        pattern_type: 'entry',
-        pattern_rules: {
-          confluence_score_min: 15,
-          description: 'Trades with confluence >= 15 show consistent profitability',
-        },
-        confidence: 80,
-        win_rate: 100,
-        sample_size: totalConfluence,
-        avg_pips: avgPips,
-        deployed: true,
-      });
-
-      console.log(`✅ Pattern: High Confluence (${totalConfluence} trades, ${avgPips.toFixed(1)} avg pips)`);
-    }
-
-    // PATTERN 3: Optimal holding time pattern
-    const optimalHoldingWins = winningOutcomes.filter(o => {
-      const minutes = o.holding_time_minutes || 0;
-      return minutes >= 60 && minutes <= 480; // 1-8 hours
-    });
-    
-    if (optimalHoldingWins.length >= 5) {
-      const avgHoldingTime = optimalHoldingWins.reduce((sum, o) => sum + (o.holding_time_minutes || 0), 0) / optimalHoldingWins.length;
-      const avgPips = optimalHoldingWins.reduce((sum, o) => sum + (o.profit_pips || 0), 0) / optimalHoldingWins.length;
-      
-      patterns.push({
-        pattern_name: 'Optimal Holding Time',
-        pattern_type: 'exit',
-        pattern_rules: {
-          holding_time_min_minutes: 60,
-          holding_time_max_minutes: 480,
-          optimal_avg_minutes: avgHoldingTime,
-          description: 'Trades held between 1-8 hours show best results',
-        },
-        confidence: 75,
-        win_rate: 100,
-        sample_size: optimalHoldingWins.length,
-        avg_pips: avgPips,
-        deployed: false, // Needs validation
-      });
-
-      console.log(`✅ Pattern: Optimal Holding (${optimalHoldingWins.length} trades, ${avgHoldingTime.toFixed(0)} min avg)`);
-    }
-
-    // PATTERN 4: Time-of-day pattern
-    const timePatterns: Record<string, number[]> = {};
-    
-    winningOutcomes.forEach(outcome => {
-      const features = outcome.learned_features as any;
-      if (features?.entry_hour !== undefined) {
-        const hour = features.entry_hour;
-        if (!timePatterns[hour]) timePatterns[hour] = [];
-        timePatterns[hour].push(outcome.profit_pips || 0);
+    if (buyTrades.length >= 5) {
+      const buyWins = buyTrades.filter(t => (t.pnl || 0) > 0).length;
+      const buyWinRate = (buyWins / buyTrades.length) * 100;
+      const buyAvgPnl = buyTrades.reduce((s, t) => s + (t.pnl || 0), 0) / buyTrades.length;
+      if (buyWinRate >= 55) {
+        patterns.push({
+          pattern_name: 'Buy Direction Advantage',
+          pattern_type: 'direction',
+          confidence: buyWinRate,
+          win_rate: buyWinRate,
+          sample_size: buyTrades.length,
+          description: `Buy trades: ${buyWinRate.toFixed(1)}% win rate, avg $${buyAvgPnl.toFixed(2)}`,
+          parameters: { trade_type: 'buy', avg_pnl: buyAvgPnl },
+          is_active: true,
+          deployed: buyTrades.length >= 20,
+        });
       }
+    }
+
+    if (sellTrades.length >= 5) {
+      const sellWins = sellTrades.filter(t => (t.pnl || 0) > 0).length;
+      const sellWinRate = (sellWins / sellTrades.length) * 100;
+      const sellAvgPnl = sellTrades.reduce((s, t) => s + (t.pnl || 0), 0) / sellTrades.length;
+      if (sellWinRate >= 55) {
+        patterns.push({
+          pattern_name: 'Sell Direction Advantage',
+          pattern_type: 'direction',
+          confidence: sellWinRate,
+          win_rate: sellWinRate,
+          sample_size: sellTrades.length,
+          description: `Sell trades: ${sellWinRate.toFixed(1)}% win rate, avg $${sellAvgPnl.toFixed(2)}`,
+          parameters: { trade_type: 'sell', avg_pnl: sellAvgPnl },
+          is_active: true,
+          deployed: sellTrades.length >= 20,
+        });
+      }
+    }
+
+    // PATTERN 2: Optimal holding time
+    const tradesWithDuration = closedTrades.filter(t => t.entry_time && t.exit_time);
+    if (tradesWithDuration.length >= 10) {
+      const durations = tradesWithDuration.map(t => ({
+        minutes: (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / 60000,
+        pnl: t.pnl || 0,
+      }));
+
+      // Bucket into short (<60m), medium (60-180m), long (>180m)
+      const buckets = [
+        { label: 'Short (<1h)', trades: durations.filter(d => d.minutes < 60) },
+        { label: 'Medium (1-3h)', trades: durations.filter(d => d.minutes >= 60 && d.minutes < 180) },
+        { label: 'Long (3h+)', trades: durations.filter(d => d.minutes >= 180) },
+      ];
+
+      for (const bucket of buckets) {
+        if (bucket.trades.length >= 5) {
+          const wins = bucket.trades.filter(d => d.pnl > 0).length;
+          const wr = (wins / bucket.trades.length) * 100;
+          const avgPnl = bucket.trades.reduce((s, d) => s + d.pnl, 0) / bucket.trades.length;
+          if (wr >= 55 && avgPnl > 0) {
+            patterns.push({
+              pattern_name: `${bucket.label} Holding Advantage`,
+              pattern_type: 'holding_time',
+              confidence: wr,
+              win_rate: wr,
+              sample_size: bucket.trades.length,
+              description: `${bucket.label}: ${wr.toFixed(1)}% win rate, avg $${avgPnl.toFixed(2)}`,
+              parameters: { bucket: bucket.label, avg_pnl: avgPnl },
+              is_active: true,
+              deployed: false,
+            });
+          }
+        }
+      }
+    }
+
+    // PATTERN 3: Entry hour analysis
+    const hourStats: Record<number, { wins: number; total: number; pnl: number }> = {};
+    closedTrades.forEach(t => {
+      const hour = new Date(t.entry_time).getUTCHours();
+      if (!hourStats[hour]) hourStats[hour] = { wins: 0, total: 0, pnl: 0 };
+      hourStats[hour].total++;
+      hourStats[hour].pnl += t.pnl || 0;
+      if ((t.pnl || 0) > 0) hourStats[hour].wins++;
     });
 
-    // Find best performing hours
-    const bestHours = Object.entries(timePatterns)
-      .filter(([_, pips]) => pips.length >= 3) // At least 3 trades
-      .map(([hour, pips]) => ({
-        hour: parseInt(hour),
-        count: pips.length,
-        avg_pips: pips.reduce((a, b) => a + b, 0) / pips.length,
-      }))
-      .filter(h => h.avg_pips > 5) // Good average
-      .sort((a, b) => b.avg_pips - a.avg_pips);
+    const bestHours = Object.entries(hourStats)
+      .filter(([_, s]) => s.total >= 3 && (s.wins / s.total) >= 0.6)
+      .map(([h, s]) => ({ hour: parseInt(h), winRate: (s.wins / s.total) * 100, avgPnl: s.pnl / s.total, count: s.total }))
+      .sort((a, b) => b.avgPnl - a.avgPnl);
 
     if (bestHours.length > 0) {
-      const topHour = bestHours[0];
       patterns.push({
-        pattern_name: `Optimal Trading Hour: ${topHour.hour}:00 UTC`,
+        pattern_name: `Best Hours: ${bestHours.slice(0, 3).map(h => `${h.hour}:00`).join(', ')} UTC`,
         pattern_type: 'time',
-        pattern_rules: {
-          best_hours: bestHours.slice(0, 3).map(h => h.hour),
-          description: `Trading during ${topHour.hour}:00 UTC shows ${topHour.avg_pips.toFixed(1)} avg pips`,
-        },
-        confidence: 70,
-        win_rate: 100,
-        sample_size: topHour.count,
-        avg_pips: topHour.avg_pips,
+        confidence: bestHours[0].winRate,
+        win_rate: bestHours[0].winRate,
+        sample_size: bestHours.reduce((s, h) => s + h.count, 0),
+        description: `Top trading hours with ${bestHours[0].winRate.toFixed(1)}% win rate`,
+        parameters: { best_hours: bestHours.slice(0, 3) },
+        is_active: true,
         deployed: false,
       });
-
-      console.log(`✅ Pattern: Best Hour ${topHour.hour}:00 (${topHour.count} trades, ${topHour.avg_pips.toFixed(1)} avg pips)`);
     }
 
-    // PATTERN 5: Market regime pattern
-    const regimePatterns: Record<string, { wins: number; total_pips: number }> = {};
-    
-    winningOutcomes.forEach(outcome => {
-      const regime = outcome.market_regime || 'unknown';
-      if (!regimePatterns[regime]) {
-        regimePatterns[regime] = { wins: 0, total_pips: 0 };
-      }
-      regimePatterns[regime].wins++;
-      regimePatterns[regime].total_pips += outcome.profit_pips || 0;
-    });
-
-    for (const [regime, stats] of Object.entries(regimePatterns)) {
-      if (stats.wins >= 5 && regime !== 'unknown') {
-        const avgPips = stats.total_pips / stats.wins;
-        
-        patterns.push({
-          pattern_name: `${regime} Market Regime`,
-          pattern_type: 'regime',
-          pattern_rules: {
-            market_regime: regime,
-            description: `Trading in ${regime} markets shows consistent wins`,
-          },
-          confidence: 75,
-          win_rate: 100,
-          sample_size: stats.wins,
-          avg_pips: avgPips,
-          deployed: stats.wins >= 10, // Deploy if 10+ wins
-        });
-
-        console.log(`✅ Pattern: ${regime} Regime (${stats.wins} wins, ${avgPips.toFixed(1)} avg pips)`);
-      }
-    }
-
-    // Save discovered patterns to database
+    // Save patterns
     let savedCount = 0;
     for (const pattern of patterns) {
       const { error } = await supabaseClient
         .from('discovered_patterns')
-        .upsert({
-          ...pattern,
-          last_tested_at: new Date().toISOString(),
-        }, {
-          onConflict: 'pattern_name',
-        });
-
+        .insert(pattern);
       if (!error) savedCount++;
+      else console.warn(`Failed to save pattern ${pattern.pattern_name}:`, error.message);
     }
 
-    // Log discovery action
-    await supabaseClient
-      .from('learning_actions')
-      .insert({
-        action_type: 'discover_pattern',
-        trigger_reason: `Pattern discovery run on ${winningOutcomes.length} winning trades`,
-        metadata: {
-          patterns_discovered: patterns.length,
-          patterns_saved: savedCount,
-          patterns_deployed: patterns.filter(p => p.deployed).length,
-        },
-        success: true,
-      });
+    // Also seed learning_outcomes from closed trades that don't have one yet
+    const { data: existingOutcomes } = await supabaseClient
+      .from('learning_outcomes')
+      .select('trade_id');
+    
+    const existingTradeIds = new Set((existingOutcomes || []).map(o => o.trade_id));
+    const newOutcomes = closedTrades
+      .filter(t => !existingTradeIds.has(t.id))
+      .map(t => ({
+        trade_id: t.id,
+        signal_id: t.signal_id,
+        outcome_type: (t.pnl || 0) > 1 ? 'win' : (t.pnl || 0) < -1 ? 'loss' : 'breakeven',
+        pnl: t.pnl || 0,
+        profit_pips: t.profit_pips || 0,
+        holding_time_minutes: t.entry_time && t.exit_time
+          ? (new Date(t.exit_time).getTime() - new Date(t.entry_time).getTime()) / 60000
+          : 0,
+        confluence_score: 0,
+        market_regime: 'unknown',
+        processed: true,
+      }));
+
+    if (newOutcomes.length > 0) {
+      await supabaseClient.from('learning_outcomes').insert(newOutcomes);
+      console.log(`📝 Seeded ${newOutcomes.length} learning outcomes from closed trades`);
+    }
+
+    // Log action
+    await supabaseClient.from('learning_actions').insert({
+      action_type: 'discover_pattern',
+      trigger_reason: `Analyzed ${closedTrades.length} trades, found ${patterns.length} patterns`,
+      success: true,
+    });
 
     console.log(`✅ Pattern discovery complete: ${patterns.length} patterns found, ${savedCount} saved`);
 
@@ -230,13 +203,8 @@ serve(async (req) => {
         success: true,
         patterns_discovered: patterns.length,
         patterns_saved: savedCount,
-        patterns: patterns.map(p => ({
-          name: p.pattern_name,
-          type: p.pattern_type,
-          win_rate: p.win_rate,
-          sample_size: p.sample_size,
-          deployed: p.deployed,
-        })),
+        outcomes_seeded: newOutcomes.length,
+        overall_win_rate: overallWinRate,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

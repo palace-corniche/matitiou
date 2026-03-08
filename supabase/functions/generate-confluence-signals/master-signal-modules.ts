@@ -89,7 +89,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.2), // Boost real signal confidence
+          confidence: Math.min(1, signal.confidence), // Capped at 1.0, no artificial boost
           strength: Math.min(1, signal.strength / 10),
           entryPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.997 : 1.003)),

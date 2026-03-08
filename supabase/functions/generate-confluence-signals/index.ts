@@ -913,7 +913,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
         symbol: pair,
         timeframe,
         signal_type: s.signal || 'hold',
-        confidence: s.confidence || 0,
+        confidence: Math.min(1, s.confidence || 0), // Cap at 1.0
         strength: Math.round((s.strength || 0) * (s.strength > 1 ? 1 : 10)),
         suggested_entry: s.entryPrice || null,
         suggested_stop_loss: s.stopLoss || null,
@@ -1069,14 +1069,22 @@ async function updateModulePerformance(supabase: any, modularInserts: any[]) {
         .maybeSingle();
 
       if (existing) {
-        const newTotal = (existing.signals_generated || 0) + counts.total;
+        const prevTotal = existing.signals_generated || 0;
+        const newTotal = prevTotal + counts.total;
+        // Proper cumulative moving average
+        const newAvgConf = prevTotal > 0 
+          ? ((existing.average_confidence || 0) * prevTotal + avgConf * counts.total) / newTotal 
+          : avgConf;
+        const newAvgStr = prevTotal > 0 
+          ? ((existing.average_strength || 0) * prevTotal + avgStr * counts.total) / newTotal 
+          : avgStr;
         await supabase
           .from('module_performance')
           .update({
             signals_generated: newTotal,
             total_signals: newTotal,
-            average_confidence: ((existing.average_confidence || 0) + avgConf) / 2,
-            average_strength: ((existing.average_strength || 0) + avgStr) / 2,
+            average_confidence: newAvgConf,
+            average_strength: newAvgStr,
             last_updated: new Date().toISOString(),
             status: 'active'
           })
@@ -1100,6 +1108,37 @@ async function updateModulePerformance(supabase: any, modularInserts: any[]) {
   } catch (error) {
     console.warn('⚠️ Failed to update module_performance:', error);
   }
+}
+
+// Calculate a true weighted confluence score based on module agreement, confidence, and strength
+function calculateWeightedConfluenceScore(masterSignal: any): number {
+  const signals = masterSignal.contributingSignals || [];
+  if (signals.length === 0) return Math.round((masterSignal.confidence || 0.5) * 100);
+  
+  const direction = masterSignal.signal; // 'buy' or 'sell'
+  let score = 0;
+  
+  // Module count factor (max 30 points): more agreeing modules = higher confluence
+  const agreeingSignals = signals.filter((s: any) => s.signal === direction);
+  score += Math.min(30, agreeingSignals.length * 6);
+  
+  // Agreement ratio factor (max 25 points)
+  const agreementRatio = signals.length > 0 ? agreeingSignals.length / signals.length : 0;
+  score += Math.round(agreementRatio * 25);
+  
+  // Average confidence factor (max 25 points)
+  const avgConfidence = agreeingSignals.length > 0
+    ? agreeingSignals.reduce((sum: number, s: any) => sum + Math.min(1, s.confidence || 0), 0) / agreeingSignals.length
+    : 0;
+  score += Math.round(avgConfidence * 25);
+  
+  // Average strength factor (max 20 points)
+  const avgStrength = agreeingSignals.length > 0
+    ? agreeingSignals.reduce((sum: number, s: any) => sum + Math.min(1, s.strength || 0), 0) / agreeingSignals.length
+    : 0;
+  score += Math.round(avgStrength * 20);
+  
+  return Math.min(100, Math.max(0, score));
 }
 
 // Legacy function removed - using enhanced version at line 540 with real database integration
@@ -1158,7 +1197,7 @@ function convertMasterSignalToDatabase(analysis: CompleteSignalAnalysis): any {
     signal_id: `master_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     pair: analysis.pair,
     signal_type: masterSignal.signal,
-    confluence_score: Math.round((masterSignal.confidence || 0.5) * 100),
+    confluence_score: calculateWeightedConfluenceScore(masterSignal),
     strength: Math.min(100, Math.max(0, Math.round((masterSignal.strength || 0.5) * 10))),
     confidence: masterSignal.confidence || 0.5,
     entry_price: currentPrice,
