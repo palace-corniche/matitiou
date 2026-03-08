@@ -1,57 +1,62 @@
 
 
-# System Diagnostic Report
+# Learning System: Critical Gaps & Fix Plan
 
-## Database Status: HEALTHY
-- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
-- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
-- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
+## Current State: Learning Is Completely Disconnected
 
-## Edge Functions: BLOCKED (402)
-The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
-- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
-- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
+After auditing the full pipeline, there are **4 critical breaks** in the learning loop:
 
-**This is the single blocker.** Everything else is correctly configured and ready.
+### Break 1: `process-trade-outcome` is never called
+`check-trade-exits` closes trades via `close_shadow_trade` RPC, sends a Telegram notification, then **stops**. It never invokes `process-trade-outcome`. Zero learning happens after any trade closure. The `learning_outcomes` table stays empty unless `discover-winning-patterns` manually backfills it.
 
-## Trading Account: RESET and READY
-| Field | Value |
-|---|---|
-| Balance | $100,000 |
-| Equity | $100,000 |
-| Total Trades | 0 |
-| Win Rate | 0% |
-| Auto Trading | Enabled |
+### Break 2: Module win/loss data never feeds back into signal generation
+The Bayesian fusion engine in `master-signal-modules.ts` uses **hardcoded weights** (technical: 25%, quantitative: 23%, etc.). It never queries `module_performance` to adjust weights based on which modules are actually winning or losing. The feedback loop is open-ended — data goes in but never comes back out.
 
-## Module Health: 6 modules active, 0 errors
-All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
+### Break 3: No "WHY" analysis stored
+When a trade loses, the system records the PnL and contributing module names, but never stores **which specific patterns, indicators, or strategies fired** for that signal. The `learned_features` object only captures price/time data. There's no way to answer "this trade lost because the RSI divergence signal was wrong while the harmonic pattern was correct."
 
-## Cron Jobs: 11 active schedules
-All cron jobs are active and correctly configured:
-- Market data fetch (every minute)
-- Signal generation (every 5 min)
-- Trade execution (every minute)
-- Exit monitoring (every 5 min)
-- Pattern detection (every 15 min)
-- News sentiment (every 30 min)
-- Learning orchestrator (hourly)
-- **Log cleanup (daily at 3 AM)** -- new
+### Break 4: Learning orchestrator has no cron schedule
+`autonomous-learning-orchestrator` exists but is never called automatically. The threshold adjustment, module calibration, and pattern discovery it orchestrates only run if manually triggered.
 
-## Trading Configuration
-- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
+---
 
-## Is the System Profitable / "Next Level"?
+## Fix Plan
 
-**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
-1. The 402 block clearing so data starts flowing
-2. Signals being generated from live market data
-3. Trades being executed and closed
+### 1. Wire `process-trade-outcome` into `check-trade-exits`
+After every successful `close_shadow_trade` call, invoke `process-trade-outcome` with the trade ID. This is the single most important fix — it activates the entire learning pipeline.
 
-The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
+### 2. Store signal details (the "WHY") in `learning_outcomes`
+Enhance `process-trade-outcome` to:
+- Fetch the `master_signals_fusion` record for the signal (contains `contributing_signals` with per-module signal details)
+- Fetch `modular_signals` linked to this master signal to get each module's individual direction, confidence, and strength
+- Store a `signal_breakdown` in `learned_features` showing which modules agreed/disagreed with the final outcome
+- Calculate per-module accuracy: did this module's signal direction match the actual trade outcome?
 
-## What You Need To Do
+### 3. Make Bayesian fusion use `module_performance` data
+Update `fuseSignalsWithBayesian()` in `master-signal-modules.ts` to:
+- Query `module_performance` table at the start of each signal generation cycle
+- Use each module's `win_rate` and `average_return` to dynamically scale the base weights
+- Formula: `effectiveWeight = baseWeight × (0.5 + moduleWinRate/100)` — so a 60% win rate module gets 1.1x its base weight, a 30% win rate module gets 0.8x
 
-**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+### 4. Schedule the learning orchestrator via cron
+Add a `pg_cron` job to run `autonomous-learning-orchestrator` every 6 hours. This triggers threshold adjustment, module calibration, and pattern discovery automatically.
 
-You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
+### 5. Add a "loss analysis" function
+Create logic inside `process-trade-outcome` that specifically analyzes losing trades:
+- Was the entry direction wrong? (price moved against immediately)
+- Was the SL too tight? (price reversed after hitting SL)
+- Was it a time exit? (signal was correct but too slow)
+- Which modules voted correctly vs incorrectly?
+- Store this as `loss_analysis` in the learned_features JSON
+
+---
+
+## Files to Edit
+
+| File | Changes |
+|------|---------|
+| `supabase/functions/check-trade-exits/index.ts` | Add `process-trade-outcome` invocation after each successful trade closure |
+| `supabase/functions/process-trade-outcome/index.ts` | Add signal breakdown analysis, loss categorization, per-module accuracy tracking |
+| `supabase/functions/generate-confluence-signals/master-signal-modules.ts` | Add `module_performance` query and dynamic weight scaling in Bayesian fusion |
+| SQL (insert tool) | Add cron job for `autonomous-learning-orchestrator` every 6 hours |
 
