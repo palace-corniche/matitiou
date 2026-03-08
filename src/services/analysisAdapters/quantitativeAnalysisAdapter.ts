@@ -228,8 +228,8 @@ export class QuantitativeAnalysisAdapter {
       ? tailReturns.reduce((sum, r) => sum + r, 0) / tailReturns.length
       : var95;
     
-    // Simulate beta to market (would be calculated against market index)
-    const betaToMarket = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2
+    // Neutral beta assumption without market index data
+    const betaToMarket = 1.0;
 
     return {
       var95,
