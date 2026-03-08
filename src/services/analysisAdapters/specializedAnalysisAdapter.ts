@@ -285,10 +285,14 @@ export class SpecializedAnalysisAdapter {
     const ranges: { min: number; max: number; volume: number }[] = [];
     
     for (let i = 0; i < 20; i++) {
+      const rangeMin = minPrice + (i * tickSize);
+      const rangeMax = minPrice + ((i + 1) * tickSize);
+      // Count how many prices fall in this range as a proxy for volume
+      const volumeInRange = prices.filter(p => p >= rangeMin && p < rangeMax).length;
       ranges.push({
-        min: minPrice + (i * tickSize),
-        max: minPrice + ((i + 1) * tickSize),
-        volume: Math.random() * 1000
+        min: rangeMin,
+        max: rangeMax,
+        volume: volumeInRange * 50 // Scale to reasonable volume units
       });
     }
     
