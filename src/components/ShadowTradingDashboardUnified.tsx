@@ -87,37 +87,37 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      {/* Account Overview - Compact Cards */}
+      {/* Account Overview - Money Theme Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card className="border-l-4 border-l-primary">
+        <Card className="border-l-4 border-l-primary money-card money-glow">
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Balance</p>
-            <div className="text-xl font-bold font-mono">${account?.balance?.toFixed(2) || '0.00'}</div>
+            <p className="text-xs font-medium text-muted-foreground">💰 Balance</p>
+            <div className="text-xl font-bold font-mono text-primary money-text-glow">${account?.balance?.toFixed(2) || '0.00'}</div>
             <p className="text-[10px] text-muted-foreground">Peak: ${account?.peak_balance?.toFixed(2)}</p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-blue-500">
+        <Card className="border-l-4 border-l-primary/70 money-card">
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Equity</p>
+            <p className="text-xs font-medium text-muted-foreground">💎 Equity</p>
             <div className="text-xl font-bold font-mono">${account?.equity?.toFixed(2) || '0.00'}</div>
             <p className={`text-[10px] ${getPnLColor(dailyPnL)}`}>
               Floating: {dailyPnL >= 0 ? '+' : ''}${dailyPnL.toFixed(2)}
             </p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-emerald-500">
+        <Card className="border-l-4 border-l-money-green money-card">
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Win Rate</p>
-            <div className="text-xl font-bold font-mono">{(account?.win_rate || 0).toFixed(1)}%</div>
+            <p className="text-xs font-medium text-muted-foreground">🎯 Win Rate</p>
+            <div className="text-xl font-bold font-mono text-primary">{(account?.win_rate || 0).toFixed(1)}%</div>
             <p className="text-[10px] text-muted-foreground">
               {account?.winning_trades || 0}W / {account?.losing_trades || 0}L
             </p>
           </CardContent>
         </Card>
-        <Card className="border-l-4 border-l-amber-500">
+        <Card className="border-l-4 border-l-money-gold gold-border money-card">
           <CardContent className="p-4">
-            <p className="text-xs font-medium text-muted-foreground">Return</p>
-            <div className={`text-xl font-bold font-mono ${getPnLColor(totalReturn)}`}>
+            <p className="text-xs font-medium text-muted-foreground">🤑 Return</p>
+            <div className={`text-xl font-bold font-mono ${totalReturn > 0 ? 'text-primary money-text-glow' : getPnLColor(totalReturn)}`}>
               {totalReturn >= 0 ? '+' : ''}{totalReturn.toFixed(3)}%
             </div>
             <p className="text-[10px] text-muted-foreground">
