@@ -562,8 +562,9 @@ serve(async (req) => {
                 const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k));
                 if (sourceKey) moduleIds.add(moduleMapping[sourceKey]);
               });
-              return Array.from(moduleIds);
-            })(),
+              const result = Array.from(moduleIds);
+              console.log(`🧠 Contributing modules resolved: [${result.join(', ')}] from ${allSignals.length} signals`);
+              return result;
             modular_signal_ids: [],
               fusion_algorithm: 'bayesian_hierarchical',
               fusion_parameters: {
