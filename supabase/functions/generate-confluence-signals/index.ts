@@ -998,12 +998,12 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     moduleErrors.push({ module: 'strategy', error: (error as Error).message });
   }
 
-  // Quantitative analysis signals (real statistical calculations from candle data)
+  // Quantitative analysis signals (godmode 7-model composite engine)
   try {
-    const quantSignals = generateQuantitativeSignals(candles, pair, timeframe);
+    const quantSignals = await generateQuantitativeSignals(candles, pair, timeframe, supabase);
     if (quantSignals?.length > 0) {
       signals.push(...quantSignals);
-      console.log(`✅ Generated ${quantSignals.length} quantitative signals`);
+      console.log(`✅ Generated ${quantSignals.length} quantitative GODMODE signals`);
     }
   } catch (error) {
     console.error('Error generating quantitative signals:', error);
