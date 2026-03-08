@@ -1,81 +1,57 @@
 
 
-# Comprehensive System Audit Results
+# System Diagnostic Report
 
-## What's Working
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-| Component | Status | Evidence |
-|-----------|--------|----------|
-| Market data pipeline | OK | `fetch-market-data` → `aggregate-candles` → `sync-market-data-enhanced` all running on cron |
-| Signal generation | OK | Latest signal `b4a43ef2` generated with correct module IDs |
-| Trade execution | OK | 15 trades executed, 73% win rate, balance $100,018 |
-| SL/TP exit checks | OK | Running every 2 min, 1 SL hit + 2 TP hits confirmed |
-| Learning pipeline trigger | OK | `check-trade-exits` invokes `process-trade-outcome` on close |
-| Contributing modules fix | DEPLOYED | Latest signal shows `[sentiment_analysis, specialized_analysis]` |
-| Modular signals linkage | DEPLOYED | 3 signals linked to `analysis_id = b4a43ef2` |
-| Cron jobs | OK | 10+ jobs scheduled, all pipeline stages covered |
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-## Active Bugs That Will Cause Trade Losses
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-### Bug 1: `update_module_performance_from_trade` never increments `total_signals`
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-The DB function updates `successful_signals` and `failed_signals`, and calculates `win_rate` using `(successful + failed + 1)`. But it **never increments `total_signals`**. The `total_signals` column (currently 5, 9, 1 for some modules) comes from signal generation counting, NOT from trade outcomes. The Bayesian engine queries `total_signals` to weight modules — if it's desynced from actual wins/losses, weights will be wrong.
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-**Fix:** Add `total_signals = total_signals + 1` to the UPDATE in the DB function.
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-### Bug 2: Old signals still have direction strings in `contributing_modules`
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-All signals before `16:37` (the latest one) still have `contributing_modules: ["buy", "sell", "hold"]`. When trades close from these old signals, `process-trade-outcome` will try `update_module_performance_from_trade(p_module_id='buy')` — matching nothing. This means the next ~10 trades (from signals already generated) will produce **zero learning data**.
+## Is the System Profitable / "Next Level"?
 
-**Impact:** Learning loop stays dead until all old signals cycle out (could take 12-24 hours).
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-**Fix:** Run a one-time SQL UPDATE to fix `contributing_modules` on existing signals using the same module mapping logic.
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-### Bug 3: Margin leak — $150 used_margin with 0 open trades
+## What You Need To Do
 
-`used_margin = 150` and `free_margin = 99850` but there are **zero open trades**. The `close_shadow_trade` function doesn't release margin on close. Every trade that opens consumes margin, and it's never freed. After ~650 more trades, the system will reject new trades with "Insufficient margin."
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
 
-**Fix:** Add margin release to `close_shadow_trade` DB function, and run a one-time reset of `used_margin = 0, free_margin = balance`.
-
-### Bug 4: `intelligent-exit-engine` always fails on cron
-
-Logs show: `"Missing required parameters"` — the cron calls it with `{"trigger": "cron"}` but the function expects `{tradeId, currentPrice}`. The cron invocation doesn't pass trade data, so it fails every time. The exit engine only works when called from `check-trade-exits` or the UI.
-
-**Impact:** The intelligent exit engine is effectively **disabled** via cron. Trades rely solely on SL/TP/max-hold-time. This explains why 11/15 trades exit via `max_hold_time_reached` instead of intelligent exits.
-
-**Fix:** Update `intelligent-exit-engine` to handle cron trigger by fetching all open trades and current price internally, then evaluating each.
-
-### Bug 5: 73% exit via `max_hold_time_reached` — hold time too short?
-
-11 of 15 trades exit at max hold time (3 hours). Many had positive pips (7-22 pips) but were still forced closed. The system is likely exiting profitable trades prematurely that could have hit TP.
-
-**Impact:** Missed TP gains. Trades with 20+ pips could have been $4-5 winners instead of $2.
-
-**No code change needed** — but worth monitoring after exit engine is fixed.
-
-## Plan
-
-### Step 1: Fix `update_module_performance_from_trade` DB function
-Add `total_signals = total_signals + 1` to the UPDATE statement so total_signals stays in sync with wins+losses.
-
-### Step 2: Fix margin leak in `close_shadow_trade` DB function
-Add margin release logic: calculate `margin_to_release = position_size / leverage`, then decrement `used_margin` and increment `free_margin`. Also reset current account margin to 0 (no open trades).
-
-### Step 3: Fix `intelligent-exit-engine` cron handling
-Add logic at the top: if `trigger === 'cron'`, fetch all open trades and current price, then loop through each trade calling the exit evaluation logic.
-
-### Step 4: Backfill `contributing_modules` on old signals
-Run SQL UPDATE to map direction strings to module IDs for the ~20 old signals, so trades closing from them will still feed the learning loop.
-
-### Step 5: Reset module_performance counters
-Reset `total_signals`, `successful_signals`, `failed_signals` to 0 so they start clean with accurate data.
-
-## Files to Edit
-
-| File | Change |
-|------|--------|
-| DB function `update_module_performance_from_trade` | Add `total_signals = total_signals + 1` |
-| DB function `close_shadow_trade` | Add margin release on close |
-| `supabase/functions/intelligent-exit-engine/index.ts` | Handle cron trigger: fetch open trades internally |
-| SQL (one-time) | Backfill contributing_modules on old signals, reset margin, reset module_performance |
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
