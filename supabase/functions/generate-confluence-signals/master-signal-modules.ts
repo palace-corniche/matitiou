@@ -268,7 +268,7 @@ export async function generateTechnicalSignals(candles: any[], pair: string, tim
     const isValidRangingSell = isRanging && maAlignment.signal === 'sell' && currentPrice > sma20[sma20.length - 1];
     
     if (maAlignment.strength > 0.4 && (isTrendAligned || isValidRangingSell)) {
-      const confidenceBoost = isValidRangingSell ? maAlignment.strength * 0.9 : maAlignment.strength * 1.1;
+      const confidenceBoost = Math.min(1, isValidRangingSell ? maAlignment.strength * 0.9 : maAlignment.strength * 1.1);
       
       signals.push({
         source: 'technical_ma_confluence',
@@ -324,7 +324,7 @@ export async function generateFundamentalSignals(candles: any[], pair: string, t
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.15), // Boost fundamental confidence
+          confidence: Math.min(1, signal.confidence), // No artificial boost
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.99 : 1.01)),
@@ -509,7 +509,7 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, adjustedConfidence * 1.1),
+          confidence: Math.min(1, adjustedConfidence),
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.995 : 1.005)),
@@ -819,7 +819,7 @@ export async function generatePatternSignals(candles: any[], pair: string, timef
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.1),
+          confidence: Math.min(1, signal.confidence),
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.99 : 1.01)),
@@ -1072,7 +1072,7 @@ export async function generateStrategySignals(candles: any[], pair: string, time
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.1),
+          confidence: Math.min(1, signal.confidence),
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.995 : 1.005)),
