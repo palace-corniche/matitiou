@@ -264,8 +264,8 @@ export class ConfluenceEngine {
         signal: pattern.signal,
         weight: adaptiveWeight,
         strength: pattern.strength || 6,
-        description: `${pattern.name} detected at ${pattern.price?.toFixed(4)}`,
-        price: pattern.price
+        description: `${pattern.name} detected at position ${pattern.position ?? 'N/A'}`,
+        price: undefined
       });
     });
   }
