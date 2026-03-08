@@ -1,85 +1,57 @@
 
 
-# Godmode: Implement All Missing Indicators, Patterns & Strategies
+# System Diagnostic Report
 
-## Current State Audit
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-| Category | Implemented (Real) | Stubs (Fake) | Missing Entirely |
-|----------|-------------------|--------------|------------------|
-| **Technical Indicators** | 32 (MAs, MACD, RSI, SAR, SuperTrend, Ichimoku) | **27** (return hardcoded values) | ~20 (new indicators) |
-| **Candlestick Patterns** | 13 | 0 | ~15 |
-| **Chart Patterns** | 3 (S/R, Double Top, Trendlines) | 0 | ~10 |
-| **Harmonic Patterns** | 5 (ABCD, Gartley, Butterfly, Bat, Crab) | 0 | 3 (Shark, Cypher, Three Drives) |
-| **Elliott Waves** | Impulse only | 0 | Corrective patterns |
-| **Strategies** | 7 | 0 | ~15 |
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-**Critical finding:** 27 indicators in `technicalIndicatorsAdvanced.ts` are **stubs** — they return hardcoded values like `{ value: 50, signal: 'neutral' }` and contribute nothing to signal quality. These include Stochastic, Williams %R, CCI, Bollinger Bands, ATR, OBV, VWAP, and more.
+**This is the single blocker.** Everything else is correctly configured and ready.
 
----
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-## Implementation Plan
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-### Phase 1: Fix 27 Stub Indicators (technicalIndicatorsAdvanced.ts)
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-Replace all hardcoded return values with real calculations. The math already exists in `technicalAnalysis.ts` and `advancedIndicators.ts` — it just needs to be wired in.
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-**Momentum stubs to implement:** Stochastic, StochasticRSI, Williams %R, CCI, ROC (x2), Momentum (x2), Ultimate Oscillator, Awesome Oscillator, MACD Histogram
+## Is the System Profitable / "Next Level"?
 
-**Volatility stubs to implement:** Bollinger Bands (x3), ATR (x2), Keltner Channels, Donchian Channels, Standard Deviation, Chaikin Volatility
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-**Volume stubs to implement:** OBV, VWAP, Accumulation/Distribution, Chaikin Money Flow, MFI, Force Index, Volume ROC
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
 
-**Custom stubs to implement:** Pivot Points, Support/Resistance, Trend Strength, Market Structure, Volatility Percentile
+## What You Need To Do
 
-### Phase 2: Add ~20 New Indicators
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
 
-New indicators not currently in any file:
-- **Trend:** DEMA, TEMA, KAMA, Hull MA, ZLEMA, Vortex, Mass Index, Coppock Curve, Know Sure Thing (KST), Elder Ray (Bull/Bear Power), Detrended Price Oscillator, Chande Momentum Oscillator
-- **Volatility:** Historical Volatility, Ulcer Index, Natr (Normalized ATR)
-- **Volume:** Ease of Movement, Klinger Volume Oscillator, Negative Volume Index
-- **Custom:** Heikin Ashi signals, Elder Impulse System
-
-### Phase 3: Add ~15 Missing Candlestick Patterns (patternRecognition.ts)
-
-Add: Hanging Man, Inverted Hammer, Dragonfly Doji, Gravestone Doji, Tweezer Top/Bottom, Bullish/Bearish Kicker, Three Inside Up/Down, Rising/Falling Three Methods, Abandoned Baby (Bull/Bear), Belt Hold (Bull/Bear)
-
-### Phase 4: Add ~10 Missing Chart Patterns (patternRecognition.ts)
-
-Add: Double Bottom, Head & Shoulders (+ Inverse), Ascending/Descending/Symmetrical Triangle, Rising/Falling Wedge, Bull/Bear Flag, Channel (Ascending/Descending)
-
-### Phase 5: Add 3 Missing Harmonic Patterns (harmonicPatterns.ts)
-
-Add: Shark, Cypher, Three Drives — with proper Fibonacci ratio validation, PRZ calculation, and confidence scoring matching the existing pattern structure.
-
-### Phase 6: Enhance Elliott Wave (harmonicPatterns.ts)
-
-Add corrective wave detection: Zigzag (5-3-5), Flat (3-3-5), Triangle (3-3-3-3-3), plus wave degree classification.
-
-### Phase 7: Add ~15 New Strategies (tradingStrategies.ts)
-
-**Scalping:** RSI Scalping, MACD Divergence Scalp, Stochastic Crossover
-**Day Trading:** Pivot Point Bounce, Keltner Channel Breakout, MACD Histogram Reversal, Triple EMA Crossover
-**Swing:** RSI Divergence, SuperTrend Trend Following, Double Top/Bottom, ADX Trend Strength, Harmonic PRZ Entry
-**Position:** Moving Average Ribbon, Monthly Pivot Strategy
-
-### Phase 8: Update UI Counts
-
-Update `ComprehensiveTradingDashboard.tsx` and `TechnicalAnalysis.tsx` to reflect actual totals:
-- ~120+ indicators (32 existing + 27 fixed stubs + 20 new + Fibonacci/Gann levels)
-- ~40+ patterns (13 + 15 candlestick + 10 chart + 8 harmonic)
-- ~22+ strategies (7 existing + 15 new)
-
----
-
-## Files to Create/Edit
-
-| File | Action |
-|------|--------|
-| `src/services/technicalIndicatorsAdvanced.ts` | Replace 27 stubs with real calculations, add 20 new indicators |
-| `src/services/patternRecognition.ts` | Add 15 candlestick + 10 chart patterns |
-| `src/services/harmonicPatterns.ts` | Add Shark, Cypher, Three Drives + corrective Elliott waves |
-| `src/services/tradingStrategies.ts` | Add 15 new strategies |
-| `src/components/ComprehensiveTradingDashboard.tsx` | Update counts |
-| `src/pages/TechnicalAnalysis.tsx` | Update counts |
-| `src/services/confluenceEngine.ts` | Update header comment |
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
