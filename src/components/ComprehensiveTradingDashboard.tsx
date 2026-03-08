@@ -246,7 +246,7 @@ export const ComprehensiveTradingDashboard: React.FC<ComprehensiveTradingDashboa
                   <p className="text-sm text-muted-foreground">Comprehensive indicator analysis including Ichimoku, SuperTrend, advanced oscillators</p>
                 </div>
                 <div className="p-4 border rounded-lg">
-                  <h3 className="font-medium mb-2">50+ Candlestick Patterns</h3>
+                  <h3 className="font-medium mb-2">40+ Patterns (28 Candlestick + 12 Chart/Harmonic)</h3>
                   <p className="text-sm text-muted-foreground">Complete pattern recognition from single candle to complex formations</p>
                 </div>
                 <div className="p-4 border rounded-lg">
