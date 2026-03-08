@@ -8,6 +8,7 @@ import {
   generatePatternSignals,
   generateStrategySignals,
   generateIntermarketSignals,
+  generateQuantitativeSignals,
   fuseSignalsWithBayesian,
   generateSignalDiagnostics
 } from './master-signal-modules.ts';
