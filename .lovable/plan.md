@@ -1,38 +1,49 @@
 
 
-# Clean Up Existing Bad Trades + Verify Fix Deployment
+# Quantitative Analysis Module: Diagnosis
 
-## Current Problems
-1. **4 duplicate SELL trades** at identical price 1.15473 opened within 4 seconds (22:02:05-09)
-2. **1 opposite BUY trade** at 1.15389 opened 10 minutes later alongside the SELLs
-3. **6 signals stuck in `executing`** status — never completed or timed out
-4. **7 signals stuck in `pending`** from hours ago — should have been processed or expired
+## Finding: The Module is Completely Dead
 
-## Plan
+The `quantitative_analysis` module has **zero signals** in the database. It has never contributed to any trading decision.
 
-### Step 1: Close the 4 duplicate SELL trades, keep only the oldest one
-- Close trades `4ae2dc76`, `5234fb87`, `2c7316db` (3 duplicates) at current market price via `close_shadow_trade` RPC
-- Keep `4ed3d723` (the first SELL, opened at 22:02:05)
+### Evidence
+- `modular_signals` table has signals from: `technical_analysis` (17), `sentiment_analysis` (35), `specialized_analysis` (37), `intermarket_analysis` (31). **Zero from `quantitative_analysis`**.
+- Every recent `master_signals` entry shows `contributing_modules` containing only technical, sentiment, specialized, and intermarket. **Quantitative is never listed.**
+- The only code that would have populated `quantitative_analysis` signals was in `process-analysis-pipeline`, which is **explicitly disabled** (returns immediately with `disabled: true`).
 
-### Step 2: Decide on the opposite BUY vs remaining SELL
-- The BUY (entry 1.15389) and SELL (entry 1.15473) are hedged against each other — net exposure is near zero, both losing on spread
-- Close the weaker one. The BUY was opened later with lower confluence — close it, keep the SELL
+### Root Cause Chain
 
-### Step 3: Clean up stuck signals
-- Set the 6 `executing` signals back to `expired` (they're orphaned — execution failed but status never reverted)
-- Set the 7 old `pending` signals (older than 4 hours) to `expired`
+1. **No producer**: The `process-analysis-pipeline` edge function was the only thing that inserted `module_id = 'quantitative_analysis'` rows into `modular_signals`. It was disabled because it generated fake/random signals.
+2. **Consumer finds nothing**: `generateStrategySignals()` in `master-signal-modules.ts` (line 1019-1052) queries for `quantitative_analysis` signals, finds none, and silently returns an empty array.
+3. **Mapping is also wrong**: In the `contributing_modules` mapping (line 613), `'timeframe'` maps to `quantitative_analysis` — but the actual source label is `strategy_quantitative`, meaning even if signals existed, the module wouldn't be correctly attributed.
 
-### Step 4: Verify the deployed edge functions contain the fixes
-- Check `execute-shadow-trades` logs to confirm the batch dedup and same-direction checks are active
-- Check `generate-confluence-signals` logs to confirm directional conflict guard is working
+### Impact on Trading Decisions
+**Zero impact.** The system operates on only 4 modules: technical, sentiment, specialized, intermarket. The Bayesian fusion and confluence scoring never includes any quantitative factor. The "Quantitative Analysis" page in the UI shows an empty state.
 
-## Changes
+## Proposed Fix
 
-### Database cleanup (via migration or direct queries)
-1. Close 3 duplicate trades + 1 opposite trade using `close_shadow_trade` RPC calls
-2. Update stuck `executing` signals to `expired`
-3. Update old `pending` signals to `expired`
+### Option A: Build Real Quantitative Analysis (Recommended)
 
-### No code changes needed
-The fixes were already applied to both edge functions in the previous message. This is purely a data cleanup of pre-fix trades.
+Add a real quantitative module inside `generate-confluence-signals/master-signal-modules.ts` that computes from actual candle data:
+
+- **Mean Reversion Score**: Z-score of current price vs 20-period SMA — generates buy when oversold (Z < -2), sell when overbought (Z > 2)
+- **Momentum Score**: Rate of change over 10 and 20 periods
+- **Volatility Regime**: ATR percentile ranking to adjust confidence
+- **Statistical Edge**: Compute rolling win rate of mean-reversion vs momentum strategies from closed trades
+
+This would be called directly in the signal generation pipeline alongside the existing `generateStrategySignals`, producing real `quantitative_analysis` modular signals stored in the database.
+
+### Changes
+
+| File | What |
+|---|---|
+| `supabase/functions/generate-confluence-signals/master-signal-modules.ts` | Add new `generateQuantitativeSignals()` function with real statistical calculations |
+| `supabase/functions/generate-confluence-signals/index.ts` | Call the new function in the pipeline, store results as `quantitative_analysis` modular signals, fix the module mapping (`'strategy'` → `'quantitative_analysis'`) |
+| `supabase/functions/generate-confluence-signals/index.ts` | Add quantitative weight (0.15) to the Bayesian fusion weights |
+
+### Expected Result
+- Quantitative module produces real signals based on statistical analysis of candle data
+- Signals appear on the Quantitative Analysis page
+- Contributing to master signal decisions with ~15% weight
+- No more dead/phantom module
 
