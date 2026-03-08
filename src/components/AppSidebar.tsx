@@ -28,15 +28,15 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b p-4">
+      <SidebarHeader className="border-b border-b-money-green/20 p-4">
         <div className="flex items-center gap-2">
-          <div className="p-2 bg-primary/10 rounded-lg">
+          <div className="p-2 bg-primary/15 rounded-lg money-glow">
             <Activity className="h-5 w-5 text-primary" />
           </div>
           {!collapsed && (
             <div>
-              <h2 className="text-sm font-bold leading-tight">JALLOUL A.K.A MATITOU</h2>
-              <p className="text-xs text-muted-foreground">Trading System</p>
+              <h2 className="text-sm font-bold leading-tight gold-shimmer">JALLOUL A.K.A MATITOU</h2>
+              <p className="text-xs text-muted-foreground">💰 Money Printer</p>
             </div>
           )}
         </div>

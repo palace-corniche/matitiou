@@ -62,6 +62,10 @@ export default {
 					border: 'hsl(var(--sidebar-border))',
 					ring: 'hsl(var(--sidebar-ring))'
 				},
+				'money-green': 'hsl(var(--money-green))',
+				'money-gold': 'hsl(var(--money-gold))',
+				'money-green-light': 'hsl(var(--money-green-light))',
+				'money-gold-light': 'hsl(var(--money-gold-light))',
 				bullish: 'hsl(var(--bullish))',
 				bearish: 'hsl(var(--bearish))',
 				'bullish-light': 'hsl(var(--bullish-light))',
@@ -81,25 +85,34 @@ export default {
 			},
 			keyframes: {
 				'accordion-down': {
-					from: {
-						height: '0'
-					},
-					to: {
-						height: 'var(--radix-accordion-content-height)'
-					}
+					from: { height: '0' },
+					to: { height: 'var(--radix-accordion-content-height)' }
 				},
 				'accordion-up': {
-					from: {
-						height: 'var(--radix-accordion-content-height)'
-					},
-					to: {
-						height: '0'
-					}
+					from: { height: 'var(--radix-accordion-content-height)' },
+					to: { height: '0' }
+				},
+				'float-money': {
+					'0%': { transform: 'translateY(100vh) rotate(0deg)', opacity: '0' },
+					'10%': { opacity: '0.6' },
+					'90%': { opacity: '0.3' },
+					'100%': { transform: 'translateY(-10vh) rotate(360deg)', opacity: '0' }
+				},
+				'glow-green': {
+					'0%, 100%': { boxShadow: '0 0 10px hsl(142 76% 36% / 0.3)' },
+					'50%': { boxShadow: '0 0 25px hsl(142 76% 36% / 0.5), 0 0 50px hsl(142 76% 36% / 0.15)' }
+				},
+				'shimmer-gold': {
+					'0%': { backgroundPosition: '-200% center' },
+					'100%': { backgroundPosition: '200% center' }
 				}
 			},
 			animation: {
 				'accordion-down': 'accordion-down 0.2s ease-out',
-				'accordion-up': 'accordion-up 0.2s ease-out'
+				'accordion-up': 'accordion-up 0.2s ease-out',
+				'float-money': 'float-money linear infinite',
+				'glow-green': 'glow-green 2s ease-in-out infinite',
+				'shimmer-gold': 'shimmer-gold 3s linear infinite'
 			}
 		}
 	},
