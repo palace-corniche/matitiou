@@ -123,7 +123,20 @@ serve(async (req) => {
 
             exitedCount++
             console.log(`✅ Trade ${trade.id} closed via intelligent exit`)
-            
+
+            // Send Telegram notification (fire-and-forget)
+            try {
+              const pnlValue = closeResult?.pnl ?? 0;
+              const pipsValue = closeResult?.pips ?? 0;
+              const pnlEmoji = pnlValue >= 0 ? '💰' : '📉';
+              const telegramMsg = `📊 <b>TRADE CLOSED</b>\nType: ${trade.trade_type.toUpperCase()}\nEntry: ${trade.entry_price} → Exit: ${currentPrice}\nReason: 🧠 Intelligent Exit\n${pnlEmoji} PnL: $${pnlValue.toFixed(2)} (${pipsValue.toFixed(1)} pips)\nConfidence: ${(exitAnalysis.exitIntelligence.overallExitScore).toFixed(0)}%`;
+              await supabase.functions.invoke('send-telegram-notification', {
+                body: { message: telegramMsg }
+              });
+            } catch (tgErr) {
+              console.warn('⚠️ Telegram notification failed:', tgErr);
+            }
+
             results.push({
               trade_id: trade.id,
               action: 'closed',
