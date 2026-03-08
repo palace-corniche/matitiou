@@ -249,9 +249,19 @@ export class SpecializedAnalysisAdapter {
     const priceRanges = this.createPriceRanges(prices);
     const volumeProfile = this.calculateVolumeProfile(priceRanges, volumes);
     
-    // Simulate delta and institutional flow
-    const delta = (Math.random() - 0.5) * 1000;
-    const cumulativeDelta = delta * 5;
+    // Compute delta from candle close vs open (buy/sell volume estimation)
+    const recentData = data.slice(-20);
+    const delta = recentData.reduce((sum: number, d: any) => {
+      const vol = d.volume || 1000;
+      const buyRatio = d.close_price >= d.open_price 
+        ? (d.close_price - d.low_price) / Math.max(d.high_price - d.low_price, 0.00001)
+        : (d.close_price - d.low_price) / Math.max(d.high_price - d.low_price, 0.00001);
+      return sum + vol * (buyRatio - 0.5);
+    }, 0);
+    const cumulativeDelta = recentData.reduce((sum: number, d: any) => {
+      const vol = d.volume || 1000;
+      return sum + (d.close_price >= d.open_price ? vol * 0.6 : -vol * 0.6);
+    }, 0);
     
     return {
       volumeProfile: {
