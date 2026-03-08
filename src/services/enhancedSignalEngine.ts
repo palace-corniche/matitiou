@@ -1,6 +1,6 @@
 import { TechnicalAnalysisEngine, type CandleData, type IndicatorResult } from './technicalAnalysis';
 import { CandlestickPatternRecognition, ChartPatternRecognition, type CandlestickPattern, type ChartPattern } from './patternRecognition';
-import { HarmonicPatternRecognition, type HarmonicPattern, type ElliottWave } from './harmonicPatterns';
+import { HarmonicPatternRecognition, ElliottWaveAnalysis, type HarmonicPattern, type ElliottWave } from './harmonicPatterns';
 import { 
   ScalpingStrategies, 
   DayTradingStrategies, 
