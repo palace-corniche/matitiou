@@ -1,58 +1,57 @@
 
 
-# Verification Results: 1 Bug Found
+# System Diagnostic Report
 
-## What's Confirmed Working
+## Database Status: HEALTHY
+- **Size**: 31 MB (down from 1,244 MB) -- cleanup successful
+- **Largest tables**: `cron.job_run_details` (8.8 MB), `net._http_response` (7.8 MB) -- manageable
+- **Daily auto-cleanup cron**: Active (job #19, runs at 3 AM UTC)
 
-| Component | Verified |
-|-----------|----------|
-| `update_module_performance_from_trade` | Has `total_signals = total_signals + 1` |
-| `close_shadow_trade` margin release | Calculates and releases margin correctly |
-| Dynamic hold time (4h/8h) | Code deployed in `check-trade-exits` |
-| Stuck signals cleanup | 6 signals moved to `expired` |
-| Old direction strings backfill | 0 signals with `buy/sell/hold` in `contributing_modules` |
-| Module performance reset | All 6 modules at 0/0/0 (clean slate) |
-| Modular signals linkage | New signals correctly linked via `analysis_id` |
-| Account margin state | `used_margin = 0` with 0 open trades |
+## Edge Functions: BLOCKED (402)
+The **402 `exceed_db_size_quota`** error persists. Despite the database being 31 MB, Supabase's quota enforcement cache has not refreshed yet. This blocks ALL edge functions:
+- `fetch-market-data`, `execute-shadow-trades`, `generate-confluence-signals`, `system-diagnostic`, etc.
+- **No data is flowing**: 0 ticks, 0 candles, 0 signals, 0 trades
 
-## Bug Found: Account Stats Never Updated
+**This is the single blocker.** Everything else is correctly configured and ready.
 
-`close_shadow_trade` updates `balance`, `equity`, `winning_trades`, `losing_trades`, `win_rate`, `largest_win`, `largest_loss` — but it **never updates**:
+## Trading Account: RESET and READY
+| Field | Value |
+|---|---|
+| Balance | $100,000 |
+| Equity | $100,000 |
+| Total Trades | 0 |
+| Win Rate | 0% |
+| Auto Trading | Enabled |
 
-| Field | Current Value | Should Be |
-|-------|--------------|-----------|
-| `total_pnl` | 0 | 18.24 |
-| `average_win` | 0 | ~1.93 |
-| `average_loss` | 0 | ~-0.59 |
-| `profit_factor` | 0 | ~9.0 |
+## Module Health: 6 modules active, 0 errors
+All modules report `healthy` status with 0 errors. None have run yet (blocked by 402).
 
-These are dashboard display fields. If any UI or risk management logic reads `total_pnl` or `profit_factor`, it will see zeros.
+## Cron Jobs: 11 active schedules
+All cron jobs are active and correctly configured:
+- Market data fetch (every minute)
+- Signal generation (every 5 min)
+- Trade execution (every minute)
+- Exit monitoring (every 5 min)
+- Pattern detection (every 15 min)
+- News sentiment (every 30 min)
+- Learning orchestrator (hourly)
+- **Log cleanup (daily at 3 AM)** -- new
 
-## Fix Plan
+## Trading Configuration
+- Lot size: 0.01 | SL: 20 pips | TP: 25 pips | Risk: 1% | Max daily trades: 10 | Max open: 3
 
-### Step 1: Update `close_shadow_trade` DB function
-Add these lines to the `UPDATE global_trading_account` statement:
-```sql
-total_pnl = total_pnl + v_pnl,
-average_win = CASE WHEN v_pnl > 0 
-  THEN (average_win * winning_trades + v_pnl) / (winning_trades + 1) 
-  ELSE average_win END,
-average_loss = CASE WHEN v_pnl <= 0 
-  THEN CASE WHEN losing_trades > 0 
-    THEN (average_loss * losing_trades + v_pnl) / (losing_trades + 1) 
-    ELSE v_pnl END 
-  ELSE average_loss END,
-profit_factor = CASE WHEN (CASE WHEN v_pnl <= 0 THEN losing_trades + 1 ELSE losing_trades END) > 0
-  THEN ABS(
-    (CASE WHEN v_pnl > 0 THEN average_win * winning_trades + v_pnl ELSE average_win * winning_trades END) /
-    GREATEST(0.01, ABS(CASE WHEN v_pnl <= 0 THEN average_loss * losing_trades + v_pnl ELSE average_loss * losing_trades END))
-  ) ELSE 0 END,
-```
+## Is the System Profitable / "Next Level"?
 
-### Step 2: One-time backfill of account stats
-Run SQL to calculate correct values from the 15 closed trades and update the account.
+**Cannot assess yet.** The system has 0 completed trades after the reset. Profitability depends on:
+1. The 402 block clearing so data starts flowing
+2. Signals being generated from live market data
+3. Trades being executed and closed
 
-### Files to change
-- Database function: `close_shadow_trade` (add 4 fields to UPDATE)
-- One-time SQL: backfill `total_pnl`, `average_win`, `average_loss`, `profit_factor`
+The architecture has the right components (confluence scoring, exit intelligence, adaptive thresholds, ML models, multi-module analysis), but real performance can only be measured once it starts trading.
+
+## What You Need To Do
+
+**One action required**: Contact Supabase support to clear the stale quota violation flag, or wait for it to auto-clear (can take up to a few hours after restart). Once cleared, the entire pipeline will activate automatically -- market data will flow, signals will generate, and trades will execute within minutes.
+
+You can check if it's cleared by clicking "Run Pipeline" on the System Monitor page, or I can test it again when you're ready.
 
