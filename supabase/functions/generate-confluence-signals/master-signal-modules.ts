@@ -1072,7 +1072,7 @@ export async function generateStrategySignals(candles: any[], pair: string, time
           pair,
           timeframe,
           signal: signal.signal_type as 'buy' | 'sell' | 'hold',
-          confidence: Math.min(1, signal.confidence * 1.1),
+          confidence: Math.min(1, signal.confidence),
           strength: Math.min(1, signal.strength / 10),
           entryPrice: signal.suggested_entry || currentPrice,
           stopLoss: signal.suggested_stop_loss || (currentPrice * (signal.signal_type === 'buy' ? 0.995 : 1.005)),
