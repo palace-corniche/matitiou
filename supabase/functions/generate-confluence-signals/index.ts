@@ -1069,14 +1069,22 @@ async function updateModulePerformance(supabase: any, modularInserts: any[]) {
         .maybeSingle();
 
       if (existing) {
-        const newTotal = (existing.signals_generated || 0) + counts.total;
+        const prevTotal = existing.signals_generated || 0;
+        const newTotal = prevTotal + counts.total;
+        // Proper cumulative moving average
+        const newAvgConf = prevTotal > 0 
+          ? ((existing.average_confidence || 0) * prevTotal + avgConf * counts.total) / newTotal 
+          : avgConf;
+        const newAvgStr = prevTotal > 0 
+          ? ((existing.average_strength || 0) * prevTotal + avgStr * counts.total) / newTotal 
+          : avgStr;
         await supabase
           .from('module_performance')
           .update({
             signals_generated: newTotal,
             total_signals: newTotal,
-            average_confidence: ((existing.average_confidence || 0) + avgConf) / 2,
-            average_strength: ((existing.average_strength || 0) + avgStr) / 2,
+            average_confidence: newAvgConf,
+            average_strength: newAvgStr,
             last_updated: new Date().toISOString(),
             status: 'active'
           })
