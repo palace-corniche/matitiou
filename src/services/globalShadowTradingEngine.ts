@@ -37,6 +37,7 @@ export interface GlobalTradingAccount {
   used_margin: number;
   margin_level: number;
   floating_pnl: number;
+  total_pnl: number;
   total_trades: number;
   winning_trades: number;
   losing_trades: number;
