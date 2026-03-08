@@ -935,6 +935,9 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
         console.warn('⚠️ Failed to store modular signals:', modInsertError.message);
       } else {
         console.log(`✅ Stored ${modularInserts.length} modular signals for analysis pages`);
+        
+        // Update module_performance with real signal counts
+        await updateModulePerformance(supabase, modularInserts);
       }
     }
   } catch (modError) {
