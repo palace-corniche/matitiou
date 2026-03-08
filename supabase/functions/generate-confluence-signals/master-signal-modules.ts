@@ -1857,42 +1857,102 @@ function calculateSRStrength(currentPrice: number, srLevels: any): any {
 }
 
 function detectCandlestickPatterns(candles: any[]): any[] {
-  // Simplified candlestick pattern detection
-  const patterns = [];
-  
-  if (candles.length >= 3) {
-    const latest = candles[candles.length - 1];
-    const previous = candles[candles.length - 2];
-    
-    // Hammer pattern
-    const bodySize = Math.abs(latest.close - latest.open);
-    const lowerShadow = latest.open < latest.close ? latest.open - latest.low : latest.close - latest.low;
-    const upperShadow = latest.high - Math.max(latest.open, latest.close);
-    
-    if (lowerShadow > bodySize * 2 && upperShadow < bodySize * 0.5) {
-      patterns.push({
-        name: 'hammer',
-        signal: 'buy',
-        strength: Math.min(1, lowerShadow / bodySize / 3),
-        confidence: 0.7,
-        score: 0.8,
-        confirmation: 0.6
-      });
+  const patterns: any[] = [];
+  if (candles.length < 3) return patterns;
+
+  for (let i = 2; i < candles.length; i++) {
+    const c = candles[i];
+    const p = candles[i - 1];
+    const pp = candles[i - 2];
+    const body = Math.abs(c.close - c.open);
+    const range = c.high - c.low;
+    if (range === 0) continue;
+    const bodyRatio = body / range;
+    const isGreen = c.close > c.open;
+    const pBody = Math.abs(p.close - p.open);
+    const pIsGreen = p.close > p.open;
+    const lowerShadow = Math.min(c.open, c.close) - c.low;
+    const upperShadow = c.high - Math.max(c.open, c.close);
+
+    // Doji
+    if (bodyRatio < 0.1) {
+      patterns.push({ name: 'doji', signal: 'hold' as const, strength: 0.5, confidence: 0.6, score: 0.7, confirmation: 0.5 });
     }
-    
-    // Doji pattern
-    if (bodySize < (latest.high - latest.low) * 0.1) {
-      patterns.push({
-        name: 'doji',
-        signal: 'hold',
-        strength: 0.5,
-        confidence: 0.6,
-        score: 0.7,
-        confirmation: 0.5
-      });
+    // Hammer
+    if (lowerShadow > body * 2 && upperShadow < body * 0.5 && body > 0) {
+      patterns.push({ name: 'hammer', signal: 'buy' as const, strength: Math.min(1, lowerShadow / body / 3), confidence: 0.75, score: 0.8, confirmation: 0.65 });
+    }
+    // Hanging Man
+    if (lowerShadow > body * 2 && upperShadow < body * 0.5 && body > 0 && i > 5) {
+      const trend = candles.slice(i - 5, i).every((x: any, j: number, a: any[]) => j === 0 || x.close >= a[j-1].close);
+      if (trend) patterns.push({ name: 'hanging_man', signal: 'sell' as const, strength: Math.min(1, lowerShadow / body / 3), confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Inverted Hammer
+    if (upperShadow > body * 2 && lowerShadow < body * 0.5 && body > 0) {
+      patterns.push({ name: 'inverted_hammer', signal: 'buy' as const, strength: Math.min(1, upperShadow / body / 3), confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Shooting Star
+    if (upperShadow > body * 2 && lowerShadow < body * 0.3 && body > 0) {
+      patterns.push({ name: 'shooting_star', signal: 'sell' as const, strength: Math.min(1, upperShadow / body / 3), confidence: 0.75, score: 0.8, confirmation: 0.65 });
+    }
+    // Bullish Engulfing
+    if (!pIsGreen && isGreen && c.close > p.open && c.open < p.close && body > pBody * 1.3) {
+      patterns.push({ name: 'bullish_engulfing', signal: 'buy' as const, strength: Math.min(1, body / pBody / 2), confidence: 0.8, score: 0.85, confirmation: 0.7 });
+    }
+    // Bearish Engulfing
+    if (pIsGreen && !isGreen && c.close < p.open && c.open > p.close && body > pBody * 1.3) {
+      patterns.push({ name: 'bearish_engulfing', signal: 'sell' as const, strength: Math.min(1, body / pBody / 2), confidence: 0.8, score: 0.85, confirmation: 0.7 });
+    }
+    // Morning Star (3-candle)
+    if (i >= 2) {
+      const ppBody = Math.abs(pp.close - pp.open);
+      const ppRange = pp.high - pp.low;
+      if (pp.close < pp.open && ppBody > ppRange * 0.5 && pBody < range * 0.3 && isGreen && c.close > (pp.open + pp.close) / 2) {
+        patterns.push({ name: 'morning_star', signal: 'buy' as const, strength: 0.85, confidence: 0.8, score: 0.85, confirmation: 0.75 });
+      }
+    }
+    // Evening Star (3-candle)
+    if (i >= 2) {
+      const ppBody = Math.abs(pp.close - pp.open);
+      const ppRange = pp.high - pp.low;
+      if (pp.close > pp.open && ppBody > ppRange * 0.5 && pBody < range * 0.3 && !isGreen && c.close < (pp.open + pp.close) / 2) {
+        patterns.push({ name: 'evening_star', signal: 'sell' as const, strength: 0.85, confidence: 0.8, score: 0.85, confirmation: 0.75 });
+      }
+    }
+    // Piercing Line
+    if (!pIsGreen && isGreen && c.open < p.low && c.close > (p.open + p.close) / 2 && c.close < p.open) {
+      patterns.push({ name: 'piercing_line', signal: 'buy' as const, strength: 0.7, confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Dark Cloud Cover
+    if (pIsGreen && !isGreen && c.open > p.high && c.close < (p.open + p.close) / 2 && c.close > p.open) {
+      patterns.push({ name: 'dark_cloud_cover', signal: 'sell' as const, strength: 0.7, confidence: 0.7, score: 0.75, confirmation: 0.6 });
+    }
+    // Three White Soldiers
+    if (i >= 2 && pp.close > pp.open && p.close > p.open && isGreen && p.close > pp.close && c.close > p.close) {
+      patterns.push({ name: 'three_white_soldiers', signal: 'buy' as const, strength: 0.9, confidence: 0.85, score: 0.9, confirmation: 0.8 });
+    }
+    // Three Black Crows
+    if (i >= 2 && pp.close < pp.open && p.close < p.open && !isGreen && p.close < pp.close && c.close < p.close) {
+      patterns.push({ name: 'three_black_crows', signal: 'sell' as const, strength: 0.9, confidence: 0.85, score: 0.9, confirmation: 0.8 });
+    }
+    // Tweezer Top
+    if (Math.abs(c.high - p.high) < range * 0.05 && !isGreen && pIsGreen) {
+      patterns.push({ name: 'tweezer_top', signal: 'sell' as const, strength: 0.65, confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Tweezer Bottom
+    if (Math.abs(c.low - p.low) < range * 0.05 && isGreen && !pIsGreen) {
+      patterns.push({ name: 'tweezer_bottom', signal: 'buy' as const, strength: 0.65, confidence: 0.65, score: 0.7, confirmation: 0.55 });
+    }
+    // Bullish Harami
+    if (!pIsGreen && isGreen && c.open > p.close && c.close < p.open && body < pBody * 0.5) {
+      patterns.push({ name: 'bullish_harami', signal: 'buy' as const, strength: 0.6, confidence: 0.65, score: 0.65, confirmation: 0.55 });
+    }
+    // Bearish Harami
+    if (pIsGreen && !isGreen && c.open < p.close && c.close > p.open && body < pBody * 0.5) {
+      patterns.push({ name: 'bearish_harami', signal: 'sell' as const, strength: 0.6, confidence: 0.65, score: 0.65, confirmation: 0.55 });
     }
   }
-  
+
   return patterns;
 }
 
