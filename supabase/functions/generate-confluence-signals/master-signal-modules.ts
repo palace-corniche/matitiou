@@ -1342,6 +1342,121 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
 
   return signals;
 }
+// ===================== QUANTITATIVE ANALYSIS SIGNALS =====================
+// Real statistical analysis: mean reversion z-score, momentum ROC, volatility regime
+export function generateQuantitativeSignals(candles: any[], pair: string, timeframe: string): StandardSignal[] {
+  const signals: StandardSignal[] = [];
+  if (!candles || candles.length < 20) return signals;
+
+  const closes = candles.map(c => c.close);
+  const highs = candles.map(c => c.high);
+  const lows = candles.map(c => c.low);
+  const currentPrice = closes[closes.length - 1];
+
+  // --- 1. Mean Reversion: Z-score of price vs 20-SMA ---
+  const sma20Arr = calculateSMA(closes, 20);
+  const sma20 = sma20Arr[sma20Arr.length - 1];
+  // Rolling std dev over last 20 closes
+  const last20 = closes.slice(-20);
+  const mean20 = last20.reduce((a, b) => a + b, 0) / last20.length;
+  const stdDev20 = Math.sqrt(last20.reduce((s, v) => s + (v - mean20) ** 2, 0) / last20.length);
+  const zScore = stdDev20 > 0 ? (currentPrice - sma20) / stdDev20 : 0;
+
+  // --- 2. Momentum: ROC over 10 and 20 periods ---
+  const roc10 = closes.length >= 11 ? (currentPrice - closes[closes.length - 11]) / closes[closes.length - 11] : 0;
+  const roc20 = closes.length >= 21 ? (currentPrice - closes[closes.length - 21]) / closes[closes.length - 21] : 0;
+  const momentumScore = (roc10 * 0.6 + roc20 * 0.4); // weighted composite
+
+  // --- 3. Volatility Regime: ATR percentile ---
+  const atrValues: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const tr = Math.max(
+      highs[i] - lows[i],
+      Math.abs(highs[i] - closes[i - 1]),
+      Math.abs(lows[i] - closes[i - 1])
+    );
+    atrValues.push(tr);
+  }
+  const currentATR = atrValues.length >= 14
+    ? atrValues.slice(-14).reduce((a, b) => a + b, 0) / 14
+    : atrValues.length > 0 ? atrValues.reduce((a, b) => a + b, 0) / atrValues.length : 0;
+  
+  const sortedATR = [...atrValues].sort((a, b) => a - b);
+  const atrPercentile = sortedATR.length > 0
+    ? sortedATR.filter(v => v <= currentATR).length / sortedATR.length
+    : 0.5;
+
+  const volRegime = atrPercentile > 0.8 ? 'high' : atrPercentile < 0.2 ? 'low' : 'normal';
+
+  // --- Combine into signal ---
+  // Mean reversion signal: buy when Z < -1.5, sell when Z > 1.5
+  // Momentum confirms: buy if roc > 0 (price recovering), sell if roc < 0
+  let signalType: 'buy' | 'sell' | 'hold' = 'hold';
+  let confidence = 0;
+  let strength = 0;
+
+  const absZ = Math.abs(zScore);
+  const meanRevThreshold = 1.5;
+
+  if (zScore < -meanRevThreshold && momentumScore > -0.005) {
+    // Oversold + momentum not deeply negative (recovery forming)
+    signalType = 'buy';
+    confidence = Math.min(1, 0.5 + absZ * 0.15);
+    strength = Math.min(1, absZ / 3);
+  } else if (zScore > meanRevThreshold && momentumScore < 0.005) {
+    // Overbought + momentum not deeply positive (reversal forming)
+    signalType = 'sell';
+    confidence = Math.min(1, 0.5 + absZ * 0.15);
+    strength = Math.min(1, absZ / 3);
+  } else if (Math.abs(momentumScore) > 0.003) {
+    // Pure momentum signal when no mean reversion
+    signalType = momentumScore > 0 ? 'buy' : 'sell';
+    confidence = Math.min(1, 0.4 + Math.abs(momentumScore) * 30);
+    strength = Math.min(1, Math.abs(momentumScore) * 50);
+  }
+
+  // Adjust confidence by volatility regime
+  if (volRegime === 'high') {
+    confidence *= 0.85; // reduce in high vol
+  } else if (volRegime === 'low') {
+    confidence *= 1.1; // boost in low vol (better for mean reversion)
+    confidence = Math.min(1, confidence);
+  }
+
+  if (signalType !== 'hold' && confidence > 0.35) {
+    const atrMultiplier = currentATR > 0 ? currentATR : currentPrice * 0.003;
+    
+    signals.push({
+      source: 'quantitative_statistical',
+      timestamp: new Date(),
+      pair,
+      timeframe,
+      signal: signalType,
+      confidence,
+      strength,
+      entryPrice: currentPrice,
+      stopLoss: signalType === 'buy'
+        ? currentPrice - atrMultiplier * 2
+        : currentPrice + atrMultiplier * 2,
+      takeProfit: signalType === 'buy'
+        ? currentPrice + atrMultiplier * 3
+        : currentPrice - atrMultiplier * 3,
+      factors: [
+        { name: 'z_score', value: zScore, weight: 0.35, contribution: Math.min(1, absZ / 3) * 0.35 },
+        { name: 'momentum_roc10', value: roc10, weight: 0.25, contribution: Math.min(1, Math.abs(roc10) * 50) * 0.25 },
+        { name: 'momentum_roc20', value: roc20, weight: 0.15, contribution: Math.min(1, Math.abs(roc20) * 30) * 0.15 },
+        { name: 'atr_percentile', value: atrPercentile, weight: 0.15, contribution: (1 - Math.abs(atrPercentile - 0.5) * 2) * 0.15 },
+        { name: 'vol_regime', value: volRegime === 'low' ? 1 : volRegime === 'high' ? -1 : 0, weight: 0.1, contribution: (volRegime === 'low' ? 0.1 : volRegime === 'high' ? -0.05 : 0) }
+      ]
+    });
+
+    console.log(`📐 Quantitative signal: ${signalType.toUpperCase()} | Z=${zScore.toFixed(2)} ROC10=${(roc10*100).toFixed(3)}% ATR%=${(atrPercentile*100).toFixed(0)} Vol=${volRegime} Conf=${confidence.toFixed(2)}`);
+  } else {
+    console.log(`📐 Quantitative: no signal (Z=${zScore.toFixed(2)}, ROC=${(momentumScore*100).toFixed(3)}%, conf=${confidence.toFixed(2)})`);
+  }
+
+  return signals;
+}
 
 // ===================== ENHANCED BAYESIAN SIGNAL FUSION =====================
 export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabase: any): Promise<any> {

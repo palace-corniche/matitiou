@@ -998,6 +998,18 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     moduleErrors.push({ module: 'strategy', error: (error as Error).message });
   }
 
+  // Quantitative analysis signals (real statistical calculations from candle data)
+  try {
+    const quantSignals = generateQuantitativeSignals(candles, pair, timeframe);
+    if (quantSignals?.length > 0) {
+      signals.push(...quantSignals);
+      console.log(`✅ Generated ${quantSignals.length} quantitative signals`);
+    }
+  } catch (error) {
+    console.error('Error generating quantitative signals:', error);
+    moduleErrors.push({ module: 'quantitative', error: (error as Error).message });
+  }
+
   // Intermarket signals with enhanced error handling
   try {
     const intermarketSignals = await generateIntermarketSignals(supabase, pair, timeframe, regime, candles);
