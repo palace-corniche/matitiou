@@ -913,7 +913,7 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
         symbol: pair,
         timeframe,
         signal_type: s.signal || 'hold',
-        confidence: s.confidence || 0,
+        confidence: Math.min(1, s.confidence || 0), // Cap at 1.0
         strength: Math.round((s.strength || 0) * (s.strength > 1 ? 1 : 10)),
         suggested_entry: s.entryPrice || null,
         suggested_stop_loss: s.stopLoss || null,
