@@ -630,6 +630,7 @@ serve(async (req) => {
             // Store fusion analytics
             await supabase.from('master_signals_fusion').insert({
               analysis_id: analysisId,
+              master_signal_id: masterSignalData.id, // FIX #2: Link fusion to master signal
               confidence_score: confluenceSignal.confidence,
               contributing_signals: confluenceSignal.factors || [],
               weighted_score: confluenceSignal.confluence_score,
@@ -658,6 +659,55 @@ serve(async (req) => {
               fusion_reasoning: `Bayesian fusion of ${(confluenceSignal.factors || []).length} signals`,
               symbol: confluenceSignal.pair
             });
+
+            // FIX #2: Store modular signals HERE with proper analysis_id link to master signal
+            const moduleMapping: Record<string, string> = {
+              'technical': 'technical_analysis',
+              'fundamental': 'fundamental_analysis',
+              'sentiment': 'sentiment_analysis',
+              'pattern': 'specialized_analysis',
+              'strategy': 'specialized_analysis',
+              'timeframe': 'quantitative_analysis',
+              'intermarket': 'intermarket_analysis',
+            };
+            
+            const allModularSignals = signalAnalysis?.modularResults?.allSignals || [];
+            const modularInserts = allModularSignals.slice(0, 20).map((s: any) => {
+              const sourceKey = Object.keys(moduleMapping).find(k => s.source?.includes(k)) || 'technical';
+              // FIX #3: Sanitize signal_type to valid values only
+              const rawSignal = s.signal || 'hold';
+              const sanitizedSignal = ['buy', 'sell', 'hold'].includes(rawSignal) ? rawSignal : 'hold';
+              
+              return {
+                analysis_id: masterSignalData.id, // CRITICAL FIX: Link to master signal
+                module_id: moduleMapping[sourceKey] || 'technical_analysis',
+                symbol: pair,
+                timeframe,
+                signal_type: sanitizedSignal,
+                confidence: Math.min(1, s.confidence || 0),
+                strength: Math.round((s.strength || 0) * (s.strength > 1 ? 1 : 10)),
+                suggested_entry: s.entryPrice || null,
+                suggested_stop_loss: s.stopLoss || null,
+                suggested_take_profit: s.takeProfit || null,
+                trend_context: regime || 'unknown',
+                volatility_regime: regime || 'unknown',
+                market_session: 'auto',
+                calculation_parameters: { source: s.source, factors: (s.factors || []).length },
+                market_data_snapshot: { price: s.entryPrice, factors_count: (s.factors || []).length }
+              };
+            });
+
+            if (modularInserts.length > 0) {
+              const { error: modInsertError } = await supabase
+                .from('modular_signals')
+                .insert(modularInserts);
+              
+              if (modInsertError) {
+                console.warn('⚠️ Failed to store linked modular signals:', modInsertError.message);
+              } else {
+                console.log(`✅ Stored ${modularInserts.length} modular signals linked to master signal ${masterSignalData.id}`);
+              }
+            }
 
             console.log('✅ Master signal and fusion data stored successfully');
           }
