@@ -1,464 +1,260 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader } from '@/components/PageHeader';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { untypedSupabase as supabase } from '@/integrations/supabase/untypedClient';
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Globe, 
-  Target,
-  Clock,
-  ArrowUpRight,
-  ArrowDownRight,
-  DollarSign,
-  Coins,
-  Network
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import {
+  TrendingUp,
+  TrendingDown,
+  Network,
+  Shield,
+  ShieldAlert,
+  Minus,
+  Activity,
+  BarChart3,
+  RefreshCw,
 } from 'lucide-react';
 
-interface IntermarketSignal {
-  id: string;
-  symbol: string;
-  timeframe: string;
-  signal_type: 'buy' | 'sell';
-  confidence: number;
-  strength: number;
-  trigger_price: number;
-  suggested_entry: number;
-  suggested_stop_loss: number;
-  suggested_take_profit: number;
-  trend_context: string;
-  volatility_regime: string;
-  created_at: string;
-  intermediate_values: any;
-  calculation_parameters: any;
+interface CalcParams {
+  correlation_alignment: number;
+  dxy_divergence: number;
+  dxy_divergence_direction: string;
+  risk_appetite: number;
+  risk_regime: string;
+  commodity_flow: number;
+  commodity_direction: string;
+  cross_currency: number;
+  cross_direction: string;
+  composite_score: number;
+  computed_volatility: number;
+  avg_news_sentiment: number;
+  correlation_map: Record<string, number>;
+  strong_correlations: number;
+  factors: Array<{ name: string; value: number; weight: number; contribution: number }>;
 }
 
 export default function IntermarketAnalysisPage() {
-  const [signals, setSignals] = useState<IntermarketSignal[]>([]);
+  const [latestSignal, setLatestSignal] = useState<any>(null);
+  const [correlations, setCorrelations] = useState<any[]>([]);
+  const [signalHistory, setSignalHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedView, setSelectedView] = useState('signals');
 
   useEffect(() => {
-    fetchIntermarketSignals();
+    fetchData();
   }, []);
 
-  const fetchIntermarketSignals = async () => {
+  const fetchData = async () => {
     try {
       setLoading(true);
-      
-      // Fetch real data from existing database tables
-      const [signalsResult, correlationsResult] = await Promise.all([
-        supabase
-          .from('modular_signals')
-          .select('*')
-          .eq('module_id', 'intermarket_analysis')
-          .order('created_at', { ascending: false })
-          .limit(10),
-        supabase
-          .from('correlations')
-          .select('*')
-          .order('calculated_at', { ascending: false })
-          .limit(20)
+      const [signalRes, corrRes, historyRes] = await Promise.all([
+        supabase.from('modular_signals').select('*').eq('module_id', 'intermarket_analysis').order('created_at', { ascending: false }).limit(1),
+        supabase.from('correlations').select('*').order('calculated_at', { ascending: false }).limit(30),
+        supabase.from('modular_signals').select('*').eq('module_id', 'intermarket_analysis').order('created_at', { ascending: false }).limit(10),
       ]);
-
-      if (signalsResult.error) throw signalsResult.error;
-      
-      // Build correlations map from real DB data
-      const corrData = correlationsResult.data || [];
-      const getCorr = (pair: string) => {
-        const found = corrData.find((c: any) => c.symbol_pair?.includes(pair));
-        return found?.correlation_coefficient ?? null;
-      };
-      
-      const enrichedSignals = (signalsResult.data || []).map(signal => ({
-        ...signal,
-        intermediate_values: {
-          ...(typeof signal.intermediate_values === 'object' && signal.intermediate_values !== null ? signal.intermediate_values : {}),
-          intermarket_data: {
-            forexCorrelations: {
-              'GBP/USD': getCorr('GBP/USD') ?? 'N/A',
-              'USD/JPY': getCorr('USD/JPY') ?? 'N/A',
-              'AUD/USD': getCorr('AUD/USD') ?? 'N/A'
-            },
-            commodityRelations: {
-              gold: {
-                currentPrice: null,
-                correlation: getCorr('GOLD') ?? 'N/A',
-                change24h: null
-              },
-              oil: {
-                currentPrice: null,
-                correlation: getCorr('OIL') ?? 'N/A',
-                change24h: null
-              },
-              copper: {
-                currentPrice: null,
-                correlation: getCorr('COPPER') ?? 'N/A',
-                change24h: null
-              }
-            },
-            equityIndices: {
-              spy: {
-                performance: null,
-                correlation: getCorr('SPX') ?? 'N/A',
-                currentPrice: null
-              },
-              vix: {
-                level: null,
-                correlation: getCorr('VIX') ?? 'N/A'
-              },
-              dxy: {
-                level: null,
-                correlation: getCorr('DXY') ?? 'N/A',
-                change24h: null
-              }
-            },
-            bondMarkets: {
-              us10y: {
-                yield: null,
-                correlation: getCorr('US10Y') ?? 'N/A'
-              },
-              ger10y: {
-                yield: null,
-                correlation: getCorr('GER10Y') ?? 'N/A'
-              },
-              yieldSpread: null
-            },
-            riskSentiment: {
-              riskOn: null,
-              confidence: null
-            }
-          }
-        }
-      }));
-      
-      setSignals(enrichedSignals as IntermarketSignal[]);
-    } catch (error) {
-      console.error('Error fetching intermarket signals:', error);
+      setLatestSignal(signalRes.data?.[0] || null);
+      setCorrelations(corrRes.data || []);
+      setSignalHistory(historyRes.data || []);
+    } catch (e) {
+      console.error('Error fetching intermarket data:', e);
     } finally {
       setLoading(false);
     }
   };
 
-  const getSignalIcon = (signalType: string) => {
-    return signalType === 'buy' ? (
-      <TrendingUp className="h-4 w-4 text-green-500" />
-    ) : (
-      <TrendingDown className="h-4 w-4 text-red-500" />
-    );
+  const cp: CalcParams | null = latestSignal?.calculation_parameters || null;
+
+  const getScoreColor = (v: number) => v >= 0.6 ? 'text-green-500' : v >= 0.4 ? 'text-yellow-500' : 'text-red-500';
+  const getRiskIcon = (regime: string) => {
+    if (regime === 'risk_on') return <Shield className="h-5 w-5 text-green-500" />;
+    if (regime === 'risk_off') return <ShieldAlert className="h-5 w-5 text-red-500" />;
+    return <Minus className="h-5 w-5 text-muted-foreground" />;
   };
 
-  const getConfidenceColor = (confidence: number) => {
-    if (confidence >= 0.8) return 'bg-green-500';
-    if (confidence >= 0.6) return 'bg-yellow-500';
-    return 'bg-red-500';
+  const getCorrCellColor = (v: number) => {
+    const abs = Math.abs(v);
+    if (abs > 0.7) return v > 0 ? 'bg-green-500/30 text-green-300' : 'bg-red-500/30 text-red-300';
+    if (abs > 0.4) return v > 0 ? 'bg-green-500/15 text-green-400' : 'bg-red-500/15 text-red-400';
+    return 'text-muted-foreground';
   };
 
-  const getCorrelationIcon = (correlation: number) => {
-    if (correlation > 0) {
-      return <ArrowUpRight className="h-4 w-4 text-green-500" />;
-    } else {
-      return <ArrowDownRight className="h-4 w-4 text-red-500" />;
-    }
+  const dirBadge = (d: string) => {
+    if (d === 'buy') return <Badge className="bg-green-500/20 text-green-400 border-green-500/30">BUY</Badge>;
+    if (d === 'sell') return <Badge className="bg-red-500/20 text-red-400 border-red-500/30">SELL</Badge>;
+    return <Badge variant="outline">HOLD</Badge>;
   };
-
-  const getCorrelationColor = (correlation: number) => {
-    const abs = Math.abs(correlation);
-    if (abs >= 0.7) return 'text-red-600 font-bold';
-    if (abs >= 0.5) return 'text-yellow-600 font-medium';
-    return 'text-gray-600';
-  };
-
-  const renderForexCorrelations = (correlations: any) => {
-    if (!correlations) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Forex Cross-Correlations</h4>
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          {Object.entries(correlations).map(([pair, correlation]: [string, any]) => (
-            <div key={pair} className="p-3 bg-muted rounded-lg">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-medium">{pair}</span>
-                {getCorrelationIcon(correlation)}
-              </div>
-              <div className={`text-lg font-bold ${getCorrelationColor(correlation)}`}>
-                {correlation > 0 ? '+' : ''}{correlation.toFixed(2)}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
-  };
-
-  const renderCommodityRelations = (commodities: any) => {
-    if (!commodities) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Commodity Relationships</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <Coins className="h-4 w-4 text-yellow-500" />
-              <span className="text-sm font-medium">Gold</span>
-            </div>
-            <div className="text-lg font-bold">${commodities.gold?.currentPrice?.toFixed(0) || 'N/A'}</div>
-            <div className={`text-xs ${commodities.gold?.change24h > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {commodities.gold?.change24h > 0 ? '+' : ''}{commodities.gold?.change24h?.toFixed(2) || '0.00'}% (24h)
-            </div>
-            <div className={`text-sm ${getCorrelationColor(commodities.gold?.correlation || 0)}`}>
-              Correlation: {commodities.gold?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-4 w-4 bg-black rounded-full" />
-              <span className="text-sm font-medium">Oil</span>
-            </div>
-            <div className="text-lg font-bold">${commodities.oil?.currentPrice?.toFixed(2) || 'N/A'}</div>
-            <div className={`text-xs ${commodities.oil?.change24h > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {commodities.oil?.change24h > 0 ? '+' : ''}{commodities.oil?.change24h?.toFixed(2) || '0.00'}% (24h)
-            </div>
-            <div className={`text-sm ${getCorrelationColor(commodities.oil?.correlation || 0)}`}>
-              Correlation: {commodities.oil?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="h-4 w-4 bg-orange-500 rounded-full" />
-              <span className="text-sm font-medium">Copper</span>
-            </div>
-            <div className="text-lg font-bold">${commodities.copper?.currentPrice?.toFixed(2) || 'N/A'}</div>
-            <div className={`text-xs ${commodities.copper?.change24h > 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {commodities.copper?.change24h > 0 ? '+' : ''}{commodities.copper?.change24h?.toFixed(2) || '0.00'}% (24h)
-            </div>
-            <div className={`text-sm ${getCorrelationColor(commodities.copper?.correlation || 0)}`}>
-              Correlation: {commodities.copper?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderEquityIndices = (equities: any) => {
-    if (!equities) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Equity Index Relations</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">S&P 500</div>
-            <div className="text-lg font-bold">
-              {equities.spy?.performance > 0 ? '+' : ''}{equities.spy?.performance?.toFixed(2) || 'N/A'}%
-            </div>
-            <div className={`text-xs ${getCorrelationColor(equities.spy?.correlation || 0)}`}>
-              Correlation: {equities.spy?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">VIX</div>
-            <div className="text-lg font-bold">{equities.vix?.level?.toFixed(1) || 'N/A'}</div>
-            <div className={`text-xs ${getCorrelationColor(equities.vix?.correlation || 0)}`}>
-              Correlation: {equities.vix?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">DXY</div>
-            <div className="text-lg font-bold">{equities.dxy?.level?.toFixed(2) || 'N/A'}</div>
-            <div className={`text-xs ${getCorrelationColor(equities.dxy?.correlation || 0)}`}>
-              Correlation: {equities.dxy?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderBondMarkets = (bonds: any) => {
-    if (!bonds) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Bond Market Analysis</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">US 10Y</div>
-            <div className="text-lg font-bold">{bonds.us10y?.yield?.toFixed(2) || 'N/A'}%</div>
-            <div className={`text-xs ${getCorrelationColor(bonds.us10y?.correlation || 0)}`}>
-              Correlation: {bonds.us10y?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">GER 10Y</div>
-            <div className="text-lg font-bold">{bonds.ger10y?.yield?.toFixed(2) || 'N/A'}%</div>
-            <div className={`text-xs ${getCorrelationColor(bonds.ger10y?.correlation || 0)}`}>
-              Correlation: {bonds.ger10y?.correlation?.toFixed(2) || 'N/A'}
-            </div>
-          </div>
-          <div className="p-3 bg-muted rounded-lg">
-            <div className="text-sm font-medium">Yield Spread</div>
-            <div className="text-lg font-bold">{bonds.yieldSpread?.toFixed(2) || 'N/A'} bps</div>
-            <div className="text-xs text-muted-foreground">US - GER</div>
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderRiskSentiment = (riskData: any) => {
-    if (!riskData) return null;
-
-    return (
-      <div className="mt-4">
-        <h4 className="text-sm font-medium mb-3">Risk Environment</h4>
-        <div className="p-3 bg-muted rounded-lg">
-          <div className="flex items-center justify-between">
-            <span className="text-sm font-medium">Market Sentiment</span>
-            <Badge variant={riskData.riskOn ? 'default' : 'destructive'}>
-              {riskData.riskOn ? 'Risk On' : 'Risk Off'}
-            </Badge>
-          </div>
-          <div className="text-lg font-bold mt-1">
-            {(riskData.confidence * 100).toFixed(0)}% Confidence
-          </div>
-        </div>
-      </div>
-    );
-  };
-
-  const renderSignalCard = (signal: IntermarketSignal) => (
-    <Card key={signal.id} className="mb-4">
-      <CardHeader className="pb-3">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2">
-            {getSignalIcon(signal.signal_type)}
-            <CardTitle className="text-lg">
-              {signal.symbol} {signal.signal_type.toUpperCase()}
-            </CardTitle>
-            <Badge variant="outline">Intermarket</Badge>
-          </div>
-          <div className="flex items-center gap-2">
-            <Badge className={getConfidenceColor(signal.confidence)}>
-              {(signal.confidence * 100).toFixed(0)}% Confidence
-            </Badge>
-            <Badge variant="secondary">
-              Strength: {signal.strength}/10
-            </Badge>
-          </div>
-        </div>
-        <CardDescription className="flex items-center gap-4 mt-2">
-          <span className="flex items-center gap-1">
-            <Target className="h-3 w-3" />
-            Entry: {signal.suggested_entry.toFixed(5)}
-          </span>
-          <span>SL: {signal.suggested_stop_loss.toFixed(5)}</span>
-          <span>TP: {signal.suggested_take_profit.toFixed(5)}</span>
-          <span className="flex items-center gap-1">
-            <Clock className="h-3 w-3" />
-            {new Date(signal.created_at).toLocaleTimeString()}
-          </span>
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="grid grid-cols-2 gap-4 mb-4">
-          <div>
-            <div className="text-sm text-muted-foreground">Risk Environment</div>
-            <Badge variant="outline">{signal.trend_context}</Badge>
-          </div>
-          <div>
-            <div className="text-sm text-muted-foreground">Primary Driver</div>
-            <Badge variant="outline">{signal.volatility_regime}</Badge>
-          </div>
-        </div>
-
-        {signal.intermediate_values?.intermarket_data && (
-          <>
-            {renderForexCorrelations(signal.intermediate_values.intermarket_data.forexCorrelations)}
-            {renderCommodityRelations(signal.intermediate_values.intermarket_data.commodityRelations)}
-            {renderEquityIndices(signal.intermediate_values.intermarket_data.equityIndices)}
-            {renderBondMarkets(signal.intermediate_values.intermarket_data.bondMarkets)}
-            {renderRiskSentiment(signal.intermediate_values.intermarket_data.riskSentiment)}
-          </>
-        )}
-
-        {signal.calculation_parameters && (
-          <div className="mt-4 p-3 bg-muted rounded-lg">
-            <h4 className="text-sm font-medium mb-2">Analysis Parameters</h4>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-xs">
-              <div>
-                <span className="text-muted-foreground">Primary Driver:</span><br />
-                <span>{signal.calculation_parameters.primary_driver || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Correlation Strength:</span><br />
-                <span className={getCorrelationColor(signal.calculation_parameters.correlation_strength || 0)}>
-                  {signal.calculation_parameters.correlation_strength?.toFixed(2) || 'N/A'}
-                </span>
-              </div>
-              <div>
-                <span className="text-muted-foreground">Risk Environment:</span><br />
-                <span>{signal.calculation_parameters.risk_environment || 'N/A'}</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  );
 
   if (loading) {
     return (
       <>
-        <PageHeader 
-          title="Intermarket Analysis"
-          description="Cross-asset insights showing relationships between forex, commodities, indices, and bonds"
-          icon={Network}
-        />
-        <div className="container mx-auto px-6 py-6">
-          <div className="text-center">Loading intermarket analysis...</div>
-        </div>
+        <PageHeader title="Intermarket Analysis" description="5-model cross-asset correlation engine" icon={Network} />
+        <div className="container mx-auto px-6 py-6 text-center text-muted-foreground">Loading...</div>
       </>
     );
   }
 
   return (
     <>
-      <PageHeader 
-        title="Intermarket Analysis"
-        description="Cross-asset insights showing relationships between forex, commodities, indices, and bonds"
-        icon={Network}
-      />
-      <div className="container mx-auto px-6 py-6">
-        <Tabs value={selectedView} onValueChange={setSelectedView} className="mb-6">
-          <TabsList>
-            <TabsTrigger value="signals">Intermarket Signals</TabsTrigger>
-            <TabsTrigger value="correlations">Correlations</TabsTrigger>
-            <TabsTrigger value="risk">Risk Analysis</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      <PageHeader title="Intermarket Analysis" description="Godmode 5-model cross-asset correlation engine" icon={Network} />
+      <div className="container mx-auto px-6 py-6 space-y-6">
 
-        <div className="grid gap-4">
-          {signals.length === 0 ? (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <Globe className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No Intermarket Signals</h3>
-                <p className="text-muted-foreground">
-                  No intermarket analysis signals found.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            signals.map(renderSignalCard)
-          )}
+        {/* Top Metrics Row */}
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <MetricCard title="Correlation Alignment" value={cp?.correlation_alignment} icon={<Network className="h-4 w-4" />} subtitle={`${cp?.strong_correlations ?? 0} strong pairs`} />
+          <MetricCard title="DXY Divergence" value={cp?.dxy_divergence} icon={<BarChart3 className="h-4 w-4" />} subtitle={cp?.dxy_divergence_direction ?? 'N/A'} />
+          <Card className="border-border/50">
+            <CardContent className="pt-4 pb-3 px-4">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs text-muted-foreground">Risk Appetite</span>
+                {getRiskIcon(cp?.risk_regime || 'neutral')}
+              </div>
+              <div className={`text-2xl font-bold ${getScoreColor(cp?.risk_appetite ?? 0.5)}`}>{((cp?.risk_appetite ?? 0.5) * 100).toFixed(0)}%</div>
+              <Badge variant="outline" className="mt-1 text-xs">{cp?.risk_regime ?? 'neutral'}</Badge>
+            </CardContent>
+          </Card>
+          <MetricCard title="Commodity Flow" value={cp?.commodity_flow} icon={<Activity className="h-4 w-4" />} subtitle={cp?.commodity_direction ?? 'N/A'} />
+          <MetricCard title="Cross-Currency" value={cp?.cross_currency} icon={<RefreshCw className="h-4 w-4" />} subtitle={cp?.cross_direction ?? 'N/A'} />
         </div>
+
+        {/* Composite Score & Signal */}
+        <Card className="border-border/50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium">Composite Signal</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-6">
+              <div>
+                <div className={`text-4xl font-bold ${getScoreColor(cp?.composite_score ?? 0)}`}>
+                  {((cp?.composite_score ?? 0) * 100).toFixed(1)}%
+                </div>
+                <span className="text-xs text-muted-foreground">Composite Score</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {latestSignal?.signal_type === 'buy' && <TrendingUp className="h-6 w-6 text-green-500" />}
+                {latestSignal?.signal_type === 'sell' && <TrendingDown className="h-6 w-6 text-red-500" />}
+                {dirBadge(latestSignal?.signal_type || 'hold')}
+              </div>
+              <div className="text-xs text-muted-foreground ml-auto">
+                Vol: {cp?.computed_volatility?.toFixed(1) ?? 'N/A'} | News: {cp?.avg_news_sentiment?.toFixed(2) ?? 'N/A'}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="grid md:grid-cols-2 gap-6">
+          {/* Model Breakdown */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Model Breakdown</CardTitle></CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Model</TableHead>
+                    <TableHead className="text-right">Value</TableHead>
+                    <TableHead className="text-right">Weight</TableHead>
+                    <TableHead className="text-right">Contribution</TableHead>
+                    <TableHead>Direction</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(cp?.factors || []).map((f) => (
+                    <TableRow key={f.name}>
+                      <TableCell className="font-medium text-xs">{f.name.replace(/_/g, ' ')}</TableCell>
+                      <TableCell className={`text-right ${getScoreColor(f.value)}`}>{(f.value * 100).toFixed(1)}%</TableCell>
+                      <TableCell className="text-right text-muted-foreground">{(f.weight * 100).toFixed(0)}%</TableCell>
+                      <TableCell className="text-right">{(f.contribution * 100).toFixed(1)}%</TableCell>
+                      <TableCell>{
+                        f.name === 'dxy_divergence' ? dirBadge(cp?.dxy_divergence_direction || 'hold') :
+                        f.name === 'risk_appetite' ? dirBadge(cp?.risk_regime === 'risk_on' ? 'buy' : cp?.risk_regime === 'risk_off' ? 'sell' : 'hold') :
+                        f.name === 'commodity_flow' ? dirBadge(cp?.commodity_direction || 'hold') :
+                        f.name === 'cross_currency' ? dirBadge(cp?.cross_direction || 'hold') :
+                        <Badge variant="outline">—</Badge>
+                      }</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+
+          {/* Correlation Heatmap */}
+          <Card className="border-border/50">
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Correlation Heatmap</CardTitle></CardHeader>
+            <CardContent>
+              {cp?.correlation_map ? (
+                <div className="grid grid-cols-3 gap-2">
+                  {Object.entries(cp.correlation_map).map(([key, val]) => (
+                    <div key={key} className={`rounded-md p-3 text-center ${getCorrCellColor(val)}`}>
+                      <div className="text-xs uppercase font-medium mb-1">{key}</div>
+                      <div className="text-lg font-bold">{val > 0 ? '+' : ''}{val.toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2">
+                  {correlations.slice(0, 9).map((c) => (
+                    <div key={c.id} className={`rounded-md p-3 text-center ${getCorrCellColor(c.correlation_coefficient || 0)}`}>
+                      <div className="text-xs font-medium mb-1 truncate">{c.symbol_pair}</div>
+                      <div className="text-lg font-bold">{(c.correlation_coefficient || 0).toFixed(2)}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Signal History */}
+        <Card className="border-border/50">
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium">Signal History</CardTitle></CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Time</TableHead>
+                  <TableHead>Signal</TableHead>
+                  <TableHead className="text-right">Composite</TableHead>
+                  <TableHead>Risk Regime</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {signalHistory.map((s) => {
+                  const sp = s.calculation_parameters;
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleString()}</TableCell>
+                      <TableCell>{dirBadge(s.signal_type || 'hold')}</TableCell>
+                      <TableCell className={`text-right ${getScoreColor(sp?.composite_score ?? s.confidence ?? 0)}`}>
+                        {((sp?.composite_score ?? s.confidence ?? 0) * 100).toFixed(1)}%
+                      </TableCell>
+                      <TableCell><Badge variant="outline">{sp?.risk_regime ?? s.trend_context ?? '—'}</Badge></TableCell>
+                      <TableCell className="text-right">{s.trigger_price?.toFixed(5) ?? '—'}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       </div>
     </>
+  );
+}
+
+function MetricCard({ title, value, icon, subtitle }: { title: string; value?: number; icon: React.ReactNode; subtitle?: string }) {
+  const v = value ?? 0;
+  const color = v >= 0.6 ? 'text-green-500' : v >= 0.4 ? 'text-yellow-500' : 'text-red-500';
+  return (
+    <Card className="border-border/50">
+      <CardContent className="pt-4 pb-3 px-4">
+        <div className="flex items-center justify-between mb-1">
+          <span className="text-xs text-muted-foreground">{title}</span>
+          {icon}
+        </div>
+        <div className={`text-2xl font-bold ${color}`}>{(v * 100).toFixed(1)}%</div>
+        {subtitle && <span className="text-xs text-muted-foreground">{subtitle}</span>}
+      </CardContent>
+    </Card>
   );
 }
