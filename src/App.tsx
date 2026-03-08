@@ -7,19 +7,9 @@ import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "./components/AppSidebar";
 import Index from "./pages/Index";
 import ShadowTrading from "./pages/ShadowTrading";
-import SignalAnalytics from "./pages/SignalAnalytics";
-import EnhancedSignalAnalytics from "./pages/EnhancedSignalAnalytics";
-import EnhancedTrading from "./pages/EnhancedTrading";
-import SystemMonitor from "./pages/SystemMonitor";
-import AutonomousLearning from "./pages/AutonomousLearning";
-import IntelligenceHub from "./pages/IntelligenceHub";
+import AnalysisHub from "./pages/AnalysisHub";
+import SystemHub from "./pages/SystemHub";
 import NotFound from "./pages/NotFound";
-import TechnicalAnalysis from "./pages/TechnicalAnalysis";
-import FundamentalAnalysis from "./pages/FundamentalAnalysis";
-import SentimentAnalysis from "./pages/SentimentAnalysis";
-import QuantitativeAnalysis from "./pages/QuantitativeAnalysis";
-import IntermarketAnalysis from "./pages/IntermarketAnalysis";
-import SpecializedAnalysis from "./pages/SpecializedAnalysis";
 
 const queryClient = new QueryClient();
 
@@ -47,21 +37,26 @@ const App = () => (
               <main className="flex-1 w-full">
                 <Routes>
                   <Route path="/" element={<Index />} />
-                  <Route path="/enhanced-trading" element={<EnhancedTrading />} />
-                  <Route path="/signal-analytics" element={<SignalAnalytics />} />
-                  <Route path="/enhanced-signal-analytics" element={<EnhancedSignalAnalytics />} />
-                  <Route path="/shadow-trading" element={<ShadowTrading />} />
-                  <Route path="/intelligence-hub" element={<IntelligenceHub />} />
-                  <Route path="/metatrader4" element={<Navigate to="/shadow-trading" replace />} />
-                  <Route path="/system-monitor" element={<SystemMonitor />} />
-                  <Route path="/autonomous-learning" element={<AutonomousLearning />} />
-                  <Route path="/technical-analysis" element={<TechnicalAnalysis />} />
-                  <Route path="/fundamental-analysis" element={<FundamentalAnalysis />} />
-                  <Route path="/sentiment-analysis" element={<SentimentAnalysis />} />
-                  <Route path="/quantitative-analysis" element={<QuantitativeAnalysis />} />
-                  <Route path="/intermarket-analysis" element={<IntermarketAnalysis />} />
-                  <Route path="/specialized-analysis" element={<SpecializedAnalysis />} />
-                  {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                  <Route path="/trading" element={<ShadowTrading />} />
+                  <Route path="/analysis" element={<AnalysisHub />} />
+                  <Route path="/system" element={<SystemHub />} />
+
+                  {/* Redirects from old routes */}
+                  <Route path="/shadow-trading" element={<Navigate to="/trading" replace />} />
+                  <Route path="/enhanced-trading" element={<Navigate to="/trading" replace />} />
+                  <Route path="/signal-analytics" element={<Navigate to="/" replace />} />
+                  <Route path="/enhanced-signal-analytics" element={<Navigate to="/" replace />} />
+                  <Route path="/intelligence-hub" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/system-monitor" element={<Navigate to="/system" replace />} />
+                  <Route path="/autonomous-learning" element={<Navigate to="/system" replace />} />
+                  <Route path="/technical-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/fundamental-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/sentiment-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/quantitative-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/intermarket-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/specialized-analysis" element={<Navigate to="/analysis" replace />} />
+                  <Route path="/metatrader4" element={<Navigate to="/trading" replace />} />
+
                   <Route path="*" element={<NotFound />} />
                 </Routes>
               </main>
