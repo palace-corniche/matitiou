@@ -31,12 +31,13 @@ serve(async (req) => {
       throw new Error(`Failed to fetch trade: ${tradeError?.message}`);
     }
 
-    // 2. Get signal info
-    const { data: signal } = await supabaseClient
+    // 2. Get signal info (use master_signal_id, fallback to signal_id)
+    const signalId = trade.master_signal_id || trade.signal_id;
+    const { data: signal } = signalId ? await supabaseClient
       .from('master_signals')
       .select('id, final_confidence, confluence_score, signal_strength, market_regime, contributing_modules, signal_type, recommended_entry, recommended_stop_loss, recommended_take_profit, fusion_parameters')
-      .eq('id', trade.signal_id)
-      .single();
+      .eq('id', signalId)
+      .single() : { data: null };
 
     // 3. Fetch the fusion record for detailed signal breakdown (the "WHY")
     let fusionDetails = null;
