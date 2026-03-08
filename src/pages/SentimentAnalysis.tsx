@@ -69,7 +69,7 @@ export default function SentimentAnalysisPage() {
         .from('retail_positions')
         .select('*')
         .eq('symbol', 'EUR/USD')
-        .order('as_of', { ascending: false })
+        .order('timestamp', { ascending: false })
         .limit(5);
 
       // Fetch news events for sentiment
