@@ -484,7 +484,6 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
       .eq('module_id', 'sentiment_analysis')
       .eq('symbol', pair === 'EUR/USD' ? 'EURUSD' : pair.replace('/', ''))
       .eq('timeframe', timeframe)
-      .eq('is_active', true)
       .gte('created_at', new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString())
       .order('created_at', { ascending: false })
       .limit(3);
