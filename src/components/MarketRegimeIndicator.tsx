@@ -59,8 +59,8 @@ export const MarketRegimeIndicator: React.FC<MarketRegimeIndicatorProps> = ({ re
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div className="flex justify-between">
               <span className="text-muted-foreground">VIX:</span>
-              <span className={regime.indicators.vix > 25 ? 'text-bearish' : 'text-bullish'}>
-                {regime.indicators.vix.toFixed(1)}
+              <span className={(regime.indicators.vix ?? 0) > 25 ? 'text-bearish' : 'text-bullish'}>
+                {(regime.indicators.vix ?? 0).toFixed(1)}
               </span>
             </div>
             <div className="flex justify-between">
