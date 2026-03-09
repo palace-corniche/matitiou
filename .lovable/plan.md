@@ -1,55 +1,57 @@
 
+## Problem Diagnosis
 
-# Implementing Specialized Analysis Godmode
+There are **4 separate functions** that can close trades, with inconsistent Telegram notification behavior:
 
-Based on the approved plan, I need to implement a sophisticated 6-model pattern recognition engine replacing the current basic implementation.
+| Function | Closes Trades | Sends Telegram |
+|---|---|---|
+| `check-trade-exits` | SL/TP/time-limit | ✅ Yes |
+| `intelligent-exit-engine` (CRON) | FORCE_EXIT | ❌ No |
+| `monitor-exit-intelligence` | FORCE_EXIT (same trades!) | ✅ Yes (duplicate) |
+| `manage-shadow-trades` | SL/TP/time-based | ❌ No |
+| `execute-shadow-trades` | Opposite-direction flush | ❌ No |
 
-## Current State Analysis
+**Root causes:**
 
-Let me first explore the existing code structure to understand what needs to be replaced:
+1. **`intelligent-exit-engine` and `monitor-exit-intelligence` are duplicate functions** — both run as CRON, both query open trades, both call `close_shadow_trade` on the same FORCE_EXIT trades. This causes double-close attempts AND inconsistent Telegram behavior.
 
-1. **Backend**: Current `generateSpecializedSignals()` in `master-signal-modules.ts`
-2. **Frontend**: Current `SpecializedAnalysis.tsx` page
-3. **Data flow**: How signals are stored and retrieved
+2. **`manage-shadow-trades` closes trades silently** — no Telegram sent for those exits.
 
-## Implementation Plan
+3. **`execute-shadow-trades` closes opposite trades silently** — no Telegram for those.
 
-### Phase 1: Backend Engine (master-signal-modules.ts)
-Replace `generateSpecializedSignals()` with comprehensive 6-model system:
+## Fix Plan
 
-**Models to implement:**
-- Elliott Wave Analysis (fractal patterns, Fibonacci ratios, wave counting)
-- Harmonic Pattern Detection (Gartley, Butterfly, Bat, Crab patterns) 
-- Market Structure Analysis (BOS, CHoCH, Order Blocks, FVG)
-- Fibonacci Analysis (retracements, extensions, confluence zones)
-- Volume Profile Analysis (POC, Value Areas, volume gaps)
-- Divergence Analysis (RSI, MACD, volume divergences)
+### 1. Centralize Telegram notification into `send-telegram-notification`
+No changes needed here — it already works correctly.
 
-**Composite scoring with weights:**
-- Elliott Wave: 20%, Harmonic: 20%, Market Structure: 20%
-- Fibonacci: 15%, Volume Profile: 15%, Divergence: 10%
+### 2. Fix `intelligent-exit-engine` — add Telegram for FORCE_EXIT (CRON mode)
+In the CRON loop (lines 94–111), after successful `close_shadow_trade`, invoke `send-telegram-notification` with trade details — same pattern used in `check-trade-exits`.
 
-**Key features:**
-- Always stores diagnostic data (including HOLD signals)
-- Rich `calculation_parameters` JSON with all model outputs
-- Signal fires when composite score > 0.60
+### 3. Remove `monitor-exit-intelligence` as a trade-closer
+`monitor-exit-intelligence` currently duplicates what `intelligent-exit-engine` CRON already does. Fix: make `monitor-exit-intelligence` only **store exit intelligence analysis** (no `close_shadow_trade` call). The actual close + Telegram stays in `intelligent-exit-engine`.
 
-### Phase 2: Frontend Dashboard (SpecializedAnalysis.tsx)
-Complete rebuild with professional pattern recognition interface:
+### 4. Fix `manage-shadow-trades` — add Telegram after close
+After the `close_shadow_trade` RPC call succeeds (lines 540–557), invoke `send-telegram-notification` with the exit reason, PnL and pips.
 
-**Layout sections:**
-1. **Metrics Row**: 6 cards showing model statuses
-2. **Pattern Recognition**: Elliott Wave visualization, harmonic patterns, market structure
-3. **Key Levels**: Fibonacci grid, volume profile, support/resistance  
-4. **Divergence Analysis**: Active divergences table with historical performance
-5. **Signal History**: Enhanced list with pattern context and targets
+### 5. Fix `execute-shadow-trades` — add Telegram for opposite-trade closes
+After closing opposite-direction trades (lines 888–906), invoke `send-telegram-notification` per closed trade with reason `opposite_signal`.
 
-### Phase 3: Integration & Deployment
-- Deploy updated edge function
-- Test signal generation pipeline
-- Verify UI data population
+## Files to Change
 
-## Technical Implementation Details
+```text
+supabase/functions/intelligent-exit-engine/index.ts
+  - Add Telegram invoke after FORCE_EXIT close in CRON mode (lines ~98-111)
 
-The engine will analyze real market data from `aggregated_candles` and `tick_data` tables, computing sophisticated pattern recognition algorithms while storing comprehensive diagnostic information for the always-populated UI pattern established in previous godmode modules.
+supabase/functions/monitor-exit-intelligence/index.ts
+  - Remove the close_shadow_trade + Telegram block
+  - Keep only: fetch trades → call intelligent-exit-engine → store exit_intelligence
 
+supabase/functions/manage-shadow-trades/index.ts
+  - Add Telegram invoke after successful close_shadow_trade RPC (~line 553)
+
+supabase/functions/execute-shadow-trades/index.ts
+  - Add Telegram invoke after each opposite trade close (~line 901)
+```
+
+## Result
+Every single trade close path — regardless of reason (SL, TP, time, intelligence, opposite-flush) — will send exactly **one** Telegram notification with the reason, PnL, and pips.
