@@ -1,57 +1,54 @@
+# Plan: Full System Documentation Dump
 
-## Problem Diagnosis
+Produce a complete 23-section reconstruction document for this trading system, delivered as a single (very long) chat response.
 
-There are **4 separate functions** that can close trades, with inconsistent Telegram notification behavior:
+## What I'll do
 
-| Function | Closes Trades | Sends Telegram |
-|---|---|---|
-| `check-trade-exits` | SL/TP/time-limit | ✅ Yes |
-| `intelligent-exit-engine` (CRON) | FORCE_EXIT | ❌ No |
-| `monitor-exit-intelligence` | FORCE_EXIT (same trades!) | ✅ Yes (duplicate) |
-| `manage-shadow-trades` | SL/TP/time-based | ❌ No |
-| `execute-shadow-trades` | Opposite-direction flush | ❌ No |
+1. **Inventory pass** (parallel reads):
+   - Full file tree of `src/` and `supabase/functions/`
+   - `package.json`, `supabase/config.toml`, `.env` keys
+   - All ~80 edge function `index.ts` files
+   - All `src/pages/`, `src/hooks/`, `src/services/`, `src/components/` files
+   - All migrations / RPC definitions
+2. **Database pass** (parallel queries via `supabase--read_query`):
+   - `information_schema.columns` for every public table (columns, types, nullability, defaults)
+   - `pg_policies` for all RLS policies
+   - `pg_indexes` for indexes
+   - `pg_trigger` + `pg_proc` for triggers and functions
+   - `cron.job` for scheduled jobs
+3. **Assemble the response** following the user's exact 23-section template:
+   - Section 1: Project identity
+   - Section 2: Full file tree (every file, no `...`)
+   - Section 3: Every table — columns, RLS, policies, indexes, triggers
+   - Section 4: Every edge function — purpose, I/O, tables touched, full code
+   - Section 5: All cron jobs with SQL
+   - Section 6: Every React component — props, state, hooks, queries
+   - Section 7: Every custom hook — full code
+   - Section 8: Signal generation, indicators, risk management, backtesting logic
+   - Section 9: External APIs (Alpha Vantage, Telegram, etc.)
+   - Section 10: Realtime subscriptions
+   - Section 11: Auth (currently none — will mark accordingly)
+   - Section 12: State management (TanStack Query usage)
+   - Section 13: Env vars & secrets table
+   - Section 14: Pages & routing
+   - Section 15: Charting components
+   - Section 16: Notifications & alerts (Telegram pipeline)
+   - Section 17: All Postgres RPCs with full SQL
+   - Section 18: Known bugs / incomplete features (from `*_REPORT.md` files)
+   - Section 19: Recent changes (Telegram-notification fix across 4 exit functions)
+   - Section 20: Full `package.json`
+   - Section 21: Performance notes
+   - Section 22: Position/portfolio state model
+   - Section 23: Final "SYSTEM RECONSTRUCTION CONTEXT" block
 
-**Root causes:**
+## Constraints / expectations
 
-1. **`intelligent-exit-engine` and `monitor-exit-intelligence` are duplicate functions** — both run as CRON, both query open trades, both call `close_shadow_trade` on the same FORCE_EXIT trades. This causes double-close attempts AND inconsistent Telegram behavior.
+- This is **read-only**; no files edited, no functions deployed.
+- The response will be **very long** — likely split across multiple chat messages if it exceeds a single response budget. I'll note continuation points clearly.
+- Code blocks for files >200 lines will be pasted in full per the user's spec, but I'll skip pasting auto-generated files (`src/integrations/supabase/types.ts`, `client.ts`) and only reference them.
+- Estimated work: ~40–60 parallel read tool calls before writing the final answer.
+- No code changes, no schema changes, no deploys.
 
-2. **`manage-shadow-trades` closes trades silently** — no Telegram sent for those exits.
+## Deliverable
 
-3. **`execute-shadow-trades` closes opposite trades silently** — no Telegram for those.
-
-## Fix Plan
-
-### 1. Centralize Telegram notification into `send-telegram-notification`
-No changes needed here — it already works correctly.
-
-### 2. Fix `intelligent-exit-engine` — add Telegram for FORCE_EXIT (CRON mode)
-In the CRON loop (lines 94–111), after successful `close_shadow_trade`, invoke `send-telegram-notification` with trade details — same pattern used in `check-trade-exits`.
-
-### 3. Remove `monitor-exit-intelligence` as a trade-closer
-`monitor-exit-intelligence` currently duplicates what `intelligent-exit-engine` CRON already does. Fix: make `monitor-exit-intelligence` only **store exit intelligence analysis** (no `close_shadow_trade` call). The actual close + Telegram stays in `intelligent-exit-engine`.
-
-### 4. Fix `manage-shadow-trades` — add Telegram after close
-After the `close_shadow_trade` RPC call succeeds (lines 540–557), invoke `send-telegram-notification` with the exit reason, PnL and pips.
-
-### 5. Fix `execute-shadow-trades` — add Telegram for opposite-trade closes
-After closing opposite-direction trades (lines 888–906), invoke `send-telegram-notification` per closed trade with reason `opposite_signal`.
-
-## Files to Change
-
-```text
-supabase/functions/intelligent-exit-engine/index.ts
-  - Add Telegram invoke after FORCE_EXIT close in CRON mode (lines ~98-111)
-
-supabase/functions/monitor-exit-intelligence/index.ts
-  - Remove the close_shadow_trade + Telegram block
-  - Keep only: fetch trades → call intelligent-exit-engine → store exit_intelligence
-
-supabase/functions/manage-shadow-trades/index.ts
-  - Add Telegram invoke after successful close_shadow_trade RPC (~line 553)
-
-supabase/functions/execute-shadow-trades/index.ts
-  - Add Telegram invoke after each opposite trade close (~line 901)
-```
-
-## Result
-Every single trade close path — regardless of reason (SL, TP, time, intelligence, opposite-flush) — will send exactly **one** Telegram notification with the reason, PnL, and pips.
+A single exhaustive markdown document in chat covering all 23 sections, ending with the "=== SYSTEM RECONSTRUCTION CONTEXT ===" handoff block ready to paste into a fresh AI session.
