@@ -35,7 +35,7 @@ class RealTimeQuantAnalytics {
   private mlModels: MachineLearningModels;
   private statArb: StatisticalArbitrage;
   private isActive = false;
-  private updateInterval: NodeJS.Timeout | null = null;
+  private updateInterval: ReturnType<typeof setInterval> | null = null;
   private positions: Map<string, any> = new Map();
   private callbacks: Array<(signal: LiveSignal) => void> = [];
   private positionCallbacks: Array<(update: PositionUpdate) => void> = [];

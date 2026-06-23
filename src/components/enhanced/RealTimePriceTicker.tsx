@@ -27,7 +27,7 @@ export const RealTimePriceTicker: React.FC<RealTimePriceTickerProps> = ({
   const [isConnected, setIsConnected] = useState(false);
 
   useEffect(() => {
-    let intervalId: NodeJS.Timeout;
+    let intervalId: ReturnType<typeof setInterval>;
 
     const fetchLatestTicks = async () => {
       try {

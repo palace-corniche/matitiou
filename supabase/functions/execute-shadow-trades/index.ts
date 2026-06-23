@@ -1075,12 +1075,14 @@ serve(async (req) => {
           if (targetsResponse.ok) {
             intelligentTargets = await targetsResponse.json();
             
-            // **CRITICAL FIX: Enforce MINIMUM 20 pip stop loss**
-            const MIN_SL_DISTANCE_PIPS = 20;
-            const MIN_SL_DISTANCE = MIN_SL_DISTANCE_PIPS * 0.0001; // 20 pips in price terms
-            
+            // **PHASE 1 FIX 7: Tighter 15 pip SL (was 20). EUR/USD 15m ATR is 8-12 pips,
+            // so 15 pips at structure beats arbitrary 20 pip noise stops.**
+            const MIN_SL_DISTANCE_PIPS = 15;
+            const MIN_SL_DISTANCE = MIN_SL_DISTANCE_PIPS * 0.0001;
+
             const recommendedSlDistance = Math.abs(signal.entry_price - intelligentTargets.stop_loss);
             const enforcedSlDistance = Math.max(recommendedSlDistance, MIN_SL_DISTANCE);
+            
             
             // Apply minimum SL distance
             dynamicStopLoss = signal.signal_type === 'buy'

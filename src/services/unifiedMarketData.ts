@@ -24,8 +24,8 @@ class UnifiedMarketDataService {
   private callbacks: UnifiedSubscription[] = [];
   private isConnected = false;
   private lastTick: UnifiedTick | null = null;
-  private priceInterval: NodeJS.Timeout | null = null;
-  private connectionCheckInterval: NodeJS.Timeout | null = null;
+  private priceInterval: ReturnType<typeof setInterval> | null = null;
+  private connectionCheckInterval: ReturnType<typeof setInterval> | null = null;
   
   // Cache for price data
   private priceCache = new Map<string, { price: number; timestamp: number }>();

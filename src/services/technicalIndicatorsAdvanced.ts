@@ -1227,7 +1227,7 @@ export class AdvancedTechnicalIndicators {
 export class RealTimeIndicatorEngine {
   private callbacks: Array<(result: IndicatorResult) => void> = [];
   private currentCandles: CandleData[] = [];
-  private updateInterval: NodeJS.Timeout | null = null;
+  private updateInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor() {
     this.initializeRealTimeUpdates();

@@ -6,7 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
  * Triggers the full pipeline: market data → candles → signals → trades → exits
  */
 export const useAutomationBackup = () => {
-  const intervalRef = useRef<NodeJS.Timeout>();
+  const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     const runFullPipeline = async () => {
