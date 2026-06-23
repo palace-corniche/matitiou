@@ -1759,6 +1759,27 @@ export type Database = {
         }
         Relationships: []
       }
+      trading_config: {
+        Row: {
+          created_at: string
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          created_at?: string
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       trading_signals: {
         Row: {
           alert_level: string | null
