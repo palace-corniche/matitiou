@@ -18,6 +18,7 @@ import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
 import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
 import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
 import { ExitIntelligenceStatus } from '@/components/enhanced/ExitIntelligenceStatus';
+import { SignalControlsPanel } from '@/components/enhanced/SignalControlsPanel';
 
 import {
   Activity, TrendingUp, DollarSign, Target, AlertCircle, Zap, Wifi,
@@ -151,8 +152,12 @@ const ShadowTradingDashboardUnified: React.FC = () => {
         </div>
       </div>
 
+      {/* Phase 1 Fix 10: Signal inversion toggle + module health */}
+      <SignalControlsPanel />
+
       {/* Main Tabs */}
       <Tabs defaultValue="positions" className="space-y-4">
+
         <TabsList className="inline-flex h-9 gap-1 bg-muted/50 p-1 rounded-lg">
           <TabsTrigger value="positions" className="text-xs px-3 gap-1.5">
             <Activity className="h-3.5 w-3.5" />
