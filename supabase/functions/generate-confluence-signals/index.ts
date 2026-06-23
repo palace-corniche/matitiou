@@ -475,7 +475,39 @@ serve(async (req) => {
         confluenceSignal = null;
       }
       
+      // ============= PHASE 1 FIX 9: SIGNAL INVERSION TOGGLE =============
+      // Reads trading_config.invert_signals; if 'true', flips signal direction
+      // and recomputes SL/TP using the same distances around entry. Applied
+      // AFTER fusion, BEFORE duplicate checks and DB insert.
+      if (confluenceSignal && confluenceSignal.signal_type !== 'hold') {
+        try {
+          const { data: invCfg } = await supabase
+            .from('trading_config')
+            .select('value')
+            .eq('key', 'invert_signals')
+            .maybeSingle();
+
+          if (invCfg?.value === 'true') {
+            const originalType = confluenceSignal.signal_type;
+            const entry = confluenceSignal.entry_price;
+            const slDist = Math.abs(entry - confluenceSignal.stop_loss);
+            const tpDist = Math.abs(entry - confluenceSignal.take_profit);
+            const flipped = originalType === 'buy' ? 'sell' : 'buy';
+
+            confluenceSignal.signal_type = flipped;
+            confluenceSignal.stop_loss = flipped === 'buy' ? entry - slDist : entry + slDist;
+            confluenceSignal.take_profit = flipped === 'buy' ? entry + tpDist : entry - tpDist;
+
+            console.log(`🔄 [SignalInversion] Flipped ${originalType.toUpperCase()} → ${flipped.toUpperCase()} | entry=${entry.toFixed(5)} SL=${confluenceSignal.stop_loss.toFixed(5)} TP=${confluenceSignal.take_profit.toFixed(5)}`);
+          }
+        } catch (invErr) {
+          console.warn('⚠️ [SignalInversion] config read failed, using original direction:', invErr);
+        }
+      }
+      // ===================================================================
+
       // **FIX 1: Check master_signals for duplicates (SAME direction)**
+
       const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
       const { data: recentSameDirection } = await supabase
         .from('master_signals')
