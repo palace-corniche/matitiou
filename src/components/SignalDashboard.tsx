@@ -38,7 +38,7 @@ const SignalDashboard: React.FC<SignalDashboardProps> = ({
   }, [data, timeframe]);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
+    let interval: ReturnType<typeof setInterval>;
     
     if (autoRefresh && data && data.length > 0) {
       interval = setInterval(() => {

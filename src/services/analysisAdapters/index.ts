@@ -17,7 +17,7 @@ export interface AnalysisCoordinatorConfig {
 export class AnalysisCoordinator {
   private adapters: Map<string, any> = new Map();
   private isRunning = false;
-  private intervalId: NodeJS.Timeout | null = null;
+  private intervalId: ReturnType<typeof setInterval> | null = null;
 
   constructor(private config: AnalysisCoordinatorConfig) {
     this.initializeAdapters();
