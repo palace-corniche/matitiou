@@ -1278,20 +1278,20 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
     const strongCorrs = corrValues.filter(v => Math.abs(v) > 0.4).length;
     const correlationAlignmentScore = Math.min(1, (strongCorrs / 4) * 0.6 + avgAbsCorr * 0.4);
 
-    // ---- MODEL 2: DXY Divergence ----
-    // EUR/USD should be strongly inversely correlated with DXY
-    // If they move same direction → anomaly → reversion opportunity
+    // ---- MODEL 2: DXY Divergence (FIX 4) ----
+    // EUR/USD should be strongly inversely correlated with DXY (~ -0.85).
+    // Looser activation gate (0.15) + tighter direction trigger (0.15 instead of 0.30)
+    // so that even modest divergence yields an actionable buy/sell vote rather than 'hold'.
     let dxyDivergenceScore = 0;
     let dxyDivergenceDirection: 'buy' | 'sell' | 'hold' = 'hold';
-    if (Math.abs(dxyCorr) > 0.3) {
-      // Expected: dxyCorr ~ -0.85. If it's positive or weak negative = divergence
+    if (Math.abs(dxyCorr) > 0.15) {
       const expectedCorr = -0.85;
       const divergenceMagnitude = Math.abs(dxyCorr - expectedCorr);
       dxyDivergenceScore = Math.min(1, divergenceMagnitude / 0.8);
-      // If DXY correlation is less negative than expected → EUR/USD should go down
-      if (dxyCorr > expectedCorr + 0.3) {
+      // DXY correlation less negative than expected → USD stronger than implied → EUR/USD should fall
+      if (dxyCorr > expectedCorr + 0.15) {
         dxyDivergenceDirection = 'sell';
-      } else if (dxyCorr < expectedCorr - 0.3) {
+      } else if (dxyCorr < expectedCorr - 0.15) {
         dxyDivergenceDirection = 'buy';
       }
     }
