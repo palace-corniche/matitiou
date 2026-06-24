@@ -1412,6 +1412,7 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
 
     const calcParams = {
       correlation_alignment: correlationAlignmentScore,
+      correlation_alignment_direction: correlationAlignmentDirection,
       dxy_divergence: dxyDivergenceScore,
       dxy_divergence_direction: dxyDivergenceDirection,
       risk_appetite: riskScore,
