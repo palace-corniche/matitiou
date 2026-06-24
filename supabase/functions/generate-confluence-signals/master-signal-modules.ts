@@ -1278,20 +1278,20 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
     const strongCorrs = corrValues.filter(v => Math.abs(v) > 0.4).length;
     const correlationAlignmentScore = Math.min(1, (strongCorrs / 4) * 0.6 + avgAbsCorr * 0.4);
 
-    // ---- MODEL 2: DXY Divergence ----
-    // EUR/USD should be strongly inversely correlated with DXY
-    // If they move same direction → anomaly → reversion opportunity
+    // ---- MODEL 2: DXY Divergence (FIX 4) ----
+    // EUR/USD should be strongly inversely correlated with DXY (~ -0.85).
+    // Looser activation gate (0.15) + tighter direction trigger (0.15 instead of 0.30)
+    // so that even modest divergence yields an actionable buy/sell vote rather than 'hold'.
     let dxyDivergenceScore = 0;
     let dxyDivergenceDirection: 'buy' | 'sell' | 'hold' = 'hold';
-    if (Math.abs(dxyCorr) > 0.3) {
-      // Expected: dxyCorr ~ -0.85. If it's positive or weak negative = divergence
+    if (Math.abs(dxyCorr) > 0.15) {
       const expectedCorr = -0.85;
       const divergenceMagnitude = Math.abs(dxyCorr - expectedCorr);
       dxyDivergenceScore = Math.min(1, divergenceMagnitude / 0.8);
-      // If DXY correlation is less negative than expected → EUR/USD should go down
-      if (dxyCorr > expectedCorr + 0.3) {
+      // DXY correlation less negative than expected → USD stronger than implied → EUR/USD should fall
+      if (dxyCorr > expectedCorr + 0.15) {
         dxyDivergenceDirection = 'sell';
-      } else if (dxyCorr < expectedCorr - 0.3) {
+      } else if (dxyCorr < expectedCorr - 0.15) {
         dxyDivergenceDirection = 'buy';
       }
     }
@@ -1363,16 +1363,28 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
       }
     }
 
-    // ---- COMPOSITE SCORING ----
-    const weights = { alignment: 0.25, dxy: 0.25, risk: 0.20, commodity: 0.15, cross: 0.15 };
+    // ---- COMPOSITE SCORING (FIX 4 rebalance) ----
+    // Promote DXY (most reliable EUR/USD driver) from 0.25 → 0.35.
+    // Demote correlation_alignment from 0.25 → 0.05 (direction-bug suspect, keep small until fixed).
+    // Redistribute remaining 0.10 across risk/commodity/cross.
+    const weights = { alignment: 0.05, dxy: 0.35, risk: 0.20, commodity: 0.20, cross: 0.20 };
+
+    // FIX 4: correlation_alignment direction — derive from signed sum of correlations
+    // weighted by their expected sign for EUR/USD.
+    // Expected signs: DXY -, JPY -, VIX -, GBP +, AUD +, GOLD +, SPX +.
+    const alignmentSignal =
+      (-dxyCorr) + (-jpyCorr) + (-vixCorr) + gbpCorr + audCorr + goldCorr + spxCorr;
+    let correlationAlignmentDirection: 'buy' | 'sell' | 'hold' =
+      alignmentSignal > 0.3 ? 'buy' : alignmentSignal < -0.3 ? 'sell' : 'hold';
+
     const compositeScore =
       correlationAlignmentScore * weights.alignment +
       dxyDivergenceScore * weights.dxy +
-      Math.abs(riskScore - 0.5) * 2 * weights.risk + // distance from neutral
+      Math.abs(riskScore - 0.5) * 2 * weights.risk +
       commodityFlowScore * weights.commodity +
       crossCurrencyScore * weights.cross;
 
-    // Direction voting
+    // Direction voting (alignment now votes too, with its small weight)
     const directionVotes = { buy: 0, sell: 0 };
     const voteWeight = (dir: 'buy' | 'sell' | 'hold', w: number) => {
       if (dir === 'buy') directionVotes.buy += w;
@@ -1382,24 +1394,25 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
     voteWeight(riskDirection, weights.risk);
     voteWeight(commodityDirection, weights.commodity);
     voteWeight(crossDirection, weights.cross);
-    // Correlation alignment doesn't vote on direction — it's a confidence amplifier
+    voteWeight(correlationAlignmentDirection, weights.alignment);
 
     const netVote = directionVotes.buy - directionVotes.sell;
     const signalType: 'buy' | 'sell' | 'hold' = netVote > 0.1 ? 'buy' : netVote < -0.1 ? 'sell' : 'hold';
 
-    console.log(`🌐 Intermarket Godmode: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} | CorrAlign=${correlationAlignmentScore.toFixed(2)} DXYDiv=${dxyDivergenceScore.toFixed(2)} Risk=${riskScore.toFixed(2)}(${riskRegime}) Commodity=${commodityFlowScore.toFixed(2)} Cross=${crossCurrencyScore.toFixed(2)}`);
+    console.log(`🌐 Intermarket Godmode: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} | CorrAlign=${correlationAlignmentScore.toFixed(2)}(${correlationAlignmentDirection}) DXYDiv=${dxyDivergenceScore.toFixed(2)}(${dxyDivergenceDirection}) Risk=${riskScore.toFixed(2)}(${riskRegime}) Commodity=${commodityFlowScore.toFixed(2)} Cross=${crossCurrencyScore.toFixed(2)}`);
 
     // Build factors for storage
     const factors = [
-      { name: 'correlation_alignment', value: correlationAlignmentScore, weight: weights.alignment, contribution: correlationAlignmentScore * weights.alignment },
-      { name: 'dxy_divergence', value: dxyDivergenceScore, weight: weights.dxy, contribution: dxyDivergenceScore * weights.dxy },
-      { name: 'risk_appetite', value: riskScore, weight: weights.risk, contribution: Math.abs(riskScore - 0.5) * 2 * weights.risk },
-      { name: 'commodity_flow', value: commodityFlowScore, weight: weights.commodity, contribution: commodityFlowScore * weights.commodity },
-      { name: 'cross_currency', value: crossCurrencyScore, weight: weights.cross, contribution: crossCurrencyScore * weights.cross },
+      { name: 'correlation_alignment', value: correlationAlignmentScore, direction: correlationAlignmentDirection, weight: weights.alignment, contribution: correlationAlignmentScore * weights.alignment },
+      { name: 'dxy_divergence', value: dxyDivergenceScore, direction: dxyDivergenceDirection, weight: weights.dxy, contribution: dxyDivergenceScore * weights.dxy },
+      { name: 'risk_appetite', value: riskScore, direction: riskDirection, weight: weights.risk, contribution: Math.abs(riskScore - 0.5) * 2 * weights.risk },
+      { name: 'commodity_flow', value: commodityFlowScore, direction: commodityDirection, weight: weights.commodity, contribution: commodityFlowScore * weights.commodity },
+      { name: 'cross_currency', value: crossCurrencyScore, direction: crossDirection, weight: weights.cross, contribution: crossCurrencyScore * weights.cross },
     ];
 
     const calcParams = {
       correlation_alignment: correlationAlignmentScore,
+      correlation_alignment_direction: correlationAlignmentDirection,
       dxy_divergence: dxyDivergenceScore,
       dxy_divergence_direction: dxyDivergenceDirection,
       risk_appetite: riskScore,
@@ -2031,21 +2044,53 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
       'multitimeframe': 0.07
     };
 
-    // Scale weights by actual module performance: effectiveWeight = base × (0.5 + winRate/100)
-    // A 60% win rate module gets 1.1x, a 30% win rate gets 0.8x, a 70% gets 1.2x
-    const sourceWeights: { [key: string]: number } = {};
+    // ===== FIX 6: DATA-QUALITY-AWARE DYNAMIC FUSION WEIGHTS =====
+    // dataQuality (0..1) per source = how much real signal that module actually produced
+    // this cycle. A module emitting 0 signals → quality 0 → weight 0 (no minimum floor).
+    // A module with low confidence/strength contributes proportionally less.
+    const sourceStats: Record<string, { count: number; qualitySum: number }> = {};
+    for (const sig of signals) {
+      const src = sig.source.split('_')[0];
+      if (!sourceStats[src]) sourceStats[src] = { count: 0, qualitySum: 0 };
+      sourceStats[src].count += 1;
+      // Per-signal data quality: confidence × strength, clamped 0..1
+      const q = Math.max(0, Math.min(1, (sig.confidence ?? 0) * (sig.strength ?? 0)));
+      sourceStats[src].qualitySum += q;
+    }
+    const dataQuality: Record<string, number> = {};
+    for (const key of Object.keys(baseWeights)) {
+      const st = sourceStats[key];
+      dataQuality[key] = st && st.count > 0 ? Math.min(1, st.qualitySum / st.count) : 0;
+    }
+
+    // base × winRate scaling × dataQuality, then normalize so weights sum to 1.0.
+    const rawWeights: Record<string, number> = {};
+    let rawSum = 0;
     for (const [key, baseWeight] of Object.entries(baseWeights)) {
       const perf = modulePerfMap[key] || modulePerfMap[`${key}_analysis`];
-      if (perf && perf.winRate > 0) {
-        const scaleFactor = 0.5 + (perf.winRate / 100);
-        sourceWeights[key] = baseWeight * scaleFactor;
-        if (Math.abs(scaleFactor - 1.0) > 0.05) {
-          console.log(`📈 Weight adjusted: ${key} ${baseWeight.toFixed(3)} → ${sourceWeights[key].toFixed(3)} (win rate: ${perf.winRate.toFixed(1)}%)`);
-        }
-      } else {
-        sourceWeights[key] = baseWeight;
-      }
+      const scaleFactor = perf && perf.winRate > 0 ? 0.5 + (perf.winRate / 100) : 1.0;
+      const dq = dataQuality[key] ?? 0;
+      const raw = baseWeight * scaleFactor * dq;
+      rawWeights[key] = raw;
+      rawSum += raw;
     }
+
+    const sourceWeights: Record<string, number> = {};
+    if (rawSum > 0) {
+      for (const key of Object.keys(rawWeights)) {
+        sourceWeights[key] = rawWeights[key] / rawSum;
+      }
+    } else {
+      // All modules silent — degrade to equal weights across known modules
+      const n = Object.keys(baseWeights).length;
+      for (const key of Object.keys(baseWeights)) sourceWeights[key] = 1 / n;
+    }
+
+    // Per-cycle audit log so we can verify in edge function logs
+    const weightTable = Object.entries(sourceWeights)
+      .map(([k, w]) => `${k}=${(w * 100).toFixed(1)}% (dq=${(dataQuality[k] ?? 0).toFixed(2)})`)
+      .join(' | ');
+    console.log(`⚖️ FIX6 effective fusion weights (regime=${regime}): ${weightTable}`);
 
     // Calculate weighted signal probabilities
     let buyProbability = 0;
@@ -2054,15 +2099,17 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
 
     for (const signal of signals) {
       const sourceType = signal.source.split('_')[0];
-      const weight = sourceWeights[sourceType] || 0.1;
+      // No floor: unknown sources contribute 0 (was: || 0.1). Forces sources to be
+      // declared in baseWeights to vote — prevents stale/unmapped modules from leaking in.
+      const weight = sourceWeights[sourceType] ?? 0;
       const adjustedWeight = weight * signal.confidence * signal.strength;
-      
+
       if (signal.signal === 'buy') {
         buyProbability += adjustedWeight;
       } else if (signal.signal === 'sell') {
         sellProbability += adjustedWeight;
       }
-      
+
       totalWeight += adjustedWeight;
     }
 
