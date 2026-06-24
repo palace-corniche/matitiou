@@ -2044,21 +2044,53 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
       'multitimeframe': 0.07
     };
 
-    // Scale weights by actual module performance: effectiveWeight = base × (0.5 + winRate/100)
-    // A 60% win rate module gets 1.1x, a 30% win rate gets 0.8x, a 70% gets 1.2x
-    const sourceWeights: { [key: string]: number } = {};
+    // ===== FIX 6: DATA-QUALITY-AWARE DYNAMIC FUSION WEIGHTS =====
+    // dataQuality (0..1) per source = how much real signal that module actually produced
+    // this cycle. A module emitting 0 signals → quality 0 → weight 0 (no minimum floor).
+    // A module with low confidence/strength contributes proportionally less.
+    const sourceStats: Record<string, { count: number; qualitySum: number }> = {};
+    for (const sig of signals) {
+      const src = sig.source.split('_')[0];
+      if (!sourceStats[src]) sourceStats[src] = { count: 0, qualitySum: 0 };
+      sourceStats[src].count += 1;
+      // Per-signal data quality: confidence × strength, clamped 0..1
+      const q = Math.max(0, Math.min(1, (sig.confidence ?? 0) * (sig.strength ?? 0)));
+      sourceStats[src].qualitySum += q;
+    }
+    const dataQuality: Record<string, number> = {};
+    for (const key of Object.keys(baseWeights)) {
+      const st = sourceStats[key];
+      dataQuality[key] = st && st.count > 0 ? Math.min(1, st.qualitySum / st.count) : 0;
+    }
+
+    // base × winRate scaling × dataQuality, then normalize so weights sum to 1.0.
+    const rawWeights: Record<string, number> = {};
+    let rawSum = 0;
     for (const [key, baseWeight] of Object.entries(baseWeights)) {
       const perf = modulePerfMap[key] || modulePerfMap[`${key}_analysis`];
-      if (perf && perf.winRate > 0) {
-        const scaleFactor = 0.5 + (perf.winRate / 100);
-        sourceWeights[key] = baseWeight * scaleFactor;
-        if (Math.abs(scaleFactor - 1.0) > 0.05) {
-          console.log(`📈 Weight adjusted: ${key} ${baseWeight.toFixed(3)} → ${sourceWeights[key].toFixed(3)} (win rate: ${perf.winRate.toFixed(1)}%)`);
-        }
-      } else {
-        sourceWeights[key] = baseWeight;
-      }
+      const scaleFactor = perf && perf.winRate > 0 ? 0.5 + (perf.winRate / 100) : 1.0;
+      const dq = dataQuality[key] ?? 0;
+      const raw = baseWeight * scaleFactor * dq;
+      rawWeights[key] = raw;
+      rawSum += raw;
     }
+
+    const sourceWeights: Record<string, number> = {};
+    if (rawSum > 0) {
+      for (const key of Object.keys(rawWeights)) {
+        sourceWeights[key] = rawWeights[key] / rawSum;
+      }
+    } else {
+      // All modules silent — degrade to equal weights across known modules
+      const n = Object.keys(baseWeights).length;
+      for (const key of Object.keys(baseWeights)) sourceWeights[key] = 1 / n;
+    }
+
+    // Per-cycle audit log so we can verify in edge function logs
+    const weightTable = Object.entries(sourceWeights)
+      .map(([k, w]) => `${k}=${(w * 100).toFixed(1)}% (dq=${(dataQuality[k] ?? 0).toFixed(2)})`)
+      .join(' | ');
+    console.log(`⚖️ FIX6 effective fusion weights (regime=${regime}): ${weightTable}`);
 
     // Calculate weighted signal probabilities
     let buyProbability = 0;
@@ -2067,15 +2099,17 @@ export async function fuseSignalsWithBayesian(signals: StandardSignal[], supabas
 
     for (const signal of signals) {
       const sourceType = signal.source.split('_')[0];
-      const weight = sourceWeights[sourceType] || 0.1;
+      // No floor: unknown sources contribute 0 (was: || 0.1). Forces sources to be
+      // declared in baseWeights to vote — prevents stale/unmapped modules from leaking in.
+      const weight = sourceWeights[sourceType] ?? 0;
       const adjustedWeight = weight * signal.confidence * signal.strength;
-      
+
       if (signal.signal === 'buy') {
         buyProbability += adjustedWeight;
       } else if (signal.signal === 'sell') {
         sellProbability += adjustedWeight;
       }
-      
+
       totalWeight += adjustedWeight;
     }
 
