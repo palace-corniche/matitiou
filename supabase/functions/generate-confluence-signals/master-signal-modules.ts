@@ -1363,16 +1363,28 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
       }
     }
 
-    // ---- COMPOSITE SCORING ----
-    const weights = { alignment: 0.25, dxy: 0.25, risk: 0.20, commodity: 0.15, cross: 0.15 };
+    // ---- COMPOSITE SCORING (FIX 4 rebalance) ----
+    // Promote DXY (most reliable EUR/USD driver) from 0.25 → 0.35.
+    // Demote correlation_alignment from 0.25 → 0.05 (direction-bug suspect, keep small until fixed).
+    // Redistribute remaining 0.10 across risk/commodity/cross.
+    const weights = { alignment: 0.05, dxy: 0.35, risk: 0.20, commodity: 0.20, cross: 0.20 };
+
+    // FIX 4: correlation_alignment direction — derive from signed sum of correlations
+    // weighted by their expected sign for EUR/USD.
+    // Expected signs: DXY -, JPY -, VIX -, GBP +, AUD +, GOLD +, SPX +.
+    const alignmentSignal =
+      (-dxyCorr) + (-jpyCorr) + (-vixCorr) + gbpCorr + audCorr + goldCorr + spxCorr;
+    let correlationAlignmentDirection: 'buy' | 'sell' | 'hold' =
+      alignmentSignal > 0.3 ? 'buy' : alignmentSignal < -0.3 ? 'sell' : 'hold';
+
     const compositeScore =
       correlationAlignmentScore * weights.alignment +
       dxyDivergenceScore * weights.dxy +
-      Math.abs(riskScore - 0.5) * 2 * weights.risk + // distance from neutral
+      Math.abs(riskScore - 0.5) * 2 * weights.risk +
       commodityFlowScore * weights.commodity +
       crossCurrencyScore * weights.cross;
 
-    // Direction voting
+    // Direction voting (alignment now votes too, with its small weight)
     const directionVotes = { buy: 0, sell: 0 };
     const voteWeight = (dir: 'buy' | 'sell' | 'hold', w: number) => {
       if (dir === 'buy') directionVotes.buy += w;
@@ -1382,20 +1394,20 @@ export async function generateIntermarketSignals(supabase: any, pair: string, ti
     voteWeight(riskDirection, weights.risk);
     voteWeight(commodityDirection, weights.commodity);
     voteWeight(crossDirection, weights.cross);
-    // Correlation alignment doesn't vote on direction — it's a confidence amplifier
+    voteWeight(correlationAlignmentDirection, weights.alignment);
 
     const netVote = directionVotes.buy - directionVotes.sell;
     const signalType: 'buy' | 'sell' | 'hold' = netVote > 0.1 ? 'buy' : netVote < -0.1 ? 'sell' : 'hold';
 
-    console.log(`🌐 Intermarket Godmode: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} | CorrAlign=${correlationAlignmentScore.toFixed(2)} DXYDiv=${dxyDivergenceScore.toFixed(2)} Risk=${riskScore.toFixed(2)}(${riskRegime}) Commodity=${commodityFlowScore.toFixed(2)} Cross=${crossCurrencyScore.toFixed(2)}`);
+    console.log(`🌐 Intermarket Godmode: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} | CorrAlign=${correlationAlignmentScore.toFixed(2)}(${correlationAlignmentDirection}) DXYDiv=${dxyDivergenceScore.toFixed(2)}(${dxyDivergenceDirection}) Risk=${riskScore.toFixed(2)}(${riskRegime}) Commodity=${commodityFlowScore.toFixed(2)} Cross=${crossCurrencyScore.toFixed(2)}`);
 
     // Build factors for storage
     const factors = [
-      { name: 'correlation_alignment', value: correlationAlignmentScore, weight: weights.alignment, contribution: correlationAlignmentScore * weights.alignment },
-      { name: 'dxy_divergence', value: dxyDivergenceScore, weight: weights.dxy, contribution: dxyDivergenceScore * weights.dxy },
-      { name: 'risk_appetite', value: riskScore, weight: weights.risk, contribution: Math.abs(riskScore - 0.5) * 2 * weights.risk },
-      { name: 'commodity_flow', value: commodityFlowScore, weight: weights.commodity, contribution: commodityFlowScore * weights.commodity },
-      { name: 'cross_currency', value: crossCurrencyScore, weight: weights.cross, contribution: crossCurrencyScore * weights.cross },
+      { name: 'correlation_alignment', value: correlationAlignmentScore, direction: correlationAlignmentDirection, weight: weights.alignment, contribution: correlationAlignmentScore * weights.alignment },
+      { name: 'dxy_divergence', value: dxyDivergenceScore, direction: dxyDivergenceDirection, weight: weights.dxy, contribution: dxyDivergenceScore * weights.dxy },
+      { name: 'risk_appetite', value: riskScore, direction: riskDirection, weight: weights.risk, contribution: Math.abs(riskScore - 0.5) * 2 * weights.risk },
+      { name: 'commodity_flow', value: commodityFlowScore, direction: commodityDirection, weight: weights.commodity, contribution: commodityFlowScore * weights.commodity },
+      { name: 'cross_currency', value: crossCurrencyScore, direction: crossDirection, weight: weights.cross, contribution: crossCurrencyScore * weights.cross },
     ];
 
     const calcParams = {
