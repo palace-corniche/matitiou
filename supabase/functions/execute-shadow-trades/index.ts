@@ -1076,39 +1076,84 @@ serve(async (req) => {
           if (targetsResponse.ok) {
             intelligentTargets = await targetsResponse.json();
             
-            // **PHASE 1 FIX 7: Tighter 15 pip SL (was 20). EUR/USD 15m ATR is 8-12 pips,
-            // so 15 pips at structure beats arbitrary 20 pip noise stops.**
+            // **PHASE 1 FIX 7: Tighter 15 pip SL floor (was 20).**
             const MIN_SL_DISTANCE_PIPS = 15;
             const MIN_SL_DISTANCE = MIN_SL_DISTANCE_PIPS * 0.0001;
 
-            const recommendedSlDistance = Math.abs(signal.entry_price - intelligentTargets.stop_loss);
-            const enforcedSlDistance = Math.max(recommendedSlDistance, MIN_SL_DISTANCE);
-            
-            
-            // Apply minimum SL distance
-            dynamicStopLoss = signal.signal_type === 'buy'
-              ? signal.entry_price - enforcedSlDistance
-              : signal.entry_price + enforcedSlDistance;
-            
-            // Ensure TP is at least 2x the SL distance (1:2 risk:reward minimum)
-            const minTpDistance = enforcedSlDistance * 2;
-            const recommendedTpDistance = Math.abs(signal.entry_price - intelligentTargets.take_profit_1);
-            const enforcedTpDistance = Math.max(recommendedTpDistance, minTpDistance);
-            
-            dynamicTakeProfit = signal.signal_type === 'buy'
-              ? signal.entry_price + enforcedTpDistance
-              : signal.entry_price - enforcedTpDistance;
-            
-            const actualSlPips = enforcedSlDistance / 0.0001;
-            const actualTpPips = enforcedTpDistance / 0.0001;
-            
-            if (recommendedSlDistance < MIN_SL_DISTANCE) {
-              console.log(`⚠️ WIDENED SL: ${Math.round(recommendedSlDistance / 0.0001)} → ${Math.round(actualSlPips)} pips (min ${MIN_SL_DISTANCE_PIPS})`);
+            // ===== ADAPTIVE SL (behind trading_config.adaptive_sl flag) =====
+            // Predicts next-hour pip range from the last 25 15m candles and sizes
+            // SL = predicted * multiplier (clamped 8..60 pips), TP = SL * 2.
+            // Falls back to the recommendation-based logic below if disabled,
+            // data is insufficient, or the model returns an out-of-bounds value.
+            let adaptiveApplied = false;
+            try {
+              const { data: cfgRows } = await supabase
+                .from('trading_config')
+                .select('key,value')
+                .in('key', ['adaptive_sl', 'adaptive_sl_multiplier']);
+              const cfg: Record<string, string> = {};
+              for (const r of cfgRows ?? []) cfg[(r as any).key] = String((r as any).value);
+
+              if (cfg.adaptive_sl === 'true') {
+                const multiplier = Number(cfg.adaptive_sl_multiplier ?? '1.3') || 1.3;
+                const { data: candles } = await supabase
+                  .from('aggregated_candles')
+                  .select('timestamp, open_price, high_price, low_price, close_price')
+                  .eq('symbol', 'EUR/USD')
+                  .eq('timeframe', '15m')
+                  .order('timestamp', { ascending: false })
+                  .limit(25);
+                const ordered = (candles ?? []).slice().reverse();
+                const adaptive = computeAdaptiveSL(ordered as any, { multiplier });
+
+                if (adaptive.ok && adaptive.suggested_sl_pips && adaptive.suggested_tp_pips) {
+                  const slDist = adaptive.suggested_sl_pips * 0.0001;
+                  const tpDist = adaptive.suggested_tp_pips * 0.0001;
+                  dynamicStopLoss = signal.signal_type === 'buy'
+                    ? signal.entry_price - slDist
+                    : signal.entry_price + slDist;
+                  dynamicTakeProfit = signal.signal_type === 'buy'
+                    ? signal.entry_price + tpDist
+                    : signal.entry_price - tpDist;
+                  targetsReasoning = `ADAPTIVE_SL regime=${adaptive.regime} pred=${adaptive.predicted_1hr_range_pips}p mult=${multiplier} → SL=${adaptive.suggested_sl_pips}p TP=${adaptive.suggested_tp_pips}p`;
+                  adaptiveApplied = true;
+                  console.log(`🧠 ADAPTIVE SL: ${targetsReasoning}`);
+                  console.log(`   features=${JSON.stringify(adaptive.features)}`);
+                } else {
+                  console.log(`⚠️ ADAPTIVE SL skipped (${adaptive.reason}) → falling back to intelligent targets`);
+                }
+              }
+            } catch (e) {
+              console.warn(`⚠️ ADAPTIVE SL error, falling back: ${(e as Error).message}`);
             }
-            if (recommendedTpDistance < minTpDistance) {
-              console.log(`⚠️ WIDENED TP: ${Math.round(recommendedTpDistance / 0.0001)} → ${Math.round(actualTpPips)} pips (min 2:1 R:R)`);
+
+            // ===== Fallback path: intelligent-targets + min-distance floor =====
+            if (!adaptiveApplied) {
+              const recommendedSlDistance = Math.abs(signal.entry_price - intelligentTargets.stop_loss);
+              const enforcedSlDistance = Math.max(recommendedSlDistance, MIN_SL_DISTANCE);
+
+              dynamicStopLoss = signal.signal_type === 'buy'
+                ? signal.entry_price - enforcedSlDistance
+                : signal.entry_price + enforcedSlDistance;
+
+              const minTpDistance = enforcedSlDistance * 2;
+              const recommendedTpDistance = Math.abs(signal.entry_price - intelligentTargets.take_profit_1);
+              const enforcedTpDistance = Math.max(recommendedTpDistance, minTpDistance);
+
+              dynamicTakeProfit = signal.signal_type === 'buy'
+                ? signal.entry_price + enforcedTpDistance
+                : signal.entry_price - enforcedTpDistance;
+
+              const actualSlPips = enforcedSlDistance / 0.0001;
+              const actualTpPips = enforcedTpDistance / 0.0001;
+              if (recommendedSlDistance < MIN_SL_DISTANCE) {
+                console.log(`⚠️ WIDENED SL: ${Math.round(recommendedSlDistance / 0.0001)} → ${Math.round(actualSlPips)} pips (min ${MIN_SL_DISTANCE_PIPS})`);
+              }
+              if (recommendedTpDistance < minTpDistance) {
+                console.log(`⚠️ WIDENED TP: ${Math.round(recommendedTpDistance / 0.0001)} → ${Math.round(actualTpPips)} pips (min 2:1 R:R)`);
+              }
+              targetsReasoning = intelligentTargets.reasoning;
             }
-            targetsReasoning = intelligentTargets.reasoning;
             targetsConfidence = intelligentTargets.confidence;
             
             const stopPips = Math.round(Math.abs(signal.entry_price - dynamicStopLoss) / 0.0001);
