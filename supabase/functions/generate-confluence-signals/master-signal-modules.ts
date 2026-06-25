@@ -1997,7 +1997,7 @@ export async function generateQuantitativeSignals(
         { name: 'shannon_entropy', value: shannonEntropy, weight: weights.entropy, contribution: entropyScore * weights.entropy },
         { name: 'bayesian_p_profit', value: bayesianPProfit, weight: weights.bayesian, contribution: bayesianScore * weights.bayesian },
         { name: 'monte_carlo_p_tp', value: monteCarloPTP, weight: weights.monteCarlo, contribution: monteCarloScore * weights.monteCarlo },
-        { name: 'kelly_fraction', value: kellyFraction, weight: 0, contribution: 0 },
+        { name: 'kelly_fraction', value: kellyFraction ?? 0, weight: 0, contribution: 0 },
         { name: 'regime', value: regime === 'trending' ? 1 : regime === 'mean_reverting' ? -1 : 0, weight: 0, contribution: 0 },
         { name: 'composite_score', value: compositeScore, weight: 1, contribution: compositeScore },
         { name: 'z_score', value: zScore, weight: 0, contribution: 0 },
@@ -2008,7 +2008,8 @@ export async function generateQuantitativeSignals(
       ]
     });
 
-    console.log(`📐 Quant GODMODE: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} H=${hurstExponent.toFixed(2)} OU=${ouDeviation.toFixed(2)} Kalman=${kalmanDeviation.toFixed(5)} Entropy=${shannonEntropy.toFixed(2)} Bayes=${bayesianPProfit.toFixed(2)} MC=${monteCarloPTP.toFixed(2)} Kelly=${kellyFraction.toFixed(3)}`);
+    const kellyStr = kellyFraction === null ? 'skip(<20 trades)' : kellyFraction.toFixed(3);
+    console.log(`📐 Quant GODMODE: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} H=${hurstExponent.toFixed(2)} OU=${ouDeviation.toFixed(2)} Kalman=${kalmanDeviation.toFixed(5)} Entropy=${shannonEntropy.toFixed(2)} Bayes=${bayesianPProfit.toFixed(2)} MC=${monteCarloPTP.toFixed(2)} Kelly=${kellyStr}`);
   } else {
     console.log(`📐 Quant Godmode: NO SIGNAL (composite=${compositeScore.toFixed(3)} < 0.55 OR MC=${monteCarloPTP.toFixed(2)} < 0.50) | H=${hurstExponent.toFixed(2)} Z=${zScore.toFixed(2)} regime=${regime}`);
   }
