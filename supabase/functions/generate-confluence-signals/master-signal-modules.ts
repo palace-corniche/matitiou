@@ -1757,7 +1757,13 @@ export async function generateQuantitativeSignals(
   supabase?: any
 ): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
-  if (!candles || candles.length < 20) return signals;
+  // PHASE 3 FIX 1: enforce 50-candle minimum so Hurst / OU / Entropy / Kalman
+  // don't silently emit 0 values (which used to pollute Bayesian fusion).
+  const MIN_CANDLES_QUANT = 50;
+  if (!candles || candles.length < MIN_CANDLES_QUANT) {
+    console.warn(`[Quantitative] Insufficient candles: ${candles?.length ?? 0} < ${MIN_CANDLES_QUANT}, skipping module (weight=0 in fusion)`);
+    return signals;
+  }
 
   const closes = candles.map(c => c.close);
   const highs = candles.map(c => c.high);
