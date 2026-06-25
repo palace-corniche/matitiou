@@ -1958,6 +1958,7 @@ export type Database = {
         }
         Returns: number
       }
+      clean_unrealistic_trades: { Args: never; Returns: Json }
       close_shadow_trade: {
         Args: {
           p_close_lot_size?: number
@@ -2025,6 +2026,10 @@ export type Database = {
         }
       }
       get_ml_performance_analytics: { Args: never; Returns: Json }
+      rebuild_global_account_stats: {
+        Args: { p_starting_balance?: number }
+        Returns: Json
+      }
       run_trading_diagnostics: { Args: never; Returns: Json }
       update_module_performance_from_trade: {
         Args: {
