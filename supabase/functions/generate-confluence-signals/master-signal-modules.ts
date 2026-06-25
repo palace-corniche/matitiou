@@ -1908,10 +1908,29 @@ export async function generateQuantitativeSignals(
     bayesianPProfit = 0.45 + directionScore * 0.2;
   }
 
-  // Model 6: Kelly Criterion (using estimated win/loss amounts)
+  // PHASE 3 FIX 1: Kelly requires ≥20 closed trades of real win/loss history.
+  // If history is too thin we report null (skipped) instead of a fake 0% that
+  // currently poisons the composite/log narrative.
   const estAvgWin = Math.abs(takeProfit - currentPrice) * 10000; // pips
   const estAvgLoss = Math.abs(currentPrice - stopLoss) * 10000;
-  const kellyFraction = calculateKellyFraction(bayesianPProfit, estAvgWin, estAvgLoss);
+  let kellyFraction: number | null = null;
+  if (supabase) {
+    try {
+      const { data: histTrades } = await supabase
+        .from('shadow_trades')
+        .select('pnl')
+        .eq('status', 'closed')
+        .order('exit_time', { ascending: false })
+        .limit(50);
+      if (histTrades && histTrades.length >= 20) {
+        kellyFraction = calculateKellyFraction(bayesianPProfit, estAvgWin, estAvgLoss);
+      } else {
+        console.log(`[Quantitative] Kelly skipped: only ${histTrades?.length ?? 0} closed trades (<20)`);
+      }
+    } catch (e) {
+      console.warn('[Quantitative] Kelly history lookup failed:', (e as Error).message);
+    }
+  }
 
   // Model 7: Monte Carlo Simulation
   const monteCarloPTP = runMonteCarloSimulation(closes, currentPrice, stopLoss, takeProfit, isBuy, 500);
