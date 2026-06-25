@@ -595,16 +595,16 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
     });
   }
   
-  // Multi-dimensional Fear & Greed Analysis
-  const fearGreedIndex = Math.random() * 100; // 0-100
+  // PHASE 3 FIX 2: Fear & Greed now derived from REAL candle-based proxies only.
+  // (Removed Math.random() fear/greed index — was injecting noise into fusion.)
   const volatilityFear = calculateVolatilityFear(candles);
   const momentumGreed = calculateMomentumGreed(candles);
   const volumeFear = calculateVolumeFear(recentCandles);
-  
-  const compositeFearGreed = (fearGreedIndex + volatilityFear * 100 + momentumGreed * 100 + volumeFear * 100) / 4;
+  // Composite on 0-100 scale: lower = fear, higher = greed
+  const compositeFearGreed = ((1 - volatilityFear) * 50 + momentumGreed * 100 + (1 - volumeFear) * 50) / 2;
   const fearGreedStrength = Math.abs(50 - compositeFearGreed) / 50;
-  
-  if (fearGreedStrength > 0.4) {
+
+  if (fearGreedStrength > 0.4 && candles.length >= 30) {
     signals.push({
       source: 'sentiment_fear_greed',
       timestamp: new Date(),
@@ -617,33 +617,54 @@ export async function generateSentimentSignals(candles: any[], pair: string, tim
       stopLoss: currentPrice * (compositeFearGreed < 30 ? 0.995 : 1.005),
       takeProfit: currentPrice * (compositeFearGreed < 30 ? 1.02 : 0.98),
       factors: [
-        { name: 'fear_greed_index', value: fearGreedIndex / 100, weight: 0.4, contribution: (fearGreedIndex / 100) * 0.4 },
-        { name: 'volatility_fear', value: volatilityFear, weight: 0.25, contribution: volatilityFear * 0.25 },
-        { name: 'momentum_greed', value: momentumGreed, weight: 0.25, contribution: momentumGreed * 0.25 },
-        { name: 'volume_fear', value: volumeFear, weight: 0.1, contribution: volumeFear * 0.1 }
+        { name: 'volatility_fear', value: volatilityFear, weight: 0.4, contribution: volatilityFear * 0.4 },
+        { name: 'momentum_greed', value: momentumGreed, weight: 0.4, contribution: momentumGreed * 0.4 },
+        { name: 'volume_fear', value: volumeFear, weight: 0.2, contribution: volumeFear * 0.2 }
       ]
     });
   }
-  
-  // News sentiment simulation (would integrate with real news API)
-  const newsSentiment = generateNewsSentiment(pair);
-  if (newsSentiment.strength > 0.3) {
-    signals.push({
-      source: 'sentiment_news',
-      timestamp: new Date(),
-      pair,
-      timeframe,
-      signal: newsSentiment.sentiment > 0.6 ? 'buy' : newsSentiment.sentiment < 0.4 ? 'sell' : 'hold',
-      confidence: newsSentiment.strength,
-      strength: newsSentiment.strength,
-      entryPrice: currentPrice,
-      stopLoss: currentPrice * (newsSentiment.sentiment > 0.6 ? 0.997 : 1.003),
-      takeProfit: currentPrice * (newsSentiment.sentiment > 0.6 ? 1.015 : 0.985),
-      factors: [
-        { name: 'news_sentiment_score', value: newsSentiment.sentiment, weight: 0.7, contribution: newsSentiment.sentiment * 0.7 },
-        { name: 'news_volume', value: newsSentiment.volume, weight: 0.3, contribution: newsSentiment.volume * 0.3 }
-      ]
-    });
+
+  // PHASE 3 FIX 2: News sentiment from REAL news_events rows (last 6h).
+  // Skip emission if no fresh news — no more Math.random() pollution.
+  try {
+    const { data: recentNews } = await supabase
+      .from('news_events')
+      .select('sentiment_score, impact')
+      .gte('published_at', new Date(Date.now() - 6 * 60 * 60 * 1000).toISOString())
+      .order('published_at', { ascending: false })
+      .limit(20);
+
+    if (recentNews && recentNews.length >= 3) {
+      const scored = recentNews.filter((n: any) => typeof n.sentiment_score === 'number');
+      if (scored.length >= 3) {
+        const avg = scored.reduce((s: number, n: any) => s + n.sentiment_score, 0) / scored.length;
+        // sentiment_score in DB is typically -1..1; normalise to 0..1
+        const normalised = (avg + 1) / 2;
+        const strength = Math.min(1, Math.abs(avg));
+        if (strength > 0.3) {
+          signals.push({
+            source: 'sentiment_news',
+            timestamp: new Date(),
+            pair,
+            timeframe,
+            signal: normalised > 0.6 ? 'buy' : normalised < 0.4 ? 'sell' : 'hold',
+            confidence: strength,
+            strength,
+            entryPrice: currentPrice,
+            stopLoss: currentPrice * (normalised > 0.5 ? 0.997 : 1.003),
+            takeProfit: currentPrice * (normalised > 0.5 ? 1.015 : 0.985),
+            factors: [
+              { name: 'avg_news_sentiment', value: normalised, weight: 0.7, contribution: normalised * 0.7 },
+              { name: 'news_sample_size', value: Math.min(1, scored.length / 10), weight: 0.3, contribution: 0.3 }
+            ]
+          });
+        }
+      }
+    } else {
+      console.log('[Sentiment] No fresh news in last 6h — skipping news sentiment signal (FIX 2).');
+    }
+  } catch (e) {
+    console.warn('[Sentiment] news_events read failed, skipping news signal:', (e as Error).message);
   }
 
   return signals;
