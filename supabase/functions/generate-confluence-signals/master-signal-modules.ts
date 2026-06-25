@@ -1757,7 +1757,13 @@ export async function generateQuantitativeSignals(
   supabase?: any
 ): Promise<StandardSignal[]> {
   const signals: StandardSignal[] = [];
-  if (!candles || candles.length < 20) return signals;
+  // PHASE 3 FIX 1: enforce 50-candle minimum so Hurst / OU / Entropy / Kalman
+  // don't silently emit 0 values (which used to pollute Bayesian fusion).
+  const MIN_CANDLES_QUANT = 50;
+  if (!candles || candles.length < MIN_CANDLES_QUANT) {
+    console.warn(`[Quantitative] Insufficient candles: ${candles?.length ?? 0} < ${MIN_CANDLES_QUANT}, skipping module (weight=0 in fusion)`);
+    return signals;
+  }
 
   const closes = candles.map(c => c.close);
   const highs = candles.map(c => c.high);
@@ -1902,10 +1908,29 @@ export async function generateQuantitativeSignals(
     bayesianPProfit = 0.45 + directionScore * 0.2;
   }
 
-  // Model 6: Kelly Criterion (using estimated win/loss amounts)
+  // PHASE 3 FIX 1: Kelly requires ≥20 closed trades of real win/loss history.
+  // If history is too thin we report null (skipped) instead of a fake 0% that
+  // currently poisons the composite/log narrative.
   const estAvgWin = Math.abs(takeProfit - currentPrice) * 10000; // pips
   const estAvgLoss = Math.abs(currentPrice - stopLoss) * 10000;
-  const kellyFraction = calculateKellyFraction(bayesianPProfit, estAvgWin, estAvgLoss);
+  let kellyFraction: number | null = null;
+  if (supabase) {
+    try {
+      const { data: histTrades } = await supabase
+        .from('shadow_trades')
+        .select('pnl')
+        .eq('status', 'closed')
+        .order('exit_time', { ascending: false })
+        .limit(50);
+      if (histTrades && histTrades.length >= 20) {
+        kellyFraction = calculateKellyFraction(bayesianPProfit, estAvgWin, estAvgLoss);
+      } else {
+        console.log(`[Quantitative] Kelly skipped: only ${histTrades?.length ?? 0} closed trades (<20)`);
+      }
+    } catch (e) {
+      console.warn('[Quantitative] Kelly history lookup failed:', (e as Error).message);
+    }
+  }
 
   // Model 7: Monte Carlo Simulation
   const monteCarloPTP = runMonteCarloSimulation(closes, currentPrice, stopLoss, takeProfit, isBuy, 500);
@@ -1972,7 +1997,7 @@ export async function generateQuantitativeSignals(
         { name: 'shannon_entropy', value: shannonEntropy, weight: weights.entropy, contribution: entropyScore * weights.entropy },
         { name: 'bayesian_p_profit', value: bayesianPProfit, weight: weights.bayesian, contribution: bayesianScore * weights.bayesian },
         { name: 'monte_carlo_p_tp', value: monteCarloPTP, weight: weights.monteCarlo, contribution: monteCarloScore * weights.monteCarlo },
-        { name: 'kelly_fraction', value: kellyFraction, weight: 0, contribution: 0 },
+        { name: 'kelly_fraction', value: kellyFraction ?? 0, weight: 0, contribution: 0 },
         { name: 'regime', value: regime === 'trending' ? 1 : regime === 'mean_reverting' ? -1 : 0, weight: 0, contribution: 0 },
         { name: 'composite_score', value: compositeScore, weight: 1, contribution: compositeScore },
         { name: 'z_score', value: zScore, weight: 0, contribution: 0 },
@@ -1983,7 +2008,8 @@ export async function generateQuantitativeSignals(
       ]
     });
 
-    console.log(`📐 Quant GODMODE: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} H=${hurstExponent.toFixed(2)} OU=${ouDeviation.toFixed(2)} Kalman=${kalmanDeviation.toFixed(5)} Entropy=${shannonEntropy.toFixed(2)} Bayes=${bayesianPProfit.toFixed(2)} MC=${monteCarloPTP.toFixed(2)} Kelly=${kellyFraction.toFixed(3)}`);
+    const kellyStr = kellyFraction === null ? 'skip(<20 trades)' : kellyFraction.toFixed(3);
+    console.log(`📐 Quant GODMODE: ${signalType.toUpperCase()} | Composite=${compositeScore.toFixed(3)} H=${hurstExponent.toFixed(2)} OU=${ouDeviation.toFixed(2)} Kalman=${kalmanDeviation.toFixed(5)} Entropy=${shannonEntropy.toFixed(2)} Bayes=${bayesianPProfit.toFixed(2)} MC=${monteCarloPTP.toFixed(2)} Kelly=${kellyStr}`);
   } else {
     console.log(`📐 Quant Godmode: NO SIGNAL (composite=${compositeScore.toFixed(3)} < 0.55 OR MC=${monteCarloPTP.toFixed(2)} < 0.50) | H=${hurstExponent.toFixed(2)} Z=${zScore.toFixed(2)} regime=${regime}`);
   }
