@@ -25,30 +25,29 @@ export interface UseGlobalShadowTrading {
   isRefreshing: boolean;
   isResetting: boolean;
   error: string | null;
-  
+
+  // Last reset report (for inline panel)
+  lastResetReport: any | null;
+
   // Actions
   executeTrade: (request: TradeExecutionRequest) => Promise<GlobalShadowTrade | null>;
   closeTrade: (tradeId: string, lotSize?: number, reason?: string) => Promise<boolean>;
-  resetAccount: () => Promise<void>;
+  resetAccount: () => Promise<any>;
   refreshData: () => Promise<void>;
-  
+
   // Settings
   toggleAutoTrading: () => Promise<void>;
   updateMaxOpenTrades: (maxTrades: number) => Promise<void>;
 
   // Analytics Helpers
   calculateOptimalLotSize: (symbol: string, riskPercent: number, entryPrice: number, stopLoss: number) => Promise<number>;
-  
+
   // Phase 4: Validation helpers
   validateResetCompletion: () => Promise<{
     success: boolean;
     message: string;
     errors: string[];
-    stats: {
-      tradesCount: number;
-      historyCount: number;
-      accountBalance: number;
-    };
+    stats: { tradesCount: number; historyCount: number; accountBalance: number; };
   }>;
 }
 
@@ -67,6 +66,7 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastResetReport, setLastResetReport] = useState<any | null>(null);
 
   // Utility function for timeout handling
   const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
@@ -131,45 +131,33 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
     }
   }, [isClosingTrade]);
 
-  // Phase 3: Enhanced reset with explicit state clearing and validation
-  const resetAccount = useCallback(async (): Promise<void> => {
-    if (isResetting) return;
-    
+  // Comprehensive reset: deletes trade + learning tables via edge function and surfaces row counts
+  const resetAccount = useCallback(async (): Promise<any> => {
+    if (isResetting) return null;
     setIsResetting(true);
     setError(null);
-    
     try {
-      // Step 1: Call the enhanced reset function
-      const result = await withTimeout(
-        globalShadowTradingEngine.resetAccount(),
-        15000
-      );
-      
-      // Step 2: Phase 4 - Validate reset was successful
-      const validation = await validateResetCompletion();
-      
-      if (!validation.success) {
-        throw new Error(`Reset validation failed: ${validation.errors.join(', ')}`);
-      }
-      
-      // Step 3: Force complete state clearing
+      const report = await withTimeout(globalShadowTradingEngine.resetAccount(), 30000);
+      setLastResetReport(report);
+
+      // Force complete state clearing
       setAccount(null);
       setOpenTrades([]);
       setTradeHistory([]);
       setPerformanceMetrics(null);
-      setMarketData(null);
-      
-      // Step 4: Refresh data to get clean initial state
+
       await refreshData();
-      
-      // Step 5: Comprehensive success feedback
-      toast.success(`Account reset completed successfully! ${validation.message}`);
-      
+
+      const totalDeleted = (report?.tables || []).reduce((s: number, t: any) => s + (t.deleted || 0), 0);
+      const newBal = report?.account_after?.balance ?? '?';
+      toast.success(`Reset complete — deleted ${totalDeleted} rows · new balance $${newBal}`);
+      return report;
     } catch (error) {
       console.error('Account reset failed:', error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       setError(`Reset failed: ${errorMessage}`);
       toast.error(`Reset failed: ${errorMessage}`);
+      return null;
     } finally {
       setIsResetting(false);
     }
@@ -379,6 +367,8 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
     isRefreshing,
     isResetting,
     error,
+    lastResetReport,
+
     
     // Actions
     executeTrade,

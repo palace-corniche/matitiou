@@ -17,6 +17,7 @@ import { PositionsTable } from '@/components/enhanced/PositionsTable';
 import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
 import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
 import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
+import { ResetReportPanel } from '@/components/enhanced/ResetReportPanel';
 import { ExitIntelligenceStatus } from '@/components/enhanced/ExitIntelligenceStatus';
 import { SignalControlsPanel } from '@/components/enhanced/SignalControlsPanel';
 
@@ -30,12 +31,14 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     account, openTrades, tradeHistory, performanceMetrics, marketData,
     isLoading, isExecutingTrade, isClosingTrade, isRefreshing, isResetting, error,
     executeTrade, closeTrade, resetAccount, refreshData,
-    toggleAutoTrading, updateMaxOpenTrades, calculateOptimalLotSize, validateResetCompletion
+    toggleAutoTrading, updateMaxOpenTrades, calculateOptimalLotSize, validateResetCompletion,
+    lastResetReport,
   } = useGlobalShadowTrading();
 
   const { toast } = useToast();
   const { mlModelStatus, mlPerformance, mlAnalytics, isTrainingML, triggerMLTraining } = useMLModel();
   const [maxTradesInput, setMaxTradesInput] = useState(account?.max_open_positions || 50);
+  const [resetReportOpen, setResetReportOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -68,19 +71,12 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
   const handleReset = async () => {
     const confirmed = window.confirm(
-      `⚠️ RESET ACCOUNT?\n\nBalance: $${(account?.balance || 0).toFixed(2)}\nOpen: ${openTrades.length} trades\n\nThis deletes everything and resets to $100,000.`
+      `⚠️ RESET ACCOUNT?\n\nBalance: $${(account?.balance || 0).toFixed(2)}\nOpen: ${openTrades.length} trades\n\nThis deletes ALL trades, exec logs, exit intelligence, intelligent targets, and learning state (module_performance, learning_outcomes, adaptive_thresholds, discovered_patterns, system_learning_stats). master_signals + rejection logs are PRESERVED as audit trail. Balance resets to $100.`
     );
     if (!confirmed) return;
     try {
-      await resetAccount();
-      setTimeout(async () => {
-        const v = await validateResetCompletion();
-        toast({
-          title: v.success ? "✅ Reset Complete" : "⚠️ Reset Incomplete",
-          description: v.message,
-          variant: v.success ? undefined : "destructive",
-        });
-      }, 2000);
+      const report = await resetAccount();
+      if (report) setResetReportOpen(true);
     } catch {
       toast({ variant: "destructive", title: "Reset Failed" });
     }
@@ -88,6 +84,8 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <ResetReportPanel report={lastResetReport} open={resetReportOpen} onOpenChange={setResetReportOpen} />
+
       {/* Account Overview - Money Theme Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-l-4 border-l-primary money-card money-glow">

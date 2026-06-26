@@ -166,24 +166,15 @@ class GlobalShadowTradingEngine {
     return this.currentAccount;
   }
 
-  async resetAccount(): Promise<void> {
-    // Reset function doesn't exist yet - update directly
+  async resetAccount(): Promise<any> {
     try {
-      await supabase
-        .from('global_trading_account')
-        .update({
-          balance: 100000,
-          equity: 100000,
-          total_trades: 0,
-          winning_trades: 0,
-          losing_trades: 0,
-          win_rate: 0,
-          total_pnl: 0
-        })
-        .eq('id', this.GLOBAL_ACCOUNT_ID);
-
-      // Refresh account after reset
+      const { data, error } = await supabase.functions.invoke('reset-account', { body: {} });
+      if (error) throw error;
+      if (data && data.success === false) {
+        throw new Error('Reset reported failures: ' + JSON.stringify(data.errors || {}));
+      }
       await this.refreshAccount();
+      return data;
     } catch (error) {
       console.error('Account reset error:', error);
       throw error;
