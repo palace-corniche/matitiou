@@ -367,6 +367,8 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
     isRefreshing,
     isResetting,
     error,
+    lastResetReport,
+
     
     // Actions
     executeTrade,
