@@ -70,19 +70,12 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
   const handleReset = async () => {
     const confirmed = window.confirm(
-      `⚠️ RESET ACCOUNT?\n\nBalance: $${(account?.balance || 0).toFixed(2)}\nOpen: ${openTrades.length} trades\n\nThis deletes everything and resets to $100,000.`
+      `⚠️ RESET ACCOUNT?\n\nBalance: $${(account?.balance || 0).toFixed(2)}\nOpen: ${openTrades.length} trades\n\nThis deletes ALL trades, exec logs, exit intelligence, intelligent targets, and learning state (module_performance, learning_outcomes, adaptive_thresholds, discovered_patterns, system_learning_stats). master_signals + rejection logs are PRESERVED as audit trail. Balance resets to $100.`
     );
     if (!confirmed) return;
     try {
-      await resetAccount();
-      setTimeout(async () => {
-        const v = await validateResetCompletion();
-        toast({
-          title: v.success ? "✅ Reset Complete" : "⚠️ Reset Incomplete",
-          description: v.message,
-          variant: v.success ? undefined : "destructive",
-        });
-      }, 2000);
+      const report = await resetAccount();
+      if (report) setResetReportOpen(true);
     } catch {
       toast({ variant: "destructive", title: "Reset Failed" });
     }
