@@ -30,12 +30,14 @@ const ShadowTradingDashboardUnified: React.FC = () => {
     account, openTrades, tradeHistory, performanceMetrics, marketData,
     isLoading, isExecutingTrade, isClosingTrade, isRefreshing, isResetting, error,
     executeTrade, closeTrade, resetAccount, refreshData,
-    toggleAutoTrading, updateMaxOpenTrades, calculateOptimalLotSize, validateResetCompletion
+    toggleAutoTrading, updateMaxOpenTrades, calculateOptimalLotSize, validateResetCompletion,
+    lastResetReport,
   } = useGlobalShadowTrading();
 
   const { toast } = useToast();
   const { mlModelStatus, mlPerformance, mlAnalytics, isTrainingML, triggerMLTraining } = useMLModel();
   const [maxTradesInput, setMaxTradesInput] = useState(account?.max_open_positions || 50);
+  const [resetReportOpen, setResetReportOpen] = useState(false);
 
   if (isLoading) {
     return (
