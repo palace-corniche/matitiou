@@ -25,30 +25,29 @@ export interface UseGlobalShadowTrading {
   isRefreshing: boolean;
   isResetting: boolean;
   error: string | null;
-  
+
+  // Last reset report (for inline panel)
+  lastResetReport: any | null;
+
   // Actions
   executeTrade: (request: TradeExecutionRequest) => Promise<GlobalShadowTrade | null>;
   closeTrade: (tradeId: string, lotSize?: number, reason?: string) => Promise<boolean>;
-  resetAccount: () => Promise<void>;
+  resetAccount: () => Promise<any>;
   refreshData: () => Promise<void>;
-  
+
   // Settings
   toggleAutoTrading: () => Promise<void>;
   updateMaxOpenTrades: (maxTrades: number) => Promise<void>;
 
   // Analytics Helpers
   calculateOptimalLotSize: (symbol: string, riskPercent: number, entryPrice: number, stopLoss: number) => Promise<number>;
-  
+
   // Phase 4: Validation helpers
   validateResetCompletion: () => Promise<{
     success: boolean;
     message: string;
     errors: string[];
-    stats: {
-      tradesCount: number;
-      historyCount: number;
-      accountBalance: number;
-    };
+    stats: { tradesCount: number; historyCount: number; accountBalance: number; };
   }>;
 }
 
