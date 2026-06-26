@@ -17,6 +17,7 @@ import { PositionsTable } from '@/components/enhanced/PositionsTable';
 import { TradeHistoryTable } from '@/components/enhanced/TradeHistoryTable';
 import { TradingControlPanel } from '@/components/enhanced/TradingControlPanel';
 import { ResetValidationPanel } from '@/components/enhanced/ResetValidationPanel';
+import { ResetReportPanel } from '@/components/enhanced/ResetReportPanel';
 import { ExitIntelligenceStatus } from '@/components/enhanced/ExitIntelligenceStatus';
 import { SignalControlsPanel } from '@/components/enhanced/SignalControlsPanel';
 
