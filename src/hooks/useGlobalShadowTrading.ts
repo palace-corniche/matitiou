@@ -66,6 +66,7 @@ export const useGlobalShadowTrading = (): UseGlobalShadowTrading => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isResetting, setIsResetting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastResetReport, setLastResetReport] = useState<any | null>(null);
 
   // Utility function for timeout handling
   const withTimeout = async <T>(promise: Promise<T>, timeoutMs: number): Promise<T> => {
