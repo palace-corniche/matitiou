@@ -84,6 +84,8 @@ const ShadowTradingDashboardUnified: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <ResetReportPanel report={lastResetReport} open={resetReportOpen} onOpenChange={setResetReportOpen} />
+
       {/* Account Overview - Money Theme Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Card className="border-l-4 border-l-primary money-card money-glow">
