@@ -205,8 +205,14 @@ const MasterSignalDashboard: React.FC = () => {
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Total Signals</p>
-                <p className="text-2xl font-bold">{stats.totalSignals}</p>
+                {/* FIX (CASE 2): This counts master_signals rows including
+                    pre-reset audit-trail history. Labelled accordingly so it
+                    doesn't look like a live "1000 fresh signals" anomaly. */}
+                <p className="text-sm font-medium text-muted-foreground">Signals on Record</p>
+                <p className="text-2xl font-bold">{stats.totalSignals.toLocaleString()}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Includes pre-reset audit trail
+                </p>
               </div>
               <Target className="h-8 w-8 text-blue-500" />
             </div>

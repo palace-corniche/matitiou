@@ -951,7 +951,22 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
   
   const signals = [];
   const moduleErrors = [];
-  
+
+  // FIX (CASE 1): Track per-module run state so module_health reflects every
+  // module the pipeline actually invokes — not just the 2 that historically
+  // happened to write into it. Each entry is updated whether the module
+  // emits signals, emits zero signals, or throws.
+  const moduleRunState: Record<string, { signals: number; error?: string }> = {
+    technical_analysis: { signals: 0 },
+    fundamental_analysis: { signals: 0 },
+    sentiment_analysis: { signals: 0 },
+    multi_timeframe_analysis: { signals: 0 },
+    pattern_recognition: { signals: 0 },
+    market_structure: { signals: 0 },          // currently emitted via strategy module
+    volatility_analysis: { signals: 0 },        // currently emitted via quant module
+    correlation_analysis: { signals: 0 },       // currently emitted via intermarket module
+  };
+
   // Technical signals with enhanced error handling
   try {
     const technicalSignals = await generateTechnicalSignals(candles, pair, timeframe, supabase);
@@ -959,10 +974,11 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...technicalSignals);
       console.log(`✅ Generated ${technicalSignals.length} technical signals`);
     }
+    moduleRunState.technical_analysis.signals = technicalSignals?.length || 0;
   } catch (error) {
     console.error('Error generating technical signals:', error);
     moduleErrors.push({ module: 'technical', error: (error as Error).message });
-    // Add fallback technical signal
+    moduleRunState.technical_analysis.error = (error as Error).message;
     signals.push(generateFallbackSignal('technical_fallback', candles, pair, timeframe));
   }
 
@@ -973,10 +989,11 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...fundamentalSignals);
       console.log(`✅ Generated ${fundamentalSignals.length} fundamental signals`);
     }
+    moduleRunState.fundamental_analysis.signals = fundamentalSignals?.length || 0;
   } catch (error) {
     console.error('Error generating fundamental signals:', error);
     moduleErrors.push({ module: 'fundamental', error: (error as Error).message });
-    // Add fallback fundamental signal
+    moduleRunState.fundamental_analysis.error = (error as Error).message;
     signals.push(generateFallbackSignal('fundamental_fallback', candles, pair, timeframe));
   }
 
@@ -987,10 +1004,11 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...sentimentSignals);
       console.log(`✅ Generated ${sentimentSignals.length} sentiment signals`);
     }
+    moduleRunState.sentiment_analysis.signals = sentimentSignals?.length || 0;
   } catch (error) {
     console.error('Error generating sentiment signals:', error);
     moduleErrors.push({ module: 'sentiment', error: (error as Error).message });
-    // Add fallback sentiment signal
+    moduleRunState.sentiment_analysis.error = (error as Error).message;
     signals.push(generateFallbackSignal('sentiment_fallback', candles, pair, timeframe));
   }
 
@@ -1001,9 +1019,11 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...multiTimeframeSignals);
       console.log(`✅ Generated ${multiTimeframeSignals.length} multi-timeframe signals`);
     }
+    moduleRunState.multi_timeframe_analysis.signals = multiTimeframeSignals?.length || 0;
   } catch (error) {
     console.error('Error generating multi-timeframe signals:', error);
     moduleErrors.push({ module: 'multi_timeframe', error: (error as Error).message });
+    moduleRunState.multi_timeframe_analysis.error = (error as Error).message;
   }
 
   // Pattern signals with enhanced error handling
@@ -1013,9 +1033,11 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...patternSignals);
       console.log(`✅ Generated ${patternSignals.length} pattern signals`);
     }
+    moduleRunState.pattern_recognition.signals = patternSignals?.length || 0;
   } catch (error) {
     console.error('Error generating pattern signals:', error);
     moduleErrors.push({ module: 'pattern', error: (error as Error).message });
+    moduleRunState.pattern_recognition.error = (error as Error).message;
   }
 
   // Strategy signals with enhanced error handling
@@ -1025,9 +1047,12 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...strategySignals);
       console.log(`✅ Generated ${strategySignals.length} strategy signals`);
     }
+    // Strategy module is the closest proxy for "market_structure" output today.
+    moduleRunState.market_structure.signals = strategySignals?.length || 0;
   } catch (error) {
     console.error('Error generating strategy signals:', error);
     moduleErrors.push({ module: 'strategy', error: (error as Error).message });
+    moduleRunState.market_structure.error = (error as Error).message;
   }
 
   // Quantitative analysis signals (godmode 7-model composite engine)
@@ -1037,9 +1062,12 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...quantSignals);
       console.log(`✅ Generated ${quantSignals.length} quantitative GODMODE signals`);
     }
+    // Quant module subsumes volatility analytics in the current pipeline.
+    moduleRunState.volatility_analysis.signals = quantSignals?.length || 0;
   } catch (error) {
     console.error('Error generating quantitative signals:', error);
     moduleErrors.push({ module: 'quantitative', error: (error as Error).message });
+    moduleRunState.volatility_analysis.error = (error as Error).message;
   }
 
   // Intermarket signals with enhanced error handling
@@ -1049,9 +1077,56 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
       signals.push(...intermarketSignals);
       console.log(`✅ Generated ${intermarketSignals.length} intermarket signals`);
     }
+    // Intermarket module is the source of correlation analytics today.
+    moduleRunState.correlation_analysis.signals = intermarketSignals?.length || 0;
   } catch (error) {
     console.error('Error generating intermarket signals:', error);
     moduleErrors.push({ module: 'intermarket', error: (error as Error).message });
+    moduleRunState.correlation_analysis.error = (error as Error).message;
+  }
+
+  // FIX (CASE 1): Persist module_health for EVERY module the pipeline invoked
+  // this cycle, regardless of whether it emitted signals or threw. This was
+  // the root cause of 6/8 modules appearing "idle 40h" — the health table
+  // was only being written by an old, partial code path.
+  try {
+    const nowIso = new Date().toISOString();
+    for (const [moduleName, state] of Object.entries(moduleRunState)) {
+      const status = state.error ? 'error' : (state.signals > 0 ? 'active' : 'idle');
+      // Defensive: module_health has no unique constraint on module_name and
+      // historical data contains duplicates from a deprecated client-side
+      // writer. Pick the newest row deterministically to avoid maybeSingle()
+      // erroring on duplicates and compounding more inserts each cycle.
+      const { data: existingRows } = await supabase
+        .from('module_health')
+        .select('id, signals_generated_today, error_count, last_signal_time')
+        .eq('module_name', moduleName)
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
+
+      const payload: Record<string, any> = {
+        module_name: moduleName,
+        status,
+        last_run: nowIso,
+        signals_generated_today: (existing?.signals_generated_today || 0) + state.signals,
+        performance_score: state.error ? 0 : (state.signals > 0 ? 1 : 0),
+        health_score: state.error ? 50 : 100,
+        error_count: state.error ? (existing?.error_count || 0) + 1 : (existing?.error_count || 0),
+        last_signal_time: state.signals > 0 ? nowIso : existing?.last_signal_time ?? null,
+        metadata: state.error ? { last_error: state.error } : {},
+        updated_at: nowIso,
+      };
+
+      if (existing?.id) {
+        await supabase.from('module_health').update(payload).eq('id', existing.id);
+      } else {
+        await supabase.from('module_health').insert(payload);
+      }
+    }
+    console.log(`📊 module_health updated for ${Object.keys(moduleRunState).length} modules`);
+  } catch (e) {
+    console.warn('⚠️ Failed to update module_health:', (e as Error).message);
   }
 
   // Log module errors for monitoring

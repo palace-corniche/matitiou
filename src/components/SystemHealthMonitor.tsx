@@ -58,10 +58,20 @@ export const SystemHealthMonitor: React.FC = () => {
       const { data, error } = await supabase
         .from('module_health')
         .select('*')
-        .order('module_name');
+        .order('updated_at', { ascending: false });
 
       if (error) throw error;
-      setModuleHealth(data || []);
+      // FIX: module_health has no unique constraint on module_name and contains
+      // historical duplicates from a deprecated writer. Keep only the newest
+      // row per module so the UI shows 8 cards, not 16+.
+      const seen = new Set<string>();
+      const deduped = (data || []).filter((row: any) => {
+        if (seen.has(row.module_name)) return false;
+        seen.add(row.module_name);
+        return true;
+      });
+      deduped.sort((a: any, b: any) => a.module_name.localeCompare(b.module_name));
+      setModuleHealth(deduped);
       setLastUpdate(new Date());
     } catch (error) {
       console.error('Error fetching module health:', error);
