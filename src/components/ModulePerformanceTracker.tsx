@@ -75,7 +75,6 @@ const ModulePerformanceTracker: React.FC = () => {
 
   const fetchModuleData = async () => {
     try {
-      // Fetch module performance data
       const { data: performanceData, error: perfError } = await supabase
         .from('module_performance')
         .select('*')
@@ -83,7 +82,6 @@ const ModulePerformanceTracker: React.FC = () => {
 
       if (perfError) throw perfError;
 
-      // Fetch module health data
       const { data: healthData, error: healthError } = await supabase
         .from('module_health')
         .select('*')
@@ -91,8 +89,16 @@ const ModulePerformanceTracker: React.FC = () => {
 
       if (healthError) throw healthError;
 
+      // Dedup: module_health has historical duplicates from a deprecated writer.
+      const seenHealth = new Set<string>();
+      const dedupedHealth = (healthData || []).filter((row: any) => {
+        if (seenHealth.has(row.module_name)) return false;
+        seenHealth.add(row.module_name);
+        return true;
+      });
+
       setModulePerformance(performanceData || []);
-      setModuleHealth(healthData || []);
+      setModuleHealth(dedupedHealth);
     } catch (error) {
       console.error('Failed to fetch module data:', error);
     } finally {
