@@ -34,8 +34,14 @@ export const CandleDataStatus = () => {
 
         if (!error && data) {
           const completeCandles = data.filter(c => c.is_complete);
-          const avgTicks = data.length > 0
-            ? data.reduce((sum, c) => sum + (c.tick_count || 0), 0) / data.length
+          // FIX (CASE 2): `tick_count` was previously derived from the empty
+          // legacy `tick_data` table, producing a misleading uniform "1
+          // tick/candle". Filter out zero-tick rows before averaging so the
+          // displayed value reflects actual aggregation activity. If every
+          // row is 0, show 0 instead of a fabricated value.
+          const ticksRows = data.filter(c => (c.tick_count || 0) > 0);
+          const avgTicks = ticksRows.length > 0
+            ? ticksRows.reduce((sum, c) => sum + (c.tick_count || 0), 0) / ticksRows.length
             : 0;
 
           let coverageHours = 0;
