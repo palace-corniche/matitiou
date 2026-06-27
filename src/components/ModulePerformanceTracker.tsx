@@ -39,9 +39,12 @@ const ModulePerformanceTracker: React.FC = () => {
 
   useEffect(() => {
     fetchModuleData();
-    updateModulePerformance();
+    // FIX: Removed updateModulePerformance() — it wrote fabricated placeholder
+    // metrics (hardcoded sharpe 0.8, drawdown 0.05) into module_performance
+    // on every mount, polluting the table. Real metrics are now written
+    // exclusively by the generate-confluence-signals edge function from
+    // actual signal output.
 
-    // Set up real-time subscriptions
     const performanceChannel = supabase
       .channel('module-performance-updates')
       .on('postgres_changes', {
@@ -334,10 +337,16 @@ const ModulePerformanceTracker: React.FC = () => {
         <CardContent>
           <div className="space-y-4">
             {modulePerformance.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <Clock className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                <p>No performance data available.</p>
-                <p className="text-sm mt-2">Performance tracking will populate as modules generate signals.</p>
+              <div className="text-center py-8 border-2 border-dashed border-yellow-500/30 bg-yellow-500/5 rounded-lg">
+                <Clock className="h-12 w-12 mx-auto mb-4 text-yellow-500/70" />
+                <p className="font-medium text-yellow-600 dark:text-yellow-400">
+                  Warming up — no module performance data yet
+                </p>
+                <p className="text-sm mt-2 text-muted-foreground max-w-md mx-auto">
+                  This table was intentionally cleared on the last account reset so the
+                  system can re-learn from scratch. It will populate automatically after
+                  the next signal-generation cycle. This is expected, not an error.
+                </p>
               </div>
             ) : (
               modulePerformance.map((performance) => (
