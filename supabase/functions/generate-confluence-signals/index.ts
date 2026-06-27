@@ -1093,11 +1093,17 @@ async function generateModularSignals(supabase: any, candles: any[], pair: strin
     const nowIso = new Date().toISOString();
     for (const [moduleName, state] of Object.entries(moduleRunState)) {
       const status = state.error ? 'error' : (state.signals > 0 ? 'active' : 'idle');
-      const { data: existing } = await supabase
+      // Defensive: module_health has no unique constraint on module_name and
+      // historical data contains duplicates from a deprecated client-side
+      // writer. Pick the newest row deterministically to avoid maybeSingle()
+      // erroring on duplicates and compounding more inserts each cycle.
+      const { data: existingRows } = await supabase
         .from('module_health')
         .select('id, signals_generated_today, error_count, last_signal_time')
         .eq('module_name', moduleName)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .limit(1);
+      const existing = existingRows && existingRows.length > 0 ? existingRows[0] : null;
 
       const payload: Record<string, any> = {
         module_name: moduleName,
