@@ -450,6 +450,43 @@ serve(async (req) => {
       rejectionReason: !masterSignal?.signal ? 'No qualifying master signal generated' : undefined
     };
 
+    // PART 3 LOGGING: per-cycle log for full traceability of the next N trades.
+    // Captures module inputs, fusion weights, final decision, and live config
+    // snapshot. Best-effort — never blocks signal execution.
+    try {
+      const { data: cfgRows } = await supabase.from('trading_config').select('key, value');
+      const configSnapshot = (cfgRows || []).reduce((acc: Record<string, any>, r: any) => {
+        acc[r.key] = r.value; return acc;
+      }, {});
+      const moduleSummary = (modularSignals?.allSignals || []).reduce((acc: Record<string, any>, s: any) => {
+        const src = s.source || 'unknown';
+        if (!acc[src]) acc[src] = { count: 0, avgConfidence: 0, buy: 0, sell: 0, hold: 0 };
+        acc[src].count += 1;
+        acc[src].avgConfidence = (acc[src].avgConfidence * (acc[src].count - 1) + (s.confidence || 0)) / acc[src].count;
+        const t = (s.signal_type || s.type || 'hold').toLowerCase();
+        if (acc[src][t] !== undefined) acc[src][t] += 1;
+        return acc;
+      }, {});
+      await supabase.from('signal_cycle_logs').insert({
+        cycle_id: `${pair}-${timeframe}-${Date.now()}`,
+        symbol: pair,
+        timeframe,
+        module_signals: moduleSummary,
+        fusion_weights: masterSignal?.fusionWeights || masterSignal?.weights || {},
+        final_signal: {
+          signal: masterSignal?.signal ?? null,
+          confidence: masterSignal?.confidence ?? null,
+          strength: masterSignal?.strength ?? null,
+          regime: masterSignal?.market_regime ?? null,
+          contributing: masterSignal?.contributingSignals?.length ?? 0,
+          reasoning: masterSignal?.reasoning ?? null,
+        },
+        config_snapshot: configSnapshot,
+      });
+    } catch (logErr) {
+      console.warn('⚠️ signal_cycle_logs insert failed:', (logErr as Error).message);
+    }
+
     // Phase 1 & 2: Enhanced signal validation and error handling
     if (signalAnalysis?.success && signalAnalysis.masterSignal?.signal && signalAnalysis.masterSignal?.signal !== 'hold') {
       console.log('✅ Valid master signal found, converting to database format...');
