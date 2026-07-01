@@ -147,18 +147,24 @@ const MasterSignalDashboard: React.FC = () => {
         ? allSignals.reduce((sum, s) => sum + (s.final_confidence || 0), 0) / allSignals.length
         : 0;
 
-      // Calculate success rate (signals with positive actual outcome)
-      const successfulCount = allSignals?.filter(s => 
+      // Option A: executed-and-resolved only (win/loss with real PnL).
+      // Denominator = signals whose trade actually closed and produced an outcome.
+      const resolved = allSignals?.filter(s =>
+        s.actual_outcome === 'win' || s.actual_outcome === 'loss' ||
+        s.actual_outcome === 'success' || s.actual_outcome === 'failure'
+      ) || [];
+      const successfulCount = resolved.filter(s =>
         s.actual_outcome === 'win' || s.actual_outcome === 'success'
-      ).length || 0;
-      const totalWithOutcome = allSignals?.filter(s => s.actual_outcome !== null).length || 0;
-      const successRate = totalWithOutcome > 0 ? (successfulCount / totalWithOutcome) * 100 : 0;
+      ).length;
+      const resolvedCount = resolved.length;
+      const successRate = resolvedCount > 0 ? (successfulCount / resolvedCount) * 100 : 0;
 
       setStats({
         totalSignals: totalCount,
         activeSignals: activeCount,
         avgConfidence: avgConf,
-        successRate
+        successRate,
+        resolvedCount
       });
     } catch (error) {
       console.error('Failed to fetch stats:', error);
