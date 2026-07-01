@@ -1245,6 +1245,39 @@ serve(async (req) => {
 
           console.log(`✅ Trade created successfully: ${trade_id}`);
 
+          // PART 3 LOGGING: per-trade snapshot capturing the signal state,
+          // module contributions, and live config at execution time. Best-effort.
+          try {
+            const { data: cfgRows } = await supabase.from('trading_config').select('key, value');
+            const configSnapshot = (cfgRows || []).reduce((acc: Record<string, any>, r: any) => {
+              acc[r.key] = r.value; return acc;
+            }, {});
+            const { data: moduleHealthRows } = await supabase
+              .from('module_health')
+              .select('module_name, status, signals_generated_today, last_signal_time, health_score');
+            await supabase.from('trade_snapshots').insert({
+              trade_id,
+              signal_id: signal.signal_id,
+              entry_price: entryPrice,
+              stop_loss: dynamicStopLoss || signal.stop_loss || 0,
+              take_profit: dynamicTakeProfit || signal.take_profit || 0,
+              signal_snapshot: {
+                signal_type: signal.signal_type,
+                confluence_score: signal.confluence_score,
+                signal_quality_score: signal.signal_quality_score,
+                final_confidence: signal.final_confidence,
+                final_strength: signal.final_strength,
+                contributing_modules: signal.contributing_modules,
+                pair: signal.pair,
+                timeframe: signal.timeframe,
+              },
+              module_snapshot: { modules: moduleHealthRows || [] },
+              config_snapshot: configSnapshot,
+            });
+          } catch (snapErr) {
+            console.warn('⚠️ trade_snapshots insert failed:', (snapErr as Error).message);
+          }
+
           // Send Telegram notification (fire-and-forget)
           try {
             const slPrice = dynamicStopLoss || signal.stop_loss || 0;
