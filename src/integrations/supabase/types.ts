@@ -1393,6 +1393,42 @@ export type Database = {
           },
         ]
       }
+      signal_cycle_logs: {
+        Row: {
+          config_snapshot: Json
+          created_at: string
+          cycle_id: string | null
+          final_signal: Json
+          fusion_weights: Json
+          id: string
+          module_signals: Json
+          symbol: string | null
+          timeframe: string | null
+        }
+        Insert: {
+          config_snapshot?: Json
+          created_at?: string
+          cycle_id?: string | null
+          final_signal?: Json
+          fusion_weights?: Json
+          id?: string
+          module_signals?: Json
+          symbol?: string | null
+          timeframe?: string | null
+        }
+        Update: {
+          config_snapshot?: Json
+          created_at?: string
+          cycle_id?: string | null
+          final_signal?: Json
+          fusion_weights?: Json
+          id?: string
+          module_signals?: Json
+          symbol?: string | null
+          timeframe?: string | null
+        }
+        Relationships: []
+      }
       signal_execution_attempts: {
         Row: {
           attempt_number: number | null
@@ -1759,6 +1795,45 @@ export type Database = {
         }
         Relationships: []
       }
+      trade_snapshots: {
+        Row: {
+          config_snapshot: Json
+          created_at: string
+          entry_price: number | null
+          id: string
+          module_snapshot: Json
+          signal_id: string | null
+          signal_snapshot: Json
+          stop_loss: number | null
+          take_profit: number | null
+          trade_id: string | null
+        }
+        Insert: {
+          config_snapshot?: Json
+          created_at?: string
+          entry_price?: number | null
+          id?: string
+          module_snapshot?: Json
+          signal_id?: string | null
+          signal_snapshot?: Json
+          stop_loss?: number | null
+          take_profit?: number | null
+          trade_id?: string | null
+        }
+        Update: {
+          config_snapshot?: Json
+          created_at?: string
+          entry_price?: number | null
+          id?: string
+          module_snapshot?: Json
+          signal_id?: string | null
+          signal_snapshot?: Json
+          stop_loss?: number | null
+          take_profit?: number | null
+          trade_id?: string | null
+        }
+        Relationships: []
+      }
       trading_config: {
         Row: {
           created_at: string
@@ -1777,6 +1852,33 @@ export type Database = {
           key?: string
           updated_at?: string
           value?: string
+        }
+        Relationships: []
+      }
+      trading_config_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          config_key: string
+          id: string
+          new_value: string | null
+          old_value: string | null
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          config_key: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          config_key?: string
+          id?: string
+          new_value?: string | null
+          old_value?: string | null
         }
         Relationships: []
       }
