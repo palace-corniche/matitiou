@@ -258,7 +258,21 @@ const MasterSignalDashboard: React.FC = () => {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Success Rate</p>
-                <p className="text-2xl font-bold">{stats.successRate.toFixed(1)}%</p>
+                {stats.resolvedCount < RESOLVED_THRESHOLD ? (
+                  <>
+                    <p className="text-2xl font-bold text-muted-foreground">Warming up…</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {stats.resolvedCount}/{RESOLVED_THRESHOLD} resolved trades — need {RESOLVED_THRESHOLD - stats.resolvedCount} more for a reliable rate
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-2xl font-bold">{stats.successRate.toFixed(1)}%</p>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {stats.resolvedCount} resolved trades
+                    </p>
+                  </>
+                )}
               </div>
               <TrendingUp className="h-8 w-8 text-green-500" />
             </div>
