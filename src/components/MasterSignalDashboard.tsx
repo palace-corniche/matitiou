@@ -51,8 +51,10 @@ const MasterSignalDashboard: React.FC = () => {
     totalSignals: 0,
     activeSignals: 0,
     avgConfidence: 0,
-    successRate: 0
+    successRate: 0,
+    resolvedCount: 0
   });
+  const RESOLVED_THRESHOLD = 10;
 
   useEffect(() => {
     fetchMasterSignals();
